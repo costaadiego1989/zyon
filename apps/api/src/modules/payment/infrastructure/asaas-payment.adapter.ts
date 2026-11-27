@@ -1,5 +1,6 @@
 import { startWhatsAppPaymentRequest } from "../../../shared/whatsapp/whatsapp-automation-context.js";
 import { assertStandardCancellationInput, exactCancellationAmount, type PendingPaymentCancellationInput, type PendingPaymentCancellationResult } from "../domain/pending-payment-cancellation.js";
+import type { ReadPaymentReceiptInput, AuthoritativePaymentReceipt } from "../domain/ports/payment-provider.port.js";
 import { Injectable } from "@nestjs/common";
 import { marketplaceCaptureAccount } from "../../marketplace/infrastructure/marketplace-capture-account.js";
 import { createHash } from "node:crypto";
@@ -263,6 +264,24 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
       payment.billingType !== billingFromMethod(input.method) || !Number.isFinite(payment.value) ||
       Math.round(payment.value! * 100) !== input.amountCents || input.currency !== "BRL") throw new Error("asaas_payment_recovery_mismatch");
     return this.createdOutput(input, payment);
+  }
+
+  async readPaymentReceipt(input: ReadPaymentReceiptInput): Promise<AuthoritativePaymentReceipt> {
+    if (!input.marketplaceAccount && input.original.providerAccountFingerprint !== this.creationAccountFingerprint()) throw new Error("payment_receipt_account_mismatch");
+    const raw = await this.readPayment(input); const payment = raw as typeof raw & { pixTransaction?: string; clientPaymentDate?: string; paymentDate?: string };
+    const original = input.original;
+    if (payment.id !== input.providerPaymentId || payment.object !== "payment" || payment.externalReference !== original.intentId || payment.customer !== original.asaasCustomerId || Math.round(Number(payment.value) * 100) !== original.amountCents || original.currency !== "BRL" || !["RECEIVED", "CONFIRMED"].includes(String(payment.status)) || payment.deleted === true) throw new Error("payment_receipt_identity_mismatch");
+    const base = { provider: "asaas" as const, accountFingerprint: input.providerAccountFingerprint!, environment: this.normalizedBaseUrl.includes("sandbox") ? "test" as const : "live" as const, operationId: input.providerPaymentId, amountCents: original.amountCents, currency: "BRL", captured: true };
+    if (payment.billingType === "BOLETO" && original.method === "boleto") {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(payment.clientPaymentDate ?? "")) throw new Error("payment_receipt_boleto_paid_date_unavailable");
+      return { ...base, instrument: "boleto", paidAt: payment.clientPaymentDate!, evidenceReference: "asaas:payment:" + payment.id };
+    }
+    if (payment.billingType === "CREDIT_CARD" && original.method === "card") throw new Error("payment_receipt_card_authorization_unavailable");
+    if (payment.billingType !== "PIX" || original.method !== "pix" || !payment.pixTransaction || !/^[A-Za-z0-9_-]{1,128}$/.test(payment.pixTransaction)) throw new Error("payment_receipt_pix_transaction_unavailable");
+    const response = await this.fetchImpl(this.normalizedBaseUrl + "/v3/pix/transactions/" + encodeURIComponent(payment.pixTransaction), { method: "GET", redirect: "error", signal: AbortSignal.timeout(15000), headers: { accept: "application/json", access_token: this.apiKey } });
+    if (!response.ok) throw new Error("payment_receipt_pix_query_failed"); const pix = await response.json() as Record<string, unknown>;
+    if (pix.id !== payment.pixTransaction || pix.status !== "DONE" || pix.type !== "CREDIT" || Math.round(Number(pix.value) * 100) !== original.amountCents || typeof pix.effectiveDate !== "string" || !/^E[A-Za-z0-9]{20,40}$/.test(String(pix.endToEndIdentifier)) || !["DYNAMIC_QRCODE", "STATIC_QRCODE"].includes(String(pix.originType))) throw new Error("payment_receipt_pix_identity_or_modality_unavailable");
+    return { ...base, instrument: pix.originType === "DYNAMIC_QRCODE" ? "dynamic_pix" : "static_pix", paidAt: pix.effectiveDate, authorizationCode: String(pix.endToEndIdentifier), authorizationKind: "pix_end_to_end", evidenceReference: "asaas:pix:" + payment.pixTransaction };
   }
 
   async fetchPaymentStatus(input: FetchPaymentStatusInput): Promise<FetchPaymentStatusOutput> {

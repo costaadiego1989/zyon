@@ -1,5 +1,6 @@
+import { Activity, Brain, Sparkles, Target, UsersRound } from "lucide-react";
 import React, { useId, useState } from "react";
-import { Brain, Target, Sparkles, Activity } from "lucide-react";
+
 import type { MerchantProfile } from "../../api-client.js";
 import { PageHeader } from "../../components/PageHeader.js";
 import { Button } from "../../components/Button.js";
@@ -162,8 +163,8 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
           </p>
           <TabBar
             tabs={[
-              { key: "overview", label: "Perfis observados" },
-              { key: "signals", label: "Atividade recente" },
+              { key: "overview", label: "Perfis observados", icon: <UsersRound size={16} /> },
+              { key: "signals", label: "Atividade recente", icon: <Activity size={16} /> },
             ]}
             activeTab={tab}
             onTabChange={(value) => setTab(value as "overview" | "signals")}

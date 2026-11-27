@@ -75,6 +75,7 @@ export const BILLING_PLAN_PRESENTATION = {
       "R$ 1,99 por compra confirmada",
       "Até 3 cupons ativos e 2 pessoas na equipe",
       "Domínio próprio e pós-venda",
+      "Suporte por abertura de chamados",
       "Sem recursos avançados de IA",
     ],
   },
@@ -94,7 +95,7 @@ export const BILLING_PLAN_PRESENTATION = {
       "Regras avançadas de produto",
       "Módulo de IA liberado",
       "Integrações com ERP e CRM",
-      "Suporte técnico por chat em tempo real",
+      "5 atendimentos em tempo real por mês e chamados ilimitados",
     ],
   },
   scale: {
@@ -111,7 +112,7 @@ export const BILLING_PLAN_PRESENTATION = {
       "Até 5 lojas independentes",
       "Recursos avançados de IA e automação",
       "Revenue Manager, testes A/B e agentes M2M",
-      "Cupons, equipe e compras sem limite; suporte prioritário em chat",
+      "Cupons, equipe e compras sem limite; chamados e atendimento em tempo real ilimitados com prioridade",
     ],
   },
 } as const;

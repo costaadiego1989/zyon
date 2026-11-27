@@ -1,4 +1,5 @@
-import { Body, Controller, Headers, HttpCode, HttpStatus, Post, UnauthorizedException } from "@nestjs/common";
+import {SUBSCRIPTION_ATTRIBUTION,type SubscriptionAttribution} from "../../domain/ports/subscription-attribution.port.js";
+import { Inject, Optional, Body, Controller, Headers, HttpCode, HttpStatus, Post, UnauthorizedException } from "@nestjs/common";
 import { HandleAsaasBillingWebhookUseCase } from "../../application/payment-platform/billing/handle-asaas-billing-webhook.use-case.js";
 
 /**
@@ -9,7 +10,7 @@ import { HandleAsaasBillingWebhookUseCase } from "../../application/payment-plat
  */
 @Controller()
 export class AsaasBillingWebhookController {
-  constructor(private readonly handleBilling: HandleAsaasBillingWebhookUseCase) {}
+  constructor(private readonly handleBilling: HandleAsaasBillingWebhookUseCase,@Optional() @Inject(SUBSCRIPTION_ATTRIBUTION) private readonly attribution?:SubscriptionAttribution) {}
 
   @Post("webhooks/asaas/billing")
   // A successful POST must acknowledge delivery with 200, not Nest's default 201.
@@ -48,7 +49,7 @@ export class AsaasBillingWebhookController {
       (typeof o.dateCreated === "string" ? o.dateCreated : undefined) ??
       new Date().toISOString();
 
-    return this.handleBilling.execute({
+    const result=await this.handleBilling.execute({
       event,
       eventId,
       subscriptionId,
@@ -57,5 +58,13 @@ export class AsaasBillingWebhookController {
       paymentDueAt,
       occurredAt,
     });
+    // The development fallback may service existing billing fixtures, but only an authenticated provider notification is attribution evidence.
+    if(expected && this.attribution && eventId && subscriptionId && paymentId && typeof payment.customer==="string" && paymentValueCents && paymentValueCents>0){
+      const state=event==="PAYMENT_CONFIRMED"||event==="PAYMENT_RECEIVED"?"paid":event==="PAYMENT_REFUNDED"?"refunded":null;
+      const date=typeof o.dateCreated==="string"?new Date(o.dateCreated):new Date(occurredAt);
+      if(state&&Number.isFinite(+date)&&await this.attribution.tracksCustomer("asaas",payment.customer))await this.attribution.observe({provider:"asaas",eventId,subscriptionId,
+        paymentRef:paymentId,state,customerId:payment.customer,amountCents:paymentValueCents,occurredAt:date});
+    }
+    return result;
   }
 }

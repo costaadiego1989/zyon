@@ -1,5 +1,5 @@
 import { Injectable, Inject, BadRequestException, ConflictException, NotFoundException, Logger, Optional } from "@nestjs/common";
-import { RETURN_REPOSITORY_PORT, ReturnRepositoryPort } from "../../domain/ports/return-repository.port.js";
+import { RETURN_REPOSITORY_PORT, type ReturnRepositoryPort } from "../../domain/ports/return-repository.port.js";
 import { ReturnEntity } from "../../domain/entities/return.entity.js";
 import { RefundPaymentService } from "../../../payment/application/services/refund-payment.service.js";
 import { MarketplaceReturnWorkflowService } from "../marketplace-return-workflow.service.js";
@@ -60,6 +60,7 @@ export class ProcessRefundUseCase {
         paymentIntentId: ret.refund.paymentIntentId,
         refundReference: `return:${returnId}`,
         amountCents: ret.refund.amountInCents,
+        returnedItems: ret.items.map(item => ({ variantId: item.variantId, quantity: item.quantity })),
       });
       if (reconciliation.providerRefundId && reconciliation.providerRefundId !== ret.refund.providerRefundId) {
         await this.returnRepo.saveRefund({ returnId, paymentIntentId: ret.refund.paymentIntentId,
@@ -163,7 +164,9 @@ export class ProcessRefundUseCase {
     const age = Date.now() - ret.refund.createdAt.getTime();
     if (!Number.isFinite(age) || age < 60000 || age >= 23 * 3600000) throw new ConflictException("refund_recovery_window_unavailable");
     const prepared = await this.refundPayment.prepareOrderRefund({ merchantId, externalOrderId: ret.orderId,
-      amountCents: ret.refund.amountInCents, reason: `return:${returnId}`, idempotencyKey: `return:${returnId}` });
+      amountCents: ret.refund.amountInCents,
+      returnedItems: ret.items.map(item => ({ variantId: item.variantId, quantity: item.quantity })),
+      reason: `return:${returnId}`, idempotencyKey: `return:${returnId}` });
     if (!prepared.providerRequest || prepared.paymentIntentId !== ret.refund.paymentIntentId || prepared.amountCents !== expectedAmountCents ||
         !await this.refundPayment.canRecoverPreparedRefund(prepared)) throw new ConflictException("refund_recovery_original_payment_unproven");
     const claimed = await this.prisma.$transaction(async tx => {

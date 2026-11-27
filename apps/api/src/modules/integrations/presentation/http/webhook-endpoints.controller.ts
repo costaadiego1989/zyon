@@ -268,9 +268,10 @@ export class WebhookEndpointsController {
   async test(
     @Req() request: unknown,
     @Param("endpointId") endpointId: string,
+    @Body() body?: { event_type?: string },
   ) {
     return toDeliveryResponse(
-      await this.testEndpoint.execute(tenantId(request), endpointId),
+      await this.testEndpoint.execute(tenantId(request), endpointId, body?.event_type),
     );
   }
 

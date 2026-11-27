@@ -1,0 +1,21 @@
+.cashback-assistant { min-width: 0; }
+.cashback-chat-tools { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--color-border); }
+.cashback-assistant .cashback-chat-tools button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; font-size: 12px; padding: 6px 10px; background: transparent; color: var(--color-text-secondary); border-color: var(--color-border); }
+.cashback-chat-tools button svg { flex-shrink: 0; }
+.cashback-assistant-manual { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.cashback-assistant-manual p { font-size: 13px; color: var(--color-error); }
+.cashback-assistant .cashback-chat-draft { padding-top: 8px; }.cashback-chat-draft p { font-size: 12px; color: var(--color-text-muted); }
+.cashback-assistant .cashback-chat-draft button, .cashback-assistant .cashback-chat-references button { font-size: 12px; padding: 8px 10px; background: transparent; color: var(--color-text); border-color: var(--color-border); }
+.cashback-chat-references { margin-top: 14px; font-size: 12px; }.cashback-chat-references summary { cursor: pointer; padding: 8px 0; }.cashback-chat-references ul { list-style: none; padding: 0; }.cashback-chat-references li + li { margin-top: 12px; }.cashback-chat-references small { display: block; margin-top: 6px; }
+.cashback-checklist { margin: 16px 0 24px; padding-bottom: 20px; border-bottom: 1px solid var(--color-border); }
+.cashback-checklist h3 { font: 600 15px/1.5 var(--font-sans); margin: 0 0 8px; }.cashback-checklist h4 { font: 600 12px/1.5 var(--font-sans); color: var(--color-text); margin: 20px 0 10px; }
+.cashback-checklist progress { width: 100%; height: 5px; accent-color: var(--color-brand); }.cashback-checklist-group dl { margin: 0; }
+.cashback-checklist-group dl > div { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--color-border); }.cashback-checklist-group dl > div:last-child { border: 0; }
+.cashback-checklist-group svg { flex-shrink: 0; margin-top: 3px; color: var(--color-text-muted); }.cashback-checklist-group [data-completed="true"] > svg { color: var(--color-brand); }
+.cashback-checklist dt { font-size: 12px; color: var(--color-text-muted); }.cashback-checklist dd { font-size: 13px; margin: 4px 0 0; color: var(--color-text); }.cashback-checklist dd summary { cursor: pointer; }
+.cashback-checklist-next { font-size: 12px; }.cashback-chat-report { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--color-border); font-size: 12px; }
+.cashback-chat-report > summary { cursor: pointer; font-weight: 600; line-height: 1.7; }.cashback-chat-report > summary svg { vertical-align: middle; margin-right: 6px; }
+.cashback-chat-report dl { margin: 12px 0 20px; }.cashback-chat-report dl > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 8px 0; }.cashback-chat-report dt { color: var(--color-text-muted); }.cashback-chat-report dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cashback-chat-report h4 { font: 600 13px/1.5 var(--font-sans); margin-top: 24px; }.cashback-chat-report section { border-top: 1px solid var(--color-border); }
+.cashback-source { margin-top: 24px; padding: 24px; }.cashback-source h2 { font: 600 20px/1.4 var(--font-sans); color: var(--color-text); margin: 0 0 12px; }.cashback-source > p { max-width: 80ch; white-space: pre-wrap; font-size: 14px; line-height: 1.7; }.cashback-source a { color: var(--color-brand); text-decoration: underline; text-underline-offset: 3px; }.cashback-source h2:focus-visible, .cashback-checklist h3:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 4px; }
+@media (max-width: 560px) { .cashback-source { padding: 20px 18px; }.cashback-chat-tools { padding-inline: 12px; }.cashback-chat-report dl > div { gap: 8px; } }

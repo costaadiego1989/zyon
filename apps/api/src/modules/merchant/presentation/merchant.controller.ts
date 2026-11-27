@@ -11,6 +11,7 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { AuthGuard } from "../../auth/presentation/auth.guard.js";
+import { RequireTenantRoles } from "../../auth/presentation/tenant-role.decorator.js";
 import { CurrentTenant } from "../../../shared/tenant/current-tenant.decorator.js";
 import { currentTenantPrincipal } from "../../../shared/auth/tenant-principal.js";
 import { Req } from "@nestjs/common";
@@ -105,6 +106,7 @@ export class MerchantController {
     description: "Not authenticated",
   })
   @Get()
+  @RequireTenantRoles("owner", "admin", "staff")
   profile(@CurrentTenant() merchantId: string, @Req() req: unknown) {
     const principal = currentTenantPrincipal(
       req as Parameters<typeof currentTenantPrincipal>[0],

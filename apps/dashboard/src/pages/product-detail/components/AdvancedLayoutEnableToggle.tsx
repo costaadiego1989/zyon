@@ -12,7 +12,7 @@ import { useAdvancedLayout } from "../hooks/useAdvancedLayout.js";
  * the toggle row stays visible.
  *
  * State lives on the shared `useAdvancedLayout` hook (per
- * merchantId+productId, persisted to localStorage) so the choice survives
+ * merchantId+productId, persisted to the server) so the choice survives
  * reloads and product switches.
  */
 export function AdvancedLayoutEnableToggle({
@@ -32,7 +32,7 @@ export function AdvancedLayoutEnableToggle({
     >
       <ToggleSwitch
         checked={layout.enabled}
-        disabled={layout.status === "saving"}
+        disabled={layout.status === "saving" || layout.loading}
         onChange={layout.setEnabled}
       />
       <div style={{ flex: 1 }}>

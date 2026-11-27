@@ -51,7 +51,7 @@ test("T70 public transport", async t => {
       for (const templateHash of [GRAPH_TEMPLATE_HASH, GRAPH_PREVIOUS_TEMPLATE_HASH]) {
         const admission = await f.send({ protocol: 1, templateHash, merchantIds: [merchantId] }, "/v1/admission");
         assert.equal(admission.status, 200);assert.equal(admission.signed, true);
-        assert.deepEqual(admission.value.operations, ["catalog", "knowledge"]);
+        assert.deepEqual(admission.value.operations, templateHash === GRAPH_TEMPLATE_HASH ? ["catalog", "knowledge", "merchant_help"] : ["catalog", "knowledge"]);
       }
       assert.notEqual(PUBLIC_BUSINESS_TEMPLATE_HASH, GRAPH_TEMPLATE_HASH);
     } finally { await f.close(); }

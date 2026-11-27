@@ -49,6 +49,8 @@ import { deliveryEndpoints } from "./endpoints/delivery.js";
 import { postSaleEndpoints } from "./endpoints/post-sale.js";
 import { knowledgeEndpoints } from "./endpoints/knowledge.js";
 import { financeEndpoints } from "./endpoints/finance.js";
+import { cashbackEndpoints } from "./endpoints/cashback.js";
+import { fiscalEndpoints } from "./fiscal.js";
 import { serviceAttendanceEndpoints } from "./endpoints/service-attendance.js";
 import { serviceAppointmentEndpoints } from "./endpoints/service-appointments.js";
 import { serviceMetricsEndpoints } from "./endpoints/service-metrics.js";
@@ -62,6 +64,7 @@ export * from "./endpoints/catalog.js";
 export * from "./endpoints/product-content.js";
 export * from "./endpoints/marketplace-v2.js";
 export * from "./endpoints/finance.js";
+export * from "./fiscal.js";
 export * from "./endpoints/service-attendance.js";
 export * from "./endpoints/service-appointments.js";
 export * from "./endpoints/service-metrics.js";
@@ -127,6 +130,8 @@ export function createDashboardApi(options: {
     ...postSaleEndpoints(base, f),
     ...knowledgeEndpoints(base, f),
     ...financeEndpoints(base, f),
+    ...cashbackEndpoints(base, f),
+    ...fiscalEndpoints(base, f),
     ...serviceAttendanceEndpoints(base, f),
     ...serviceAppointmentEndpoints(base, f),
     ...serviceMetricsEndpoints(base, f),

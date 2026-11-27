@@ -26,6 +26,19 @@ export class MetricsService {
     this.aiAutomationTasks.inc(labels);this.aiAutomationDuration.observe(labels,elapsedMs/1000);
   }
 
+  readonly marketingOperations = new Counter({
+    name: "marketing_operations_total", help: "Marketing operations by bounded operation and outcome; no contact labels",
+    labelNames: ["operation", "outcome"], registers: [this.registry],
+  });
+  readonly marketingOperationDuration = new Histogram({
+    name: "marketing_operation_duration_seconds", help: "Duration of marketing operations without customer identifiers",
+    labelNames: ["operation"], buckets: [0.01, 0.05, 0.1, 0.5, 1, 5, 15, 30], registers: [this.registry],
+  });
+  readonly marketingMessageDispatches = new Counter({
+    name: "marketing_message_dispatches_total", help: "Persisted message attempt outcomes, distinct from delivery receipts",
+    labelNames: ["outcome"], registers: [this.registry],
+  });
+
   constructor() {
     collectDefaultMetrics({ register: this.registry });
   }

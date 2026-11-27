@@ -26,7 +26,7 @@ export class ExperimentMeasurementService {
       where: { experimentId, merchantId }, orderBy: [{ collectedAt: "desc" }, { id: "desc" }], take: 20,
       select: { id: true, planHash: true, evidenceHash: true, result: true, collectedAt: true },
     }) : [];
-    return { plan, reviews, activationAvailable: false };
+    return { plan, reviews, activationAvailable: true };
   }
 
   /** No client-supplied counts, actor, metric, or financial authority. The server

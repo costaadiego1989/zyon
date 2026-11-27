@@ -22,7 +22,9 @@ function fixture(output: unknown = reply, auditFailure?: Error, emitEvidence = t
   const useCase = new (SendStoreMessageUseCase as any)({ getProfile: async () => ({ name: "Loja", storeCategory: "books" }),
     getStoreSettings: async () => ({}) }, port, prisma, new PrismaMerchantAgentRuleReader(prisma as any), undefined, undefined, audit);
   Object.assign(useCase, { logger: { debug() {}, log() {}, warn() {} } });
-  return { useCase, records, withoutAudit: () => { (useCase as any).knowledgeAudit = undefined; } };
+  return { useCase, records, withoutAudit: () => { (useCase as any).knowledgeAudit = undefined; },
+    withMarketing: (marketing: unknown) => new (SendStoreMessageUseCase as any)({ getProfile: async () => ({ name: "Loja", storeCategory: "books" }),
+      getStoreSettings: async () => ({}) }, port, prisma, new PrismaMerchantAgentRuleReader(prisma as any), undefined, undefined, marketing, audit) };
 }
 
 test("T69 storefront audits the validated application response without changing the wire schema", async t => {
@@ -48,5 +50,15 @@ test("T69 storefront audits the validated application response without changing 
     await assert.rejects(missing.useCase.execute(input), /knowledge_response_audit_unavailable/);
     const legacy = fixture(reply, undefined, false);legacy.withoutAudit();
     assert.equal((await legacy.useCase.execute(input)).message, reply.message);
+  });
+  await t.test("the live marketing port and public-answer audit coexist without changing the validated response", async () => {
+    const f = fixture(), merchants: string[] = [];
+    const useCase = f.withMarketing({ enabled: async (merchantId: string) => { merchants.push(merchantId);return false; } });
+    const result = await useCase.execute(input);
+    assert.deepEqual(merchants, [input.merchant_id]);
+    assert.equal(result.message, reply.message);
+    assert.equal(f.records.length, 1);
+    assert.equal(f.records[0].finalResponse, result.message);
+    assert.deepEqual(f.records[0].admission.evidence[0].provenance, reference);
   });
 });

@@ -1,7 +1,8 @@
+import { Activity, BookOpen, Database, FileText, Loader2, RefreshCw } from "lucide-react";
 import { PageLoader } from "../../components/PageLoader.js";
 import { PageHeader } from "../../components/PageHeader.js";
 import React from "react";
-import { BookOpen, Database, Loader2, RefreshCw } from "lucide-react";
+
 import { TabBar } from "../../components/TabBar.js";
 import { Button } from "../../components/Button.js";
 import { StatCard } from "../overview/components/StatCard.js";
@@ -9,8 +10,8 @@ import type { MerchantProfile } from "../../api-client.js";
 import { useKnowledgePage, type PolicyForm } from "./useKnowledgePage.js";
 
 const TABS = [
-  { key: "policies", label: "Políticas" },
-  { key: "status", label: "Status" },
+  { key: "policies", label: "Políticas", icon: <FileText size={16} /> },
+  { key: "status", label: "Status", icon: <Activity size={16} /> },
 ];
 
 const FIELDS: Array<{ key: keyof PolicyForm; label: string; placeholder: string; hint: string }> = [

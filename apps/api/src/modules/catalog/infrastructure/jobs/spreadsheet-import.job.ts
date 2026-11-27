@@ -125,7 +125,7 @@ export class SpreadsheetImportScheduler implements ImportQueuePort, OnModuleDest
   async enqueue(jobId: string, merchantId: string): Promise<void> {
     if (this.queue) {
       await this.queue.add(JOB_NAME, { jobId, merchantId }, {
-        jobId: `import:${jobId}`,
+        jobId: `import-${jobId}`,
         removeOnComplete: 100,
         removeOnFail: 1_000,
       });

@@ -1,5 +1,6 @@
 "use client";
 
+import { CashbackWhatsAppLink } from "../CashbackWhatsAppLink";
 import { useCallback, useMemo, useState } from "react";
 import type { BuyerProfile, BuyerAddress } from "@/lib/viewmodels/useBuyerHub";
 
@@ -7,6 +8,7 @@ export const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhos
 
 
 export interface ProfileTabProps {
+  merchantId?: string;
   profile: BuyerProfile | null;
   addresses: BuyerAddress[];
   loading: boolean;
@@ -491,6 +493,7 @@ function AddressCard(props: {
 
 
 export default function ProfileTab({
+  merchantId,
   profile,
   addresses,
   loading,
@@ -611,6 +614,7 @@ export default function ProfileTab({
   return (
     <div style={styles.section}>
       <StyleTag />
+      <CashbackWhatsAppLink merchantId={merchantId} />
 
       {/* ── Profile card ── */}
       <div data-neu="card" style={styles.card}>

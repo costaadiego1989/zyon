@@ -110,13 +110,15 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
 
   async updateStoreSettings(merchantId: string, settings: MerchantStoreSettings): Promise<MerchantStoreSettings> {
     const incoming = normalizeCompanySettingsPatch(settings);
+    const policyPatch = settings.policies && Object.fromEntries(Object.entries(settings.policies).filter(([, value]) => value !== undefined));
+    if (policyPatch) incoming.policies = policyPatch;
     await this.prisma.$transaction(async tx => {
       await tx.$queryRaw`SELECT id FROM merchants WHERE id=${merchantId} FOR UPDATE`;
       const current = await tx.merchant.findUnique({ where: { id: merchantId }, select: { storeSettings: true, businessMode: true, businessModeSelectedAt: true, businessModeNeedsReview: true } });
       if (!current) throw new NotFoundException("merchant_not_found");
       const { budget: _budget, ...storedPatch } = incoming;
       const merged = mergeCompanySettingsPatch(current.storeSettings, storedPatch);
-      const requestedSlug = typeof incoming.slug === "string" ? incoming.slug.trim().toLowerCase() : undefined;
+      const requestedSlug = typeof merged.slug === "string" ? merged.slug.trim().toLowerCase() : undefined;
       await selectInitialBusinessMode(tx, merchantId, incoming);
       const selected = await tx.merchant.findUnique({ where: { id: merchantId }, select: { businessMode: true, businessModeSelectedAt: true, businessModeNeedsReview: true } });
       if (!selected) throw new NotFoundException("merchant_not_found");
@@ -130,12 +132,13 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
         storeSettings: merged as Prisma.InputJsonObject,
         ...(requestedSlug ? { storeSlug: requestedSlug } : {}),
       } });
-      if (settings.policies) {
-        const commercial = Object.fromEntries(["returns", "shipping"].filter(field => Object.hasOwn(settings.policies!, field)).map(field => [field, (settings.policies as Record<string, string>)[field] || null]));
+      if (policyPatch) {
+        const commercial = Object.fromEntries(["returns", "shipping", "warranty", "payment", "general"].filter(field => Object.hasOwn(policyPatch, field)).map(field => [field, policyPatch[field] || null]));
         if (Object.keys(commercial).length) await tx.merchantPolicy.upsert({
           where: { merchantId }, create: { merchantId, ...commercial }, update: commercial,
         });
-        // The canonical public helper invalidates changed resolved content.
+        // Preserve live retrieval invalidation as well as canonical public work.
+        await tx.knowledgeChunk.deleteMany({ where: { merchantId, sourceType: "policy", sourceId: { in: Object.keys(policyPatch) } } });
       }
       await enqueueCompanySettingsWork(tx, merchantId, current.storeSettings, merged, current.businessMode, selected.businessMode);
       await enqueueOtherPublicSettingsSources(tx, merchantId, incoming);

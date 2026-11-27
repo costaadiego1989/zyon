@@ -17,3 +17,6 @@
 @media(max-width:700px){.ps-desk[data-selected=true] .ps-topbar h2,.ps-desk[data-selected=true] .ps-topbar .ps-availability,.ps-desk[data-selected=true] .ps-topbar .ps-actions>.ps-button{display:none}.ps-desk[data-selected=true] .ps-topbar{margin-bottom:8px}.ps-desk .ps-conversation{max-height:calc(100dvh - 320px);min-height:320px}.ps-desk .ps-history{min-height:100px;max-height:none}.ps-desk .ps-conversation-header{padding:12px 16px}.ps-desk .ps-protocol{display:block}}
 @media(max-width:700px){.ps-desk .ps-protocol{display:grid;gap:6px}.ps-protocol-field{width:100%}.ps-desk .ps-protocol-code{flex:1;padding-block:10px}.ps-desk .ps-protocol-copy{flex-basis:44px;width:44px;height:44px;min-height:44px}}
 @media(max-width:700px){.ps-desk .ps-conversation{min-height:480px}.ps-desk .ps-conversation-header,.ps-desk .ps-composer{flex-shrink:0}.ps-desk .ps-history{min-height:0}.ps-desk .ps-composer textarea{min-height:72px}.ps-desk .ps-composer-footer{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}.ps-desk .ps-composer-footer .ps-button{width:100%;white-space:nowrap}}
+
+.ps-support-options{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:12px 0}.ps-support-options p{margin:0}
+@media(max-width:700px){.ps-desk[data-selected=true] .ps-support-options{display:none}}

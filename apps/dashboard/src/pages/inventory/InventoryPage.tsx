@@ -1,9 +1,10 @@
+import { AlertCircle, AlertTriangle, ArrowLeftRight, Bell, Boxes, DollarSign, ExternalLink, LayoutDashboard, ListFilter, Package, PackageCheck, PackageMinus, PackageX, Plug, RefreshCw, Unplug } from "lucide-react";
 import { Modal } from "../../components/Modal.js";
 import { FormField } from "../../components/FormField.js";
 import { SetupGuide } from "../../components/SetupGuide.js";
 import { PageHeader } from "../../components/PageHeader.js";
 import React, { useState, useMemo } from "react";
-import { Package, AlertTriangle, DollarSign, Boxes, AlertCircle, RefreshCw, Plug, Unplug, ExternalLink } from "lucide-react";
+
 import type { MerchantProfile } from "../../api-client.js";
 import type { ErpConnectionDTO } from "../../api/endpoints/inventory.js";
 import { TabBar } from "../../components/TabBar.js";
@@ -236,10 +237,10 @@ export function InventoryPage(props: InventoryPageProps) {
       {/* Tabs */}
       <TabBar
         tabs={[
-          { key: "overview", label: "Visão geral" },
-          { key: "movements", label: "Movimentações" },
-          { key: "alerts", label: "Alertas" },
-          { key: "erp", label: "Conectores ERP" },
+          { key: "overview", label: "Visão geral", icon: <LayoutDashboard size={16} /> },
+          { key: "movements", label: "Movimentações", icon: <ArrowLeftRight size={16} /> },
+          { key: "alerts", label: "Alertas", icon: <Bell size={16} /> },
+          { key: "erp", label: "Conectores ERP", icon: <Plug size={16} /> },
         ]}
         activeTab={tab}
         onTabChange={(k) => setTab(k as InventoryTab)}
@@ -251,10 +252,10 @@ export function InventoryPage(props: InventoryPageProps) {
         <>
 <FilterToolbar
               tabs={[
-                { key: "all", label: "Todos" },
-                { key: "in_stock", label: "Em estoque" },
-                { key: "low_stock", label: "Estoque baixo" },
-                { key: "out_of_stock", label: "Sem estoque" },
+                { key: "all", label: "Todos", icon: <ListFilter size={16} /> },
+                { key: "in_stock", label: "Em estoque", icon: <PackageCheck size={16} /> },
+                { key: "low_stock", label: "Estoque baixo", icon: <PackageMinus size={16} /> },
+                { key: "out_of_stock", label: "Sem estoque", icon: <PackageX size={16} /> },
               ]}
               activeTab={statusFilter}
               onTabChange={(k) => { setStatusFilter(k as any); setItemPage(1); }}

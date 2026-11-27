@@ -4,6 +4,8 @@ import { WHATSAPP_CONFIG_REPOSITORY, type WhatsAppConfigRepository } from "../..
 import { connectedMetaCloudCredentials } from "../../domain/services/connected-meta-cloud-credentials.js";
 import { whatsappE164 } from "../../domain/services/whatsapp-phone.js";
 import { MetaCloudImageUploadAdapter } from "./meta-cloud-image-upload.adapter.js";
+import type { StrictWhatsAppBinding, StrictWhatsAppResult } from "../../domain/ports/whatsapp-sender.port.js";
+import { strictWhatsAppTransport } from "./strict-whatsapp-transport.js";
 import { currentWhatsAppSubmissionScope, startWhatsAppRequest, type WhatsAppRequestScope } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
 import { operatorCredentialDigest } from "../../domain/services/whatsapp-operator-connection.js";
 
@@ -14,6 +16,13 @@ export class MetaCloudSenderAdapter implements WhatsAppSenderPort {
 
   constructor(@Inject(WHATSAPP_CONFIG_REPOSITORY) private readonly configRepo: WhatsAppConfigRepository,
     @Optional() private readonly images?: MetaCloudImageUploadAdapter) {}
+
+  async sendTextStrict(msg: WhatsAppOutboundMessage, binding: StrictWhatsAppBinding): Promise<StrictWhatsAppResult> {
+    const config = await this.configRepo.findById(binding.configId);
+    const credentials = connectedMetaCloudCredentials(config, binding.merchantId); const recipient = whatsappE164(msg.toNumber);
+    if (!credentials || credentials.phoneNumberId !== binding.accountId || !recipient) return { status: "skipped", messageId: "" };
+    return strictWhatsAppTransport("meta", `${this.graph}/${credentials.phoneNumberId}/messages`, { headers: { Authorization: `Bearer ${credentials.accessToken}`, "Content-Type": "application/json" }, body: JSON.stringify({ messaging_product: "whatsapp", to: recipient.slice(1), type: "text", text: { body: msg.text } }) });
+  }
 
   async sendText(msg: WhatsAppOutboundMessage): Promise<WhatsAppSendResult> {
     const config = await this.findConfig(msg.deviceId);

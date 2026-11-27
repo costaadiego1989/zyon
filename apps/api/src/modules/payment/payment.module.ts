@@ -1,3 +1,5 @@
+import { platformProspectingModule } from "../platform-prospecting/platform-prospecting.module.js";
+import { TenantContextService } from "../../shared/tenant/tenant-context.service.js";
 import { ShippingQuotesModule } from "../shipping/shipping-quotes.module.js";
 import { PrepareMarketplaceCheckoutService } from "./application/prepare-marketplace-checkout.service.js";
 import { CreateMarketplacePaymentService } from "./application/create-marketplace-payment.service.js";
@@ -148,6 +150,7 @@ import {
 
 @Module({
   imports: [
+    platformProspectingModule,
     ShippingQuotesModule,
     BillingPromotionsModule,
     forwardRef(() => CheckoutModule),
@@ -332,12 +335,12 @@ import {
     },
     {
       provide: PAYMENT_REPOSITORY,
-      useFactory: (prisma: PrismaClient) => new PrismaPaymentRepository(prisma, captureStorefrontCouponForPayment,undefined,
+      useFactory: (prisma: PrismaClient, tenants: TenantContextService) => new PrismaPaymentRepository(prisma, captureStorefrontCouponForPayment,undefined,
         createNormalCrossSellPaymentAdmission(async(tx,scope,options)=>{
           const current=await readNormalCheckoutCrossSellAuthority(tx,scope,undefined,options);
           return {...current,projectedCart:projectNormalCrossSellCart(current)};
-        })),
-      inject: [PRISMA_CLIENT]
+        }), tenants),
+      inject: [PRISMA_CLIENT, TenantContextService]
     },
     {
       provide: PAYMENT_SETTLEMENT_LEDGER,
@@ -401,6 +404,7 @@ import {
     GetCurrentMarketplacePaymentService,
     MarketplacePaymentResumeService,
     CancelCheckoutPaymentUseCase,
+    PAYMENT_PROVIDER_PORT,
     CancelPaymentIntentUseCase,
     RefundPaymentService,
     CreatePaymentIntentUseCase,

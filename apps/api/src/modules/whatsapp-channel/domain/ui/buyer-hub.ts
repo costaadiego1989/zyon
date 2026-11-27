@@ -14,15 +14,21 @@ export const BUYER_HUB_COMMANDS = [
   { command: "/atendente", label: "Falar com atendente", message: "Falar com atendente" },
 ] as const;
 
+const CASHBACK_HUB_COMMAND = { command: "/cashback", label: "Cashback", message: "Meu saldo de cashback", protected: true } as const;
+/** Keep the legacy nine-item menu unless the current merchant program is enabled. */
+export function buyerHubCommands(cashbackEnabled = false) {
+  return cashbackEnabled === true ? [...BUYER_HUB_COMMANDS, CASHBACK_HUB_COMMAND] : [...BUYER_HUB_COMMANDS];
+}
+
 const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 export function buyerHubCommand(message: string): string | undefined {
   const key = normalize(message);
   if (["/atalho", "/atalhos", "menu principal"].includes(key)) return "/atalhos";
   if (key === "/cancelar") return key;
-  return BUYER_HUB_COMMANDS.find(entry => normalize(entry.command) === key || normalize(entry.label) === key)?.command;
+  return buyerHubCommands(true).find(entry => normalize(entry.command) === key || normalize(entry.label) === key)?.command;
 }
 export function buyerHubRoute(command: string): { message: string; action?: StoreUiAction } | undefined {
-  const entry = BUYER_HUB_COMMANDS.find(entry => entry.command === command);
+  const entry = buyerHubCommands(true).find(entry => entry.command === command);
   if (!entry || !("message" in entry)) return;
   return { message: entry.message, ...("tool" in entry ? { action: { kind: "tool" as const, tool: entry.tool,
     args: entry.tool === "search_products" ? { query: "*" } : {} } } : {}) };

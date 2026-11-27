@@ -7,8 +7,8 @@ import type { Cart, CheckoutSession, ShippingQuote } from "@zyon/shared-types";
 import { checkoutShippingInput } from "../checkout-shipping-quote.js";
 import { hasPreparedCheckoutPayment } from "../../../checkout/infrastructure/checkout-payment-scope.js";
 import { buildQuoteKey } from "@zyon/shipping-engine";
-import { ShippingQuoteEntity, type ShippingQuoteResult } from "../../domain/entities/shipping-quote.entity.js";
-import { SHIPPING_QUOTE_REPOSITORY, type ShippingQuoteRepository } from "../../domain/ports/shipping-quote-repository.port.js";
+import { ShippingQuoteEntity, type ShippingQuoteResult, type ShippingQuoteSnapshot } from "../../domain/entities/shipping-quote.entity.js";
+import { SHIPPING_QUOTE_REPOSITORY } from "../../domain/ports/shipping-quote-repository.port.js";
 import { CARRIER_ADAPTERS, type CarrierPort } from "../../domain/ports/carrier.port.js";
 import { OWN_DELIVERY_CONFIG_REPOSITORY, type OwnDeliveryConfigRepository } from "../../domain/ports/own-delivery-config.port.js";
 import { applyFreeShippingPolicy } from "../../domain/policies/free-shipping.policy.js";
@@ -29,6 +29,10 @@ import { createHash } from "node:crypto";
 import { lookupAddressByViaCep } from "../../../checkout/domain/services/viacep-lookup.service.js";
 import { geocodeBrazilianCep, haversineDistance, getPriceForDistance } from "../../domain/services/distance-calculator.service.js";
 import type { OwnDeliveryRadiusZone } from "../../domain/ports/own-delivery-config.port.js";
+import type { ShippingCheckoutQuoteRepository, ShippingCheckoutTransaction } from "../ports/shipping-checkout-transaction.port.js";
+import type { CheckoutSessionRepository } from "../../../checkout/domain/ports/checkout-session.repository.port.js";
+import { commitCheckoutMutation } from "../../../checkout/application/services/commit-checkout-mutation.js";
+import { checkoutShippingOption } from "../checkout-shipping-quote.js";
 
 export interface QuoteShippingInput {
   session_id: string;
@@ -75,7 +79,7 @@ export class QuoteShippingUseCase {
   private readonly logger = new Logger(QuoteShippingUseCase.name);
 
   constructor(
-    @Inject(SHIPPING_QUOTE_REPOSITORY) private readonly quotes: ShippingQuoteRepository,
+    @Inject(SHIPPING_QUOTE_REPOSITORY) private readonly quotes: ShippingCheckoutQuoteRepository,
     @Inject(CARRIER_ADAPTERS) private readonly carriers: CarrierPort[],
     // P0 fix: merchant rules are the authoritative source for free-shipping
     // threshold. @Optional so existing unit tests that don't wire the repo
@@ -89,6 +93,31 @@ export class QuoteShippingUseCase {
     @Optional() @Inject(SHIPPING_REFERENCE_CARRIERS) private readonly referenceCarriers?: CarrierPort[],
     @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient
   ) {}
+
+  inCheckoutTransaction(context: ShippingCheckoutTransaction): QuoteShippingUseCase {
+    return new QuoteShippingUseCase(context.quotes, this.carriers, context.merchantRules,
+      context.ownDeliveryConfig, this.referenceCarriers, context.prisma);
+  }
+
+  /** Publish only the persisted server quote's options through checkout CAS.
+   * Standalone previews for another/missing owned CEP grant no selection. */
+  async publishCheckoutOptions(expected: CheckoutSession, snapshot: ShippingQuoteSnapshot, sessions: CheckoutSessionRepository): Promise<CheckoutSession> {
+    if (expected.customer?.address?.zip?.replace(/\D/g, "") !== snapshot.destination_zip.replace(/\D/g, "")) return expected;
+    const publish = async (service: QuoteShippingUseCase, repository: CheckoutSessionRepository) => {
+      const input = checkoutShippingInput(expected);
+      await service.assertGenericCheckout(input);
+      const quote = await service.quotes.findById(snapshot.id, expected.merchantId);
+      if (!quote || quote.isExpired() || quote.snapshot().session_id !== expected.sessionId
+        || canonicalJson(quote.snapshot()) !== canonicalJson(snapshot)
+        || quote.snapshot().quote_key !== await service.quoteKey(input)) throw new ConflictException("shipping_quote_changed");
+      const shippingOptions = quote.snapshot().results.map(result => checkoutShippingOption(quote.snapshot(), result));
+      const shipping = expected.shipping && shippingOptions.some(option => canonicalJson(option) === canonicalJson(expected.shipping)) ? expected.shipping : undefined;
+      return commitCheckoutMutation(repository, { expected, next: { ...expected, shipping, shippingOptions } });
+    };
+    return this.quotes.withCheckoutTransaction
+      ? this.quotes.withCheckoutTransaction(expected, context => publish(this.inCheckoutTransaction(context), context.sessions))
+      : publish(this, sessions);
+  }
 
   /** Locality gate only, not quote/payment authority. Only an identified
    * neighborhood selection is constrained; an unselected session or another
@@ -215,6 +244,7 @@ export class QuoteShippingUseCase {
       this.ownDeliveryConfig?.getByMerchantId(input.merchant_id),
     ]);
     if (!merchant) throw new BadRequestException("shipping_merchant_not_found");
+    if (ownDelivery && ownDelivery.merchantId !== input.merchant_id) throw new BadRequestException("shipping_manual_config_scope_mismatch");
     const originZip = (rules?.originZip ?? input.origin_zip ?? "").replace(/\D/g, "");
     const key = "delivery-v2:" + createHash("sha256").update(JSON.stringify({
       cart: buildQuoteKey({ merchantId: input.merchant_id, destinationZip: input.destination_zip.replace(/\D/g, ""),
@@ -253,7 +283,9 @@ export class QuoteShippingUseCase {
       ? mergeFreeShipping(paid, applyFreeShippingPolicy(paid, input.cart_total, {
           enabled: true, min_cart_total: config.rules.freeShippingMinCartValue ?? Infinity,
         })) : paid;
-    return dedupeQuoteResults(await this.appendOwnDeliveryOptions(final, { ...input, session_id: "", origin_zip: config.originZip }, config.ownDelivery));
+    return dedupeQuoteResults(await this.appendOwnDeliveryOptions(final, {
+      ...input, session_id: "", origin_zip: (config.rules?.originZip ?? "").replace(/\D/g, ""),
+    }, config.ownDelivery));
   }
 
   private async assertGenericCheckout(input: QuoteShippingInput): Promise<void> {
@@ -285,7 +317,12 @@ export class QuoteShippingUseCase {
       const ownDeliveryOptions: ShippingQuoteResult[] = [];
 
       let destinationNeighborhood = input.destination_neighborhood;
-      if (config.mode === "flat") {
+      // Origin is resolved from merchant configuration before this calculation.
+      // Equal valid CEPs establish the same flat-delivery geography without a
+      // network lookup; they do not establish a measured radius distance.
+      const sameOriginCep = /^(?!0{8}$)\d{8}$/.test(input.origin_zip ?? "")
+        && input.origin_zip === input.destination_zip.replace(/\D/g, "");
+      if (config.mode === "flat" && !sameOriginCep) {
         const [origin, destination] = await Promise.all([
           lookupAddressByViaCep(input.origin_zip ?? ""), lookupAddressByViaCep(input.destination_zip),
         ]);

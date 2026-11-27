@@ -1,0 +1,57 @@
+name: Service business integration compiler checkpoint
+on:
+  push:
+    branches: [ci/service-business-compile-20261127]
+permissions:
+  contents: read
+concurrency:
+  group: service-business-compiler-checkpoint-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  actual-api-compiler:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      DATABASE_URL: postgresql://prisma:prisma@127.0.0.1:5432/prisma?schema=public
+      PROSPECTING_DIRECTORY_DATABASE_URL: postgresql://prisma:prisma@127.0.0.1:5432/prisma?schema=company_directory
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '22.23.5'
+      - name: Install the existing locked workspace
+        run: |
+          set -eu
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain --untracked-files=no)"
+          corepack enable
+          corepack prepare pnpm@9.15.0 --activate
+          pnpm install --prod=false --frozen-lockfile
+          mkdir -p .cache/compiler-checkpoint
+      - name: Execute the original API production build
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --dir apps/api build 2>&1 | tee .cache/compiler-checkpoint/api-build.log
+      - name: Compile the existing cashback validation entry
+        shell: bash
+        run: |
+          set -euo pipefail
+          node apps/api/prisma/seeds/cashback-validation-build.mjs 2>&1 | tee .cache/compiler-checkpoint/cashback-build.log
+      - name: Execute the original API typecheck
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --filter @zyon/api typecheck 2>&1 | tee .cache/compiler-checkpoint/api-types.log
+      - name: Retain actual compiler diagnostics
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: compiler-checkpoint-${{ github.sha }}
+          path: .cache/compiler-checkpoint/
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 7

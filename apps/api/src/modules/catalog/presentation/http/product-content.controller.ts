@@ -127,7 +127,7 @@ export class ProductContentController {
     @Param("mid") merchantId: string,
     @Param("pid") productId: string,
   ) {
-    await this.assertProduct(merchantId, productId);
+    const visibility = await this.readVisibility(merchantId, productId);
     const [blocks, faqs, testimonials, videos] = await Promise.all([
       this.contentRepo.findByProduct({ merchantId, productId, locale: DEFAULT_PRODUCT_CONTENT_LOCALE }),
       this.faqRepo.listAllForMerchant({ merchantId, productId, locale: DEFAULT_PRODUCT_CONTENT_LOCALE }),
@@ -135,11 +135,35 @@ export class ProductContentController {
       this.videoRepo.listAllForMerchant({ merchantId, productId, locale: DEFAULT_PRODUCT_CONTENT_LOCALE }),
     ]);
     return {
+      visibility,
       blocks: blocks.map((block) => this.serializeBlock(block)),
       faqs: faqs.map((faq) => this.serializeFaq(faq)),
       testimonials: testimonials.map((testimonial) => this.serializeTestimonial(testimonial)),
       videos: videos.map((video) => this.serializeVideo(video)),
     };
+  }
+
+  @UseGuards(AuthGuard, MerchantOwnershipGuard, PlanLimitGuard)
+  @RequirePlanFeature("advancedProductLayout")
+  @Put(":mid/products/:pid/content/visibility")
+  async updateVisibility(@Param("mid") merchantId: string, @Param("pid") productId: string, @Body() body: unknown) {
+    if (!body || typeof body !== "object" || Array.isArray(body) || !Object.keys(body).length
+      || Object.entries(body).some(([key, value]) => !["enabled", "testimonialsVisible"].includes(key) || typeof value !== "boolean")) {
+      throw new BadRequestException({ code: "product_content_visibility_invalid" });
+    }
+    const flags = body as { enabled?: boolean; testimonialsVisible?: boolean };
+    const saved = await this.prisma.product.updateMany({ where: { id: productId, merchantId, deletedAt: null },
+      data: { ...(flags.enabled !== undefined ? { advancedContentEnabled: flags.enabled } : {}),
+        ...(flags.testimonialsVisible !== undefined ? { testimonialsVisible: flags.testimonialsVisible } : {}) } });
+    if (saved.count !== 1) throw new NotFoundException({ code: "product_not_found" });
+    return this.readVisibility(merchantId, productId);
+  }
+
+  private async readVisibility(merchantId: string, productId: string) {
+    const product = await this.prisma.product.findFirst({ where: { id: productId, merchantId, deletedAt: null },
+      select: { advancedContentEnabled: true, testimonialsVisible: true } });
+    if (!product) throw new NotFoundException({ code: "product_not_found" });
+    return { enabled: product.advancedContentEnabled !== false, testimonialsVisible: product.testimonialsVisible !== false };
   }
 
   /** Atomic, full-document save used by the dashboard block editor. */

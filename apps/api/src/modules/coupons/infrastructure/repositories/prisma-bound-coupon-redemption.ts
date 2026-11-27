@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { z } from "zod";
-import { parseCheckoutCouponOrderAuthority, planBoundCouponRedemption } from "../../../checkout/domain/services/checkout-coupon-binding.js";
+import { parseCheckoutCouponOrderAuthority, planBoundCouponRedemption, checkoutCouponCombinedDiscountCents } from "../../../checkout/domain/services/checkout-coupon-binding.js";
 import { readStoredCheckoutCouponBinding, stripStoredCheckoutCouponBinding, preserveStoredCheckoutCouponBinding } from "../../../checkout/domain/services/checkout-coupon-storage.js";
 import { readPaymentCouponAuthority } from "../../../payment/domain/payment-coupon-authority.js";
 import { assertPaymentAmount, orderTotalCents } from "../../../payment/domain/payment-amount.js";
@@ -19,7 +19,9 @@ const eventSchema = z.object({ eventId: reference, merchantId: reference, eventT
 const receiptSchema = z.object({ eventId: reference, eventType: z.literal("coupon.redeemed"), merchantId: reference, payload: z.unknown() });
 const cents = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const paymentBreakdownSchema = z.object({ version: z.literal(1), currency: z.literal("BRL"),
-  itemsSubtotalCents: cents, discountCents: cents, shippingCents: cents, platformFeeCents: cents, totalCents: cents.positive() });
+  itemsSubtotalCents: cents, discountCents: cents, shippingCents: cents, platformFeeCents: cents, totalCents: cents.positive(),
+  cashbackCents: cents.optional(), cashbackReservationId: reference.optional(), cashbackEarningQuoteId: reference.optional(),
+  cartFingerprint: z.string().regex(/^[0-9a-f]{64}$/).optional(),confirmedCartFingerprint:z.string().regex(/^[0-9a-f]{64}$/).optional() });
 function conflict(): never { throw new Error("checkout_coupon_binding_conflict"); }
 function checked<S extends z.ZodType>(schema: S, input: unknown): z.output<S> {
   try { const result = schema.safeParse(input); if (result.success) return result.data; } catch { /* No raw payload/cause in conflicts. */ }
@@ -93,9 +95,10 @@ export class PrismaBoundCouponRedemption {
         || payment.providerPaymentId !== a.orderId || payment.approvedAmountCents !== payment.amountCents) return conflict();
       const paymentCents = checked(cents.positive(), payment.amountCents);
       const breakdown = payment.amountBreakdown == null ? undefined : checked(paymentBreakdownSchema, payment.amountBreakdown);
+      if(a.version===2&&!breakdown)return conflict();
       if (breakdown) {
         try { assertPaymentAmount(breakdown, paymentCents, payment.currency); } catch { return conflict(); }
-        if (breakdown.discountCents !== a.discountCents) return conflict();
+        if (breakdown.discountCents !== checkoutCouponCombinedDiscountCents(a)) return conflict();
       }
       if (orderTotalCents(breakdown, paymentCents) !== exactCents(order.orderTotal, true)) return conflict();
       const { orderId: _orderId, ...identity } = a;

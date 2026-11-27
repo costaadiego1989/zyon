@@ -15,8 +15,20 @@ enum MerchantPlan {
 }
 
 model Merchant {
+  technicalSupportTickets PlatformSupportTicket[]
   shoppingWorkspaces BuyerShoppingWorkspace[]
   billingReceivables BillingReceivable[]
+  metaAdsAgentStore MetaAdsAgentStore?
+  metaAdsAgentRecords MetaAdsAgentRecord[]
+  assistantThreads MerchantAssistantThread[]
+  metaAdsDailyRuns MetaAdsDailyRun[]
+  metaAdsCampaignPreparations MetaAdsCampaignPreparation[]
+  metaAdsCampaignNoticeContact MetaAdsCampaignNoticeContact?
+  metaAdsCampaignReadyNotices MetaAdsCampaignReadyNotice[]
+  fiscalConnections FiscalConnection[]
+  fiscalOlistOAuthSessions FiscalOlistOAuthSession[]
+  fiscalProfiles FiscalProfileVersion[]
+  fiscalSaleSnapshots FiscalSaleSnapshot[]
   id                      String       @id
   // Stores in a Scale account share the platform subscription, never their
   // commercial integrations. A root store points to itself after migration.
@@ -82,6 +94,170 @@ model Merchant {
   @@index([billingAccountMerchantId])
 
   @@map("merchants")
+}
+
+model MetaAdsAgentStore {
+  merchantId String @id @map("merchant_id")
+  version Int @default(0)
+  state Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@map("meta_ads_agent_stores")
+}
+
+model MetaAdsAgentRecord {
+  id String @id @default(cuid())
+  merchantId String @map("merchant_id")
+  key String
+  kind String
+  payload Json
+  createdAt DateTime @default(now()) @map("created_at")
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, key])
+  @@index([merchantId, kind, createdAt])
+  @@map("meta_ads_agent_records")
+}
+
+model MerchantAssistantThread {
+  id String @id
+  merchantId String @map("merchant_id")
+  actorId String @map("actor_id")
+  context String
+  revision Int @default(0)
+  campaignProgress Json? @map("campaign_progress")
+  createdAt DateTime @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  turns MerchantAssistantTurn[]
+
+  @@unique([id, merchantId], map: "merchant_assistant_threads_id_scope_key")
+  @@unique([merchantId, actorId, context], map: "merchant_assistant_threads_actor_context_key")
+  @@map("merchant_assistant_threads")
+}
+
+model MerchantAssistantTurn {
+  id String @id
+  merchantId String @map("merchant_id")
+  threadId String @map("thread_id")
+  ordinal Int
+  requestKey String @map("request_key")
+  inputHash String @map("input_hash")
+  message String
+  status String @default("queued")
+  reply String?
+  references Json @default("[]")
+  artifacts Json @default("[]")
+  error String?
+  leaseToken String? @map("lease_token")
+  leaseUntil DateTime? @db.Timestamptz(3) @map("lease_until")
+  budgetAmountMicros BigInt @default(0) @map("budget_amount_micros")
+  budgetState String @default("none") @map("budget_state")
+  usageCostMicros BigInt? @map("usage_cost_micros")
+  providerRequests Json @default("[]") @map("provider_requests")
+  createdAt DateTime @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  thread MerchantAssistantThread @relation(fields: [threadId, merchantId], references: [id, merchantId], onDelete: Cascade, map: "merchant_assistant_turns_thread_scope_fkey")
+
+  @@unique([threadId, requestKey], map: "merchant_assistant_turns_request_key")
+  @@unique([threadId, ordinal], map: "merchant_assistant_turns_ordinal_key")
+  @@index([merchantId, createdAt], map: "merchant_assistant_turns_merchant_created_idx")
+  @@index([status, leaseUntil], map: "merchant_assistant_turns_pending_idx")
+  @@map("merchant_assistant_turns")
+}
+
+model MetaAdsDailyRun {
+  id String @id
+  merchantId String @map("merchant_id")
+  accountId String @map("account_id")
+  localDay String @map("local_day")
+  timezone String
+  status String @default("queued")
+  analysisStatus String @default("pending") @map("analysis_status")
+  fence Int @default(0)
+  leaseToken String? @map("lease_token")
+  leaseUntil DateTime? @db.Timestamptz(3) @map("lease_until")
+  nextAttemptAt DateTime @default(now()) @db.Timestamptz(3) @map("next_attempt_at")
+  progress Json @default("{}")
+  report Json?
+  createdAt DateTime @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, accountId, localDay, timezone], map: "meta_ads_daily_runs_day_scope_key")
+  @@index([status, nextAttemptAt], map: "meta_ads_daily_runs_pending_idx")
+  @@map("meta_ads_daily_runs")
+}
+
+model MetaAdsCampaignPreparation {
+  id String @id
+  merchantId String @map("merchant_id")
+  campaignId String @map("campaign_id")
+  intentDigest String @map("intent_digest")
+  campaignDigest String @map("campaign_digest")
+  requestedBy String @map("requested_by")
+  requestedImages Int @map("requested_images")
+  status String @default("queued")
+  generationId String? @map("generation_id")
+  proposalId String? @map("proposal_id")
+  checkpoint Json @default("{}")
+  missing Json @default("[]")
+  error String?
+  fence Int @default(0)
+  leaseToken String? @map("lease_token")
+  leaseUntil DateTime? @db.Timestamptz(3) @map("lease_until")
+  nextAttemptAt DateTime @default(now()) @db.Timestamptz(3) @map("next_attempt_at")
+  createdAt DateTime @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, campaignId, intentDigest], map: "meta_ads_campaign_preparations_intent_key")
+  @@index([status, nextAttemptAt, leaseUntil], map: "meta_ads_campaign_preparations_pending_idx")
+  @@map("meta_ads_campaign_preparations")
+}
+
+model MetaAdsCampaignNoticeContact {
+  merchantId String @id @map("merchant_id")
+  phoneNumber String? @map("phone_number")
+  version Int @default(0)
+  consentVersion String? @map("consent_version")
+  consentedBy String? @map("consented_by")
+  consentedAt DateTime? @db.Timestamptz(3) @map("consented_at")
+  createdAt DateTime @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@map("meta_ads_campaign_notice_contacts")
+}
+
+model MetaAdsCampaignReadyNotice {
+  id String @id
+  merchantId String @map("merchant_id")
+  campaignId String @map("campaign_id")
+  proposalId String @map("proposal_id")
+  proposalDigest String @map("proposal_digest")
+  notificationId String @unique @map("notification_id")
+  reviewState String @default("awaiting_approval") @map("review_state")
+  whatsappStatus String @default("queued") @map("whatsapp_status")
+  inboxCreatedAt DateTime? @db.Timestamptz(3) @map("inbox_created_at")
+  dispatchSnapshot Json? @map("dispatch_snapshot")
+  dispatchStartedAt DateTime? @db.Timestamptz(3) @map("dispatch_started_at")
+  error String?
+  fence Int @default(0)
+  leaseToken String? @map("lease_token")
+  leaseUntil DateTime? @db.Timestamptz(3) @map("lease_until")
+  nextAttemptAt DateTime @default(now()) @db.Timestamptz(3) @map("next_attempt_at")
+  createdAt DateTime @default(now()) @db.Timestamptz(3) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(3) @map("updated_at")
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  delivery WhatsAppDelivery?
+  notification MerchantNotification?
+
+  @@unique([id, merchantId], map: "meta_ads_campaign_ready_notices_scope_key")
+  @@unique([merchantId, proposalId, proposalDigest], map: "meta_ads_campaign_ready_notices_review_key")
+  @@index([whatsappStatus, nextAttemptAt, leaseUntil], map: "meta_ads_campaign_ready_notices_pending_idx")
+  @@map("meta_ads_campaign_ready_notices")
 }
 
 model MelhorEnvioWallet {
@@ -700,6 +876,7 @@ model CompletedOrder {
 
   session CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Cascade)
   strategyCostSnapshot StrategyOrderCostSnapshot?
+  fiscalSaleSnapshots FiscalSaleSnapshot[]
 
   @@unique([id, merchantId])
   @@unique([merchantId, sessionId, externalOrderId])
@@ -1048,6 +1225,7 @@ model PaymentIntent {
   approvedAmountCents Int?     @map("approved_amount_cents")
   acceptedOfferId     String?  @map("accepted_offer_id")
   commerceOrderId     String?  @map("commerce_order_id")
+  privateReceipt Json? @map("private_receipt")
   buyerFacing         Json?    @map("buyer_facing")
   version             Int      @default(0)
   amountBreakdown     Json?    @map("amount_breakdown")
@@ -1620,6 +1798,8 @@ model Product {
   description     String?
   type            String    @default("physical")
   metadata        Json?
+  advancedContentEnabled Boolean @default(true) @map("advanced_content_enabled")
+  testimonialsVisible Boolean @default(false) @map("testimonials_visible")
   categoryId      String?   @map("category_id")
   isActive        Boolean   @default(true) @map("is_active")
   deletedAt       DateTime? @map("deleted_at")
@@ -2362,12 +2542,33 @@ model PromptExperiment {
 
   variants PromptVariant[]
   measurementPlan ExperimentMeasurementPlan?
+  activationApproval ExperimentActivationApproval?
 
   @@unique([id, merchantId])
   @@unique([merchantId, name])
   @@index([merchantId, status])
   @@index([merchantId, createdAt])
   @@map("prompt_experiments")
+}
+
+/// Immutable human approval of the exact reviewed communication experiment.
+model ExperimentActivationApproval {
+  experimentId String @id @map("experiment_id")
+  merchantId String @map("merchant_id")
+  requestKey String @map("request_key")
+  reviewHash String @map("review_hash")
+  variantFingerprint String @map("variant_fingerprint")
+  actorUserId String @map("actor_user_id")
+  actorRole String @map("actor_role")
+  snapshot Json
+  approvedAt DateTime @map("approved_at")
+  endsAt DateTime? @map("ends_at")
+  experiment PromptExperiment @relation(fields: [experimentId, merchantId], references: [id, merchantId], onDelete: Restrict)
+
+  @@unique([experimentId, merchantId])
+  @@unique([merchantId, experimentId, requestKey])
+  @@index([merchantId, approvedAt])
+  @@map("experiment_activation_approvals")
 }
 
 /// Preregistered once, before assignment. Changes require a new experiment.
@@ -2688,6 +2889,27 @@ model ProtocolSession {
   @@map("protocol_sessions")
 }
 
+/// Encrypted send-time content and recipients, with authenticated provider receipts.
+model RecoveryMessage {
+  id                String @id
+  merchantId        String @map("merchant_id")
+  correlationId     String @map("correlation_id")
+  channel           String
+  configId          String? @map("config_id")
+  snapshot          String
+  status            String @default("dispatching")
+  providerMessageId String? @map("provider_message_id")
+  reason            String?
+  sentAt            DateTime? @map("sent_at") @db.Timestamptz(3)
+  deliveredAt       DateTime? @map("delivered_at") @db.Timestamptz(3)
+  readAt            DateTime? @map("read_at") @db.Timestamptz(3)
+  failedAt          DateTime? @map("failed_at") @db.Timestamptz(3)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  @@index([merchantId, correlationId], map: "recovery_messages_merchant_correlation")
+  @@index([merchantId, configId, providerMessageId], map: "recovery_messages_provider")
+  @@map("recovery_messages")
+}
+
 model RecoveryAttempt {
   id                String                @id @default(cuid())
   merchantId        String                @map("merchant_id")
@@ -2703,11 +2925,40 @@ model RecoveryAttempt {
   recoveredOrderId  String?               @map("recovered_order_id")
   createdAt         DateTime              @default(now()) @map("created_at")
   claim             RecoveryAttemptClaim?
+  lastBuyerActivityAt DateTime?           @map("last_buyer_activity_at")
+  deliveryMetadata  Json?                 @map("delivery_metadata")
+  followUps         RecoveryFollowUp[]
 
   @@index([merchantId, status])
   @@index([merchantId, createdAt])
   @@index([sessionId])
   @@map("recovery_attempts")
+}
+
+/// Two durable reminders for a new accepted cart recovery: +24h and +72h.
+/// A claimed dispatch is never automatically replayed after a crash.
+model RecoveryFollowUp {
+  id                String   @id @default(cuid())
+  merchantId        String   @map("merchant_id")
+  sessionId         String   @map("session_id")
+  attemptId         String   @map("attempt_id")
+  step              Int
+  dueAt             DateTime @map("due_at")
+  expiresAt         DateTime @map("expires_at")
+  status            String   @default("pending")
+  channel           String?
+  providerMessageId String?  @map("provider_message_id")
+  reason            String?
+  fallbackReason    String?  @map("fallback_reason")
+  sentAt            DateTime? @map("sent_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  attempt           RecoveryAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, step])
+  @@index([status, dueAt])
+  @@index([merchantId, sessionId])
+  @@map("recovery_follow_ups")
 }
 
 /// Durable, tenant-scoped arbitration record for recovery dispatch.
@@ -3372,7 +3623,10 @@ model MerchantNotification {
   metadata   Json?
   read       Boolean  @default(false)
   createdAt  DateTime @default(now()) @map("created_at")
+  campaignReadyNoticeId String? @map("campaign_ready_notice_id")
+  campaignReadyNotice MetaAdsCampaignReadyNotice? @relation(fields: [campaignReadyNoticeId, merchantId], references: [id, merchantId], onDelete: Cascade, map: "merchant_notifications_campaign_notice_scope_fkey")
 
+  @@unique([campaignReadyNoticeId, merchantId], map: "merchant_notifications_campaign_notice_key")
   @@index([merchantId, createdAt])
   @@index([merchantId, read])
   @@map("merchant_notifications")
@@ -3577,6 +3831,9 @@ model WhatsAppDelivery {
   providerMessageId String? @map("provider_message_id")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
+  campaignReadyNoticeId String? @map("campaign_ready_notice_id")
+  campaignReadyNotice MetaAdsCampaignReadyNotice? @relation(fields: [campaignReadyNoticeId, merchantId], references: [id, merchantId], onDelete: Cascade, map: "whatsapp_deliveries_campaign_notice_scope_fkey")
+  @@unique([campaignReadyNoticeId, merchantId], map: "whatsapp_deliveries_campaign_notice_key")
   @@index([merchantId, state])
   @@index([providerMessageId])
   @@map("whatsapp_deliveries")
@@ -4766,6 +5023,18 @@ model BillingReceivable {
 }
 
 model PlatformOperator {
+  assignedProspects PlatformProspect[] @relation("ProspectAssignee")
+  ownedProspectSegments SavedProspectSegment[]
+  createdProspectCampaigns ProspectCampaign[] @relation("ProspectCampaignCreator")
+  approvedProspectCampaigns ProspectCampaign[] @relation("ProspectCampaignApprover")
+  assignedProspectConversations ProspectConversation[]
+  prospectNotes ProspectNote[]
+  prospectReads ProspectRead[]
+  salesKnowledgePublications SalesKnowledgePublication[]
+  prospectSenderBindings PlatformProspectSenderBinding[]
+  prospectAudits ProspectAuditEvent[]
+  assignedSupportTickets PlatformSupportTicket[] @relation("PlatformSupportAssignee")
+  supportNotes PlatformSupportNote[]
   id           String                @id @default(cuid())
   email        String                @unique
   passwordHash String?               @map("password_hash")
@@ -4925,4 +5194,1376 @@ model BuyerShoppingWorkspace {
   @@index([nextCheckAt, leaseUntil])
   @@index([merchantId])
   @@map("buyer_shopping_workspaces")
+}
+
+
+// Cashback: merchant-scoped promotional credit, enabled only by explicit configuration.
+model CashbackProgram {
+  merchantId String @id @map("merchant_id")
+  status String @default("disabled")
+  draft Json?
+  published Json?
+  version Int @default(0)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  ruleVersions CashbackRuleVersion[]
+  @@map("cashback_programs")
+}
+model CashbackRuleVersion {
+  merchantId String @map("merchant_id")
+  version Int
+  rules Json
+  actorId String @map("actor_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  program CashbackProgram @relation(fields: [merchantId], references: [merchantId], onDelete: Restrict)
+  @@id([merchantId, version])
+  @@map("cashback_rule_versions")
+}
+model CashbackWallet {
+  merchantId String @map("merchant_id")
+  buyerId String @map("buyer_id")
+  balance Json
+  version Int @default(1)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  grants CashbackGrant[]
+  reservations CashbackReservation[]
+  entries CashbackLedgerEntry[]
+  aliases CashbackBuyerAlias[]
+  @@id([merchantId, buyerId])
+  @@map("cashback_wallets")
+}
+model CashbackGrant {
+  id String @id
+  merchantId String @map("merchant_id")
+  buyerId String @map("buyer_id")
+  orderId String @map("order_id")
+  data Json
+  createdAt DateTime @map("created_at") @db.Timestamptz
+  wallet CashbackWallet @relation(fields: [merchantId, buyerId], references: [merchantId, buyerId], onDelete: Restrict)
+  @@unique([merchantId, orderId])
+  @@unique([id, merchantId, buyerId])
+  @@map("cashback_grants")
+}
+model CashbackReservation {
+  id String @id
+  merchantId String @map("merchant_id")
+  buyerId String @map("buyer_id")
+  sessionId String @map("session_id")
+  state String
+  data Json
+  createdAt DateTime @map("created_at") @db.Timestamptz
+  wallet CashbackWallet @relation(fields: [merchantId, buyerId], references: [merchantId, buyerId], onDelete: Restrict)
+  @@map("cashback_reservations")
+}
+model CashbackLedgerEntry {
+  id String @id
+  merchantId String @map("merchant_id")
+  buyerId String @map("buyer_id")
+  type String
+  amountCents BigInt @map("amount_cents")
+  orderId String? @map("order_id")
+  sessionId String? @map("session_id")
+  reason String
+  actorId String? @map("actor_id")
+  occurredAt DateTime @map("occurred_at") @db.Timestamptz
+  wallet CashbackWallet @relation(fields: [merchantId, buyerId], references: [merchantId, buyerId], onDelete: Restrict)
+  @@index([merchantId, occurredAt(sort: Desc), id], map: "cashback_ledger_tenant_time")
+  @@index([merchantId, buyerId, occurredAt(sort: Desc)], map: "cashback_ledger_buyer_time")
+  @@map("cashback_ledger_entries")
+}
+model CashbackEventReceipt {
+  merchantId String @map("merchant_id")
+  commandKey String @map("command_key")
+  fingerprint String
+  result Json?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  @@id([merchantId, commandKey])
+  @@map("cashback_event_receipts")
+}
+model CashbackBudgetPeriod {
+  merchantId String @map("merchant_id")
+  period String
+  committedCents BigInt @default(0) @map("committed_cents")
+  issuedCents BigInt @default(0) @map("issued_cents")
+  @@id([merchantId, period])
+  @@map("cashback_budget_periods")
+}
+model CashbackEarningQuote {
+  id String @id
+  merchantId String @map("merchant_id")
+  buyerId String @map("buyer_id")
+  sessionId String @map("session_id")
+  paymentKey String @map("payment_key")
+  fingerprint String
+  state String
+  paymentIntentId String? @map("payment_intent_id")
+  data Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  @@unique([merchantId, sessionId, paymentKey])
+  @@unique([merchantId, paymentIntentId])
+  @@index([merchantId, buyerId, createdAt], map: "cashback_quote_buyer_period")
+  @@map("cashback_earning_quotes")
+}
+model CashbackBuyerAlias {
+  merchantId String @map("merchant_id")
+  aliasBuyerId String @map("alias_buyer_id")
+  canonicalBuyerId String @map("canonical_buyer_id")
+  verificationId String @map("verification_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  canonicalWallet CashbackWallet @relation(fields: [merchantId, canonicalBuyerId], references: [merchantId, buyerId], onDelete: Restrict)
+  @@id([merchantId, aliasBuyerId])
+  @@index([merchantId, canonicalBuyerId], map: "cashback_alias_canonical")
+  @@map("cashback_buyer_aliases")
+}
+
+model BuyerVerifiedPhone {
+  phone String @id
+  buyerId String @map("buyer_id")
+  verificationId String @unique @map("verification_id")
+  verifiedAt DateTime @default(now()) @map("verified_at") @db.Timestamptz
+  @@index([buyerId], map: "buyer_verified_phones_buyer_idx")
+  @@map("buyer_verified_phones")
+}
+
+model CashbackNotification {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  merchantId String @map("merchant_id")
+  buyerId String @map("buyer_id")
+  type String
+  sourceId String @map("source_id")
+  state String
+  reason String?
+  providerMessageId String? @map("provider_message_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  @@unique([merchantId, type, sourceId])
+  @@index([merchantId, state, createdAt], map: "cashback_notifications_review_idx")
+  @@map("cashback_notifications")
+}
+
+model CashbackRefundOperation {
+  merchantId String @map("merchant_id")
+  commandKey String @map("command_key")
+  orderId String @map("order_id")
+  fingerprint String
+  amountCents BigInt @map("amount_cents")
+  state String
+  providerRefundId String? @map("provider_refund_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  @@id([merchantId, commandKey])
+  @@map("cashback_refund_operations")
+}
+
+model CashbackCheckoutBenefits {
+  merchantId String @map("merchant_id")
+  sessionId String @map("session_id")
+  data Json
+  version Int
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  @@id([merchantId, sessionId])
+  @@map("cashback_checkout_benefits")
+}
+
+model CashbackBenefitEvent {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  merchantId String @map("merchant_id")
+  sessionId String @map("session_id")
+  version Int
+  data Json
+  occurredAt DateTime @default(now()) @map("occurred_at") @db.Timestamptz
+  @@unique([merchantId, sessionId, version])
+  @@index([merchantId, sessionId, occurredAt], map: "cashback_benefit_events_session")
+  @@map("cashback_benefit_events")
+}
+
+model PlatformSupportTicket {
+  mode String @default("ticket")
+  id                   String   @id @default(cuid())
+  merchantId           String   @map("merchant_id")
+  authorUserId         String   @map("author_user_id")
+  clientRequestId      String   @map("client_request_id")
+  subject              String
+  category             String
+  status               String   @default("open")
+  severity             String   @default("normal")
+  assignedOperatorId   String?  @map("assigned_operator_id")
+  lastMessageSequence  Int      @default(0) @map("last_message_sequence")
+  waitingSince         DateTime? @map("waiting_since")
+  firstResponseAt      DateTime? @map("first_response_at")
+  resolvedAt           DateTime? @map("resolved_at")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+  messages             PlatformSupportMessage[]
+  notes                PlatformSupportNote[]
+  reads                PlatformSupportRead[]
+  merchant             Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  assignedOperator     PlatformOperator? @relation("PlatformSupportAssignee", fields: [assignedOperatorId], references: [id], onDelete: SetNull)
+
+  @@unique([merchantId, authorUserId, clientRequestId], map: "platform_support_tickets_request_key")
+  @@index([merchantId, createdAt])
+  @@index([status, severity, waitingSince])
+  @@index([assignedOperatorId, status])
+  @@map("platform_support_tickets")
+}
+
+model PlatformSupportMessage {
+  id              String   @id @default(cuid())
+  ticketId        String   @map("ticket_id")
+  sequence        Int
+  authorKey       String   @map("author_key")
+  sender          String
+  content         String   @db.Text
+  clientMessageId String   @map("client_message_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  ticket          PlatformSupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@unique([ticketId, sequence], map: "platform_support_message_sequence_key")
+  @@unique([ticketId, authorKey, clientMessageId], map: "platform_support_message_request_key")
+  @@map("platform_support_messages")
+}
+
+model PlatformSupportNote {
+  id              String   @id @default(cuid())
+  ticketId        String   @map("ticket_id")
+  operatorId      String   @map("operator_id")
+  content         String   @db.Text
+  clientRequestId String   @map("client_request_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  ticket          PlatformSupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  operator        PlatformOperator @relation(fields: [operatorId], references: [id], onDelete: Restrict)
+
+  @@unique([ticketId, operatorId, clientRequestId], map: "platform_support_note_request_key")
+  @@index([ticketId, createdAt])
+  @@map("platform_support_notes")
+}
+
+model PlatformSupportRead {
+  ticketId     String   @map("ticket_id")
+  actorKey     String   @map("actor_key")
+  sequence     Int      @default(0)
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  ticket       PlatformSupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@id([ticketId, actorKey])
+  @@map("platform_support_reads")
+}
+
+model PlatformSupportMonthlyUsage {
+  accountId String @map("account_id")
+  month String
+  used Int @default(0)
+  @@id([accountId, month])
+  @@map("platform_support_monthly_usage")
+}
+
+enum FiscalProvider {
+  bling
+  omie
+  tiny
+  focus
+}
+
+enum FiscalEnvironment {
+  homologation
+  production
+}
+
+model FiscalOlistOAuthSession {
+  stateHash String @id @map("state_hash") @db.Char(64)
+  merchantId String @map("merchant_id")
+  actorId String @map("actor_id")
+  environment FiscalEnvironment
+  credentialCipher String? @map("credential_cipher")
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  claimedAt DateTime? @map("claimed_at") @db.Timestamptz(3)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
+  resultConnectionId String? @map("result_connection_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+
+  @@index([merchantId, environment, expiresAt], map: "fiscal_olist_oauth_scope_expiry")
+  @@map("fiscal_olist_oauth_sessions")
+}
+
+model FiscalConnection {
+  id               String            @id @default(cuid())
+  merchantId       String            @map("merchant_id")
+  provider         FiscalProvider
+  environment      FiscalEnvironment
+  issuerTaxId      String            @map("issuer_tax_id")
+  credentialCipher String?           @map("credential_cipher")
+  setupCipher      String?           @map("setup_cipher")
+  olistNotificationId String?         @map("olist_notification_id") @db.Char(64)
+  olistNotificationAt DateTime?       @map("olist_notification_at") @db.Timestamptz(3)
+  erpConnectionId  String?           @map("erp_connection_id")
+  readiness        Json              @default("[]")
+  isActive         Boolean           @default(false) @map("is_active")
+  activatedAt      DateTime?         @map("activated_at") @db.Timestamptz(3)
+  disconnectedAt   DateTime?         @map("disconnected_at") @db.Timestamptz(3)
+  stockOwner       String            @default("zyon") @map("stock_owner")
+  emailOwner       String            @default("zyon") @map("email_owner")
+  whatsappOwner    String            @default("zyon") @map("whatsapp_owner")
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  merchant Merchant       @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  intents  FiscalIntent[]
+
+  // One active connection per merchant/environment is a partial unique SQL index.
+  @@unique([id, merchantId, environment], map: "fiscal_connections_scope")
+  @@index([merchantId, environment, isActive], map: "fiscal_connections_merchant_environment")
+  @@map("fiscal_connections")
+}
+
+model FiscalProfileVersion {
+  id                    String            @id @default(cuid())
+  merchantId            String            @map("merchant_id")
+  provider              FiscalProvider
+  environment           FiscalEnvironment
+  operation             String            @default("sale")
+  version               Int
+  issuerRegime          String            @map("issuer_regime")
+  itemRules             Json              @map("item_rules")
+  recipientRequirements Json              @map("recipient_requirements")
+  sourceContractVersion String            @map("source_contract_version")
+  confirmedBy           String?           @map("confirmed_by")
+  confirmedAt           DateTime?         @map("confirmed_at") @db.Timestamptz(3)
+  createdAt             DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  merchant Merchant       @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  intents  FiscalIntent[]
+
+  @@unique([id, merchantId, environment], map: "fiscal_profiles_scope")
+  @@unique([merchantId, environment, provider, operation, version], map: "fiscal_profiles_version")
+  @@map("fiscal_profile_versions")
+}
+
+model FiscalSaleSnapshot {
+  id                String            @id @default(cuid())
+  merchantId        String            @map("merchant_id")
+  orderMerchantId   String            @map("order_merchant_id")
+  completedOrderId  String            @map("completed_order_id")
+  orderId           String            @map("order_id")
+  environment       FiscalEnvironment
+  completedAt       DateTime          @map("completed_at") @db.Timestamptz(3)
+  buyerGlobalUserId String?           @map("buyer_global_user_id")
+  recipient         Json
+  items             Json
+  currency          String            @default("BRL")
+  subtotalCents     Int               @map("subtotal_cents")
+  discountCents     Int               @map("discount_cents")
+  shippingCents     Int               @map("shipping_cents")
+  totalCents        Int               @map("total_cents")
+  paymentProofRef   String?           @map("payment_proof_ref")
+  contentHash       String            @map("content_hash") @db.Char(64)
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  merchant       Merchant       @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  completedOrder CompletedOrder @relation(fields: [completedOrderId, orderMerchantId], references: [id, merchantId], onDelete: Restrict)
+  intents        FiscalIntent[]
+
+  @@unique([id, merchantId, environment], map: "fiscal_snapshots_scope")
+  @@unique([merchantId, orderId, environment], map: "fiscal_snapshots_sale")
+  @@index([orderMerchantId, completedOrderId], map: "fiscal_snapshots_commercial_order")
+  @@map("fiscal_sale_snapshots")
+}
+
+model FiscalIntent {
+  id              String            @id @default(cuid())
+  merchantId      String            @map("merchant_id")
+  environment     FiscalEnvironment
+  orderId         String            @map("order_id")
+  operation       String            @default("sale")
+  connectionId    String            @map("connection_id")
+  profileVersionId String           @map("profile_version_id")
+  snapshotId      String            @map("snapshot_id")
+  stableReference String            @map("stable_reference")
+  state           String            @default("awaiting_payment")
+  remoteOrderId   String?           @map("remote_order_id")
+  remoteInvoiceId String?           @map("remote_invoice_id")
+  issuanceRevision Int             @default(1) @map("issuance_revision")
+  writeStage      String?           @map("write_stage")
+  writeStartedAt  DateTime?         @map("write_started_at") @db.Timestamptz(3)
+  attempts        Int               @default(0)
+  nextAttemptAt   DateTime          @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  leaseUntil      DateTime?         @map("lease_until") @db.Timestamptz(3)
+  leaseToken      String?           @map("lease_token")
+  leasePurpose    String?           @map("lease_purpose")
+  version         Int               @default(0)
+  lastErrorCode   String?           @map("last_error_code")
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  connection FiscalConnection     @relation(fields: [connectionId, merchantId, environment], references: [id, merchantId, environment], onDelete: Restrict)
+  profile    FiscalProfileVersion @relation(fields: [profileVersionId, merchantId, environment], references: [id, merchantId, environment], onDelete: Restrict)
+  snapshot   FiscalSaleSnapshot   @relation(fields: [snapshotId, merchantId, environment], references: [id, merchantId, environment], onDelete: Restrict)
+  document   FiscalDocument?
+  events     FiscalEvent[]
+  issuanceRevisions FiscalIssuanceRevision[]
+  stageReceipts FiscalProviderStageReceipt[]
+
+  @@unique([id, merchantId, environment], map: "fiscal_intents_scope")
+  @@unique([merchantId, orderId, environment, operation], map: "fiscal_intents_sale_operation")
+  @@unique([connectionId, stableReference], map: "fiscal_intents_remote_reference")
+  @@index([state, nextAttemptAt, leaseUntil], map: "fiscal_intents_queue")
+  @@index([merchantId, environment, createdAt, id], map: "fiscal_intents_merchant_created")
+  @@index([merchantId, state, createdAt, id], map: "fiscal_intents_merchant_state")
+  @@map("fiscal_intents")
+}
+
+model FiscalIssuanceRevision {
+  id String @id @default(cuid())
+  merchantId String @map("merchant_id")
+  environment FiscalEnvironment
+  intentId String @map("intent_id")
+  revision Int
+  profileVersionId String @map("profile_version_id")
+  issuedAt DateTime @map("issued_at") @db.Timestamptz(3)
+  payload Json
+  payloadHash String @map("payload_hash") @db.Char(64)
+  paymentEvidence Json @map("payment_evidence")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  intent FiscalIntent @relation(fields: [intentId, merchantId, environment], references: [id, merchantId, environment], onDelete: Restrict, onUpdate: NoAction)
+  @@unique([intentId, revision], map: "fiscal_issuance_revisions_operation")
+  @@index([merchantId, environment, intentId], map: "fiscal_issuance_revisions_scope")
+  @@map("fiscal_issuance_revisions")
+}
+
+model FiscalProviderStageReceipt {
+  id String @id @default(cuid())
+  merchantId String @map("merchant_id")
+  environment FiscalEnvironment
+  intentId String @map("intent_id")
+  revision Int
+  stage String
+  reference String
+  outcome String
+  payloadHash String? @map("payload_hash") @db.Char(64)
+  remoteId String? @map("remote_id")
+  relatedIds Json? @map("related_ids")
+  reasonCode String? @map("reason_code")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  intent FiscalIntent @relation(fields: [intentId, merchantId, environment], references: [id, merchantId, environment], onDelete: Restrict, onUpdate: NoAction, map: "fiscal_provider_stage_receipt_intent_id_merchant_id_enviro_fkey")
+  @@unique([intentId, revision, stage], map: "fiscal_provider_stages_operation")
+  @@index([merchantId, environment, intentId], map: "fiscal_provider_stages_scope")
+  @@map("fiscal_provider_stage_receipts")
+}
+
+model FiscalDocument {
+  id                    String            @id @default(cuid())
+  merchantId            String            @map("merchant_id")
+  environment           FiscalEnvironment
+  intentId              String            @unique @map("intent_id")
+  issuerTaxId           String            @map("issuer_tax_id")
+  state                 String            @default("processing")
+  providerStatus        String?           @map("provider_status")
+  number                String?
+  series                String?
+  accessKey             String?           @map("access_key")
+  authorizationProtocol String?           @map("authorization_protocol")
+  authorizedAt          DateTime?         @map("authorized_at") @db.Timestamptz(3)
+  cancelledAt           DateTime?         @map("cancelled_at") @db.Timestamptz(3)
+  cancellationProtocol  String?           @map("cancellation_protocol")
+  documentState         String            @default("document_pending") @map("document_state")
+  createdAt             DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  intent        FiscalIntent               @relation(fields: [intentId, merchantId, environment], references: [id, merchantId, environment], onDelete: Restrict)
+  artifacts     FiscalArtifact[]
+  deliveries    FiscalDelivery[]
+  cancellations FiscalCancellationReview[]
+
+  @@unique([id, merchantId, environment], map: "fiscal_documents_scope")
+  @@unique([intentId, merchantId, environment], map: "fiscal_documents_intent_scope")
+  @@index([merchantId, environment, state, createdAt], map: "fiscal_documents_merchant_state")
+  @@map("fiscal_documents")
+}
+
+model FiscalArtifact {
+  id               String            @id @default(cuid())
+  merchantId       String            @map("merchant_id")
+  environment      FiscalEnvironment
+  documentId       String            @map("document_id")
+  kind             String
+  privateObjectKey String            @unique @map("private_object_key")
+  content          Bytes
+  sha256           String            @db.Char(64)
+  size             Int
+  mimeType         String            @map("mime_type")
+  retrievedAt      DateTime          @map("retrieved_at") @db.Timestamptz(3)
+
+  document FiscalDocument @relation(fields: [documentId, merchantId, environment], references: [id, merchantId, environment], onDelete: Restrict)
+
+  @@unique([documentId, kind], map: "fiscal_artifacts_document_kind")
+  @@index([merchantId, documentId], map: "fiscal_artifacts_merchant_document")
+  @@map("fiscal_artifacts")
+}
+
+model FiscalEvent {
+  id                  String            @id @default(cuid())
+  merchantId          String            @map("merchant_id")
+  environment         FiscalEnvironment
+  intentId            String            @map("intent_id")
+  actorKind           String            @map("actor_kind")
+  actorId             String?           @map("actor_id")
+  action              String
+  previousState       String?           @map("previous_state")
+  nextState           String?           @map("next_state")
+  safeReasonCode      String?           @map("safe_reason_code")
+  providerEvidenceRef String?           @map("provider_evidence_ref")
+  occurredAt          DateTime          @default(now()) @map("occurred_at") @db.Timestamptz(3)
+
+  intent FiscalIntent @relation(fields: [intentId, merchantId, environment], references: [id, merchantId, environment], onDelete: Restrict)
+
+  @@index([merchantId, intentId, occurredAt, id], map: "fiscal_events_history")
+  @@map("fiscal_events")
+}
+
+model FiscalDelivery {
+  callbackCredentialCipher String? @map("callback_credential_cipher")
+  id                String            @id @default(cuid())
+  merchantId        String            @map("merchant_id")
+  environment       FiscalEnvironment
+  documentId        String            @map("document_id")
+  channel           String
+  responsibleSender String            @map("responsible_sender")
+  destination       String?
+  idempotencyKey    String?           @map("idempotency_key")
+  transportProvider String?           @map("transport_provider")
+  transportAccountId String?          @map("transport_account_id")
+  transportConnectionId String?       @map("transport_connection_id")
+  state             String            @default("queued")
+  providerMessageId String?           @map("provider_message_id")
+  attempts          Int               @default(0)
+  nextAttemptAt     DateTime          @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  leaseUntil        DateTime?         @map("lease_until") @db.Timestamptz(3)
+  leaseToken        String?           @map("lease_token")
+  version           Int               @default(0)
+  lastAttemptAt     DateTime?         @map("last_attempt_at") @db.Timestamptz(3)
+  deliveredAt       DateTime?         @map("delivered_at") @db.Timestamptz(3)
+  safeReasonCode    String?           @map("safe_reason_code")
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  document FiscalDocument @relation(fields: [documentId, merchantId, environment], references: [id, merchantId, environment], onDelete: Restrict)
+
+  @@unique([documentId, channel], map: "fiscal_deliveries_document_channel")
+  @@index([state, nextAttemptAt, leaseUntil], map: "fiscal_deliveries_queue")
+  @@index([merchantId, providerMessageId], map: "fiscal_deliveries_provider_message")
+  @@map("fiscal_deliveries")
+}
+
+model FiscalCancellationReview {
+  id                 String            @id @default(cuid())
+  merchantId         String            @map("merchant_id")
+  environment        FiscalEnvironment
+  documentId         String            @map("document_id")
+  triggerId          String            @map("trigger_id")
+  triggerKind        String            @map("trigger_kind")
+  reviewState        String            @default("needs_confirmation") @map("review_state")
+  confirmedBy        String?           @map("confirmed_by")
+  confirmedAt        DateTime?         @map("confirmed_at") @db.Timestamptz(3)
+  justification      String?
+  providerRequestRef String?           @map("provider_request_ref")
+  safeReasonCode     String?           @map("safe_reason_code")
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  document FiscalDocument @relation(fields: [documentId, merchantId, environment], references: [id, merchantId, environment], onDelete: Restrict)
+
+  @@unique([documentId, triggerKind, triggerId], map: "fiscal_cancellations_trigger")
+  @@index([merchantId, reviewState, createdAt], map: "fiscal_cancellations_merchant_state")
+  @@map("fiscal_cancellation_reviews")
+}
+model PlatformProspect {
+  id String @id @default(cuid())
+  cnpj String @unique @db.VarChar(14)
+  sourceSnapshotId String @map("source_snapshot_id")
+  stage String @default("new")
+  assignedOperatorId String? @map("assigned_operator_id")
+  tags String[] @default([])
+  version Int @default(1)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  lastBusinessActivityAt DateTime @default(now()) @map("last_business_activity_at")
+  firstDeliveredAt DateTime? @map("first_delivered_at")
+  firstAttemptAt DateTime? @map("first_attempt_at")
+  lastAttemptAt DateTime? @map("last_attempt_at")
+  lastDeliveredAt DateTime? @map("last_delivered_at")
+  lastReplyAt DateTime? @map("last_reply_at")
+  lastReplyPreview String? @map("last_reply_preview")
+  convertedAt DateTime? @map("converted_at")
+  piiDiscardedAt DateTime? @map("pii_discarded_at")
+  retentionHoldReason String? @map("retention_hold_reason")
+  retentionAuthorizationRef String? @map("retention_authorization_ref")
+  assignedOperator PlatformOperator? @relation("ProspectAssignee", fields: [assignedOperatorId], references: [id], onDelete: SetNull)
+  contacts ProspectContactBinding[]
+  recipients CampaignRecipient[]
+  conversations ProspectConversation[]
+  proposals ProspectBillingProposal[]
+  conversions ProspectConversion[]
+  @@index([stage, createdAt, id])
+  @@index([assignedOperatorId, stage])
+  @@index([lastBusinessActivityAt, convertedAt])
+  @@map("platform_prospects")
+}
+
+model PlatformProspectSenderBinding {
+  id String @id @default(cuid())
+  scope String @default("zyon_platform")
+  active Boolean @default(true)
+  version Int @default(1)
+  appId String @map("app_id")
+  wabaId String @map("waba_id")
+  phoneNumberId String @map("phone_number_id")
+  displayPhoneNumber String @map("display_phone_number")
+  encryptedCredentials String @map("encrypted_credentials") @db.Text
+  authorizationVersion Int @default(1) @map("authorization_version")
+  grantedAssets Json @map("granted_assets")
+  connectedBy String @map("connected_by")
+  connectedAt DateTime @default(now()) @map("connected_at")
+  health Json?
+  healthUpdatedAt DateTime? @map("health_updated_at")
+  operator PlatformOperator @relation(fields: [connectedBy], references: [id], onDelete: Restrict)
+  endpoints ProspectEndpoint[]
+  campaigns ProspectCampaign[]
+  sequences ProspectSequence[]
+  inboxEvents ProspectInboxEvent[]
+  messages ProspectMessage[]
+  @@unique([scope, version])
+  @@index([phoneNumberId, active])
+  @@map("platform_prospect_sender_bindings")
+}
+
+model ProspectSenderSignupState {
+  id String @id
+  operatorId String @map("operator_id")
+  stateHash String @unique @map("state_hash")
+  expiresAt DateTime @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  @@index([expiresAt])
+  @@map("prospect_sender_signup_states")
+}
+
+model ProspectEndpoint {
+  id String @id @default(cuid())
+  channel String
+  identityKind String @default("phone") @map("identity_kind")
+  businessScope String? @map("business_scope")
+  normalizedValue String? @map("normalized_value")
+  protectedLookup String @map("protected_lookup")
+  keyVersion Int @default(1) @map("key_version")
+  senderBindingId String @map("sender_binding_id")
+  timezone String?
+  timezoneSource String? @map("timezone_source")
+  createdAt DateTime @default(now()) @map("created_at")
+  sender PlatformProspectSenderBinding @relation(fields: [senderBindingId], references: [id], onDelete: Restrict)
+  aliases ProspectEndpointAlias[]
+  lastContactActivityAt DateTime @default(now()) @map("last_contact_activity_at")
+  bindings ProspectContactBinding[]
+  permissions ContactPermissionReceipt[]
+  recipients CampaignRecipient[]
+  sequences ProspectSequence[]
+  conversations ProspectConversation[]
+  @@unique([senderBindingId, channel, protectedLookup, keyVersion])
+  @@index([protectedLookup, keyVersion])
+  @@map("prospect_endpoints")
+}
+
+model ProspectEndpointAlias {
+  senderBindingId String @map("sender_binding_id")
+  protectedLookup String @map("protected_lookup")
+  keyVersion Int @map("key_version")
+  endpointId String @map("endpoint_id")
+  endpoint ProspectEndpoint @relation(fields:[endpointId],references:[id],onDelete:Restrict)
+  @@id([senderBindingId,protectedLookup,keyVersion])
+  @@index([endpointId])
+  @@map("prospect_endpoint_aliases")
+}
+
+model ProspectContactBinding {
+  prospectId String @map("prospect_id")
+  endpointId String @map("endpoint_id")
+  confirmationState String @default("unconfirmed") @map("confirmation_state")
+  evidenceRef String? @map("evidence_ref")
+  confirmedBy String? @map("confirmed_by")
+  confirmedAt DateTime? @map("confirmed_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  prospect PlatformProspect @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+  endpoint ProspectEndpoint @relation(fields: [endpointId], references: [id], onDelete: Restrict)
+  @@id([prospectId, endpointId])
+  @@index([endpointId, confirmationState])
+  @@map("prospect_contact_bindings")
+}
+
+model ContactPermissionReceipt {
+  id String @id @default(cuid())
+  senderBindingId String @map("sender_binding_id")
+  endpointId String @map("endpoint_id")
+  purpose String
+  status String
+  source String
+  evidenceRef String? @map("evidence_ref")
+  textVersion String? @map("text_version")
+  occurredAt DateTime @map("occurred_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  endpoint ProspectEndpoint @relation(fields: [endpointId], references: [id], onDelete: Restrict)
+  @@index([senderBindingId, endpointId, purpose, occurredAt])
+  @@map("contact_permission_receipts")
+}
+
+model ContactSuppression {
+  id String @id @default(cuid())
+  senderScope String @map("sender_scope")
+  protectedLookup String @map("protected_lookup")
+  keyVersion Int @map("key_version")
+  reason String
+  occurredAt DateTime @default(now()) @map("occurred_at")
+  @@unique([senderScope, protectedLookup, keyVersion])
+  @@map("contact_suppressions")
+}
+
+model SavedProspectSegment {
+  id String @id @default(cuid())
+  name String
+  filterJson Json @map("filter_json")
+  filterVersion Int @default(1) @map("filter_version")
+  ownerOperatorId String @map("owner_operator_id")
+  version Int @default(1)
+  deletedAt DateTime? @map("deleted_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  owner PlatformOperator @relation(fields: [ownerOperatorId], references: [id], onDelete: Restrict)
+  @@index([ownerOperatorId, deletedAt, createdAt])
+  @@map("saved_prospect_segments")
+}
+
+model ProspectCampaign {
+  setupVersion Int @default(1) @map("setup_version")
+  businessContext String? @map("business_context") @db.Text
+  offerPolicy Json? @map("offer_policy")
+  directorySnapshotId String? @map("directory_snapshot_id")
+  audienceCriteria Json? @map("audience_criteria")
+  planningMode String? @map("planning_mode")
+  draftCompanies ProspectCampaignCompany[]
+  planningJobs ProspectCampaignPlanningJob[]
+  modelUsage ProspectModelUsage[]
+  id String @id @default(cuid())
+  name String
+  revision Int @default(1)
+  state String @default("draft")
+  audienceHash String? @map("audience_hash")
+  contentHash String? @map("content_hash")
+  selectionId String? @map("selection_id")
+  segmentId String? @map("segment_id")
+  segmentVersion Int? @map("segment_version")
+  filterSnapshot Json? @map("filter_snapshot")
+  message String? @db.Text
+  offerSnapshot Json? @map("offer_snapshot")
+  senderBindingId String? @map("sender_binding_id")
+  senderVersion Int? @map("sender_version")
+  template Json?
+  templateRegistryId String? @map("template_registry_id")
+  dailyRecipientLimit Int? @map("daily_recipient_limit")
+  budgetCents BigInt? @map("budget_cents")
+  currency String @default("BRL")
+  sendWindow Json? @map("send_window")
+  approvedRevision Int? @map("approved_revision")
+  approvedHash String? @map("approved_hash")
+  approvedBy String? @map("approved_by")
+  approvedAt DateTime? @map("approved_at")
+  createdBy String @map("created_by")
+  recipientCount Int @default(0) @map("recipient_count")
+  reservedCents BigInt @default(0) @map("reserved_cents")
+  spentCents BigInt @default(0) @map("spent_cents")
+  blockers Json @default("[]")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  creator PlatformOperator @relation("ProspectCampaignCreator", fields: [createdBy], references: [id], onDelete: Restrict)
+  approver PlatformOperator? @relation("ProspectCampaignApprover", fields: [approvedBy], references: [id], onDelete: Restrict)
+  sender PlatformProspectSenderBinding? @relation(fields: [senderBindingId], references: [id], onDelete: Restrict)
+  recipients CampaignRecipient[]
+  dailyUsage ProspectCampaignDailyUsage[]
+  @@index([state, updatedAt])
+  @@map("prospect_campaigns")
+}
+
+model ProspectCampaignCompany {
+  campaignId String @map("campaign_id")
+  cnpj String @db.VarChar(14)
+  snapshotId String @map("snapshot_id")
+  publicSnapshot Json @map("public_snapshot")
+  addedBy String @map("added_by")
+  addedAt DateTime @default(now()) @map("added_at")
+  removedAt DateTime? @map("removed_at")
+  campaign ProspectCampaign @relation(fields:[campaignId],references:[id],onDelete:Restrict)
+  @@id([campaignId,cnpj])
+  @@index([campaignId,removedAt,cnpj])
+  @@map("prospect_campaign_companies")
+}
+
+model ProspectCampaignPlanningJob {
+  id String @id
+  campaignId String @map("campaign_id")
+  expectedRevision Int @map("expected_revision")
+  contextHash String @map("context_hash")
+  snapshotId String @map("snapshot_id")
+  mode String?
+  state String @default("pending")
+  criteria Json?
+  errorCode String? @map("error_code")
+  leaseToken String? @map("lease_token")
+  leaseExpiresAt DateTime? @map("lease_expires_at")
+  reservedCents BigInt @default(0) @map("reserved_cents")
+  spentCents BigInt @default(0) @map("spent_cents")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  campaign ProspectCampaign @relation(fields:[campaignId],references:[id],onDelete:Restrict)
+  @@index([state,leaseExpiresAt])
+  @@map("prospect_campaign_planning_jobs")
+}
+
+model PlatformProspectTemplate {
+  id String @id @default(cuid())
+  purpose String @default("zyon_sales")
+  name String
+  language String
+  body String @db.Text
+  maxPrice Json? @map("max_price")
+  revision Int @default(1)
+  contentHash String @map("content_hash")
+  bindingId String? @map("binding_id")
+  bindingVersion Int? @map("binding_version")
+  wabaId String? @map("waba_id")
+  providerId String? @map("provider_id")
+  providerRevision String? @map("provider_revision")
+  state String @default("draft")
+  reason String?
+  submissionId String? @unique @map("submission_id")
+  submittedAt DateTime? @map("submitted_at")
+  observedAt DateTime? @map("observed_at")
+  createdBy String @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  @@index([purpose,bindingId,state])
+  @@map("platform_prospect_templates")
+}
+
+model ProspectCampaignDailyUsage {
+  campaignId String @map("campaign_id")
+  day String @db.VarChar(10)
+  reservedRecipients Int @default(0) @map("reserved_recipients")
+  submittedRecipients Int @default(0) @map("submitted_recipients")
+  campaign ProspectCampaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  @@id([campaignId, day])
+  @@map("prospect_campaign_daily_usage")
+}
+
+model CampaignRecipient {
+  id String @id @default(cuid())
+  campaignId String @map("campaign_id")
+  prospectId String @map("prospect_id")
+  endpointId String @map("endpoint_id")
+  sequenceKey String @map("sequence_key")
+  eligibility String @default("no_opt_in")
+  frozenSnapshot Json @map("frozen_snapshot")
+  state String @default("pending")
+  blockers Json @default("[]")
+  createdAt DateTime @default(now()) @map("created_at")
+  campaign ProspectCampaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  prospect PlatformProspect @relation(fields: [prospectId], references: [id], onDelete: Restrict)
+  endpoint ProspectEndpoint @relation(fields: [endpointId], references: [id], onDelete: Restrict)
+  attempts OutreachAttempt[]
+  @@unique([campaignId, endpointId])
+  @@index([campaignId, state, id])
+  @@index([sequenceKey])
+  @@map("campaign_recipients")
+}
+
+model ProspectSequence {
+  id String @id @default(cuid())
+  senderBindingId String @map("sender_binding_id")
+  endpointId String @map("endpoint_id")
+  firstAttemptId String? @unique @map("first_attempt_id")
+  followUpCount Int @default(0) @map("follow_up_count")
+  state String @default("active")
+  deliveredAt DateTime? @map("delivered_at")
+  followUpDueAt DateTime? @map("follow_up_due_at")
+  cancelledAt DateTime? @map("cancelled_at")
+  cancelReason String? @map("cancel_reason")
+  createdAt DateTime @default(now()) @map("created_at")
+  sender PlatformProspectSenderBinding @relation(fields: [senderBindingId], references: [id], onDelete: Restrict)
+  endpoint ProspectEndpoint @relation(fields: [endpointId], references: [id], onDelete: Restrict)
+  attempts OutreachAttempt[]
+  @@unique([senderBindingId, endpointId])
+  @@index([state, followUpDueAt])
+  @@map("prospect_sequences")
+}
+
+model OutreachAttempt {
+  id String @id @default(cuid())
+  sequenceId String @map("sequence_id")
+  recipientId String? @map("recipient_id")
+  conversationId String? @map("conversation_id")
+  ordinal Int
+  clientRequestId String @unique @map("client_request_id")
+  requestHash String @map("request_hash")
+  state String @default("prepared")
+  leaseToken String? @map("lease_token")
+  leaseExpiresAt DateTime? @map("lease_expires_at")
+  controlEpoch Int @default(0) @map("control_epoch")
+  approvedRevision Int? @map("approved_revision")
+  senderVersion Int @map("sender_version")
+  reservationDay String? @map("reservation_day") @db.VarChar(10)
+  reservedAmount BigInt @default(0) @map("reserved_amount")
+  currency String @default("BRL")
+  costState String @default("reserved") @map("cost_state")
+  providerMessageId String? @map("provider_message_id")
+  providerCostMicros BigInt? @map("provider_cost_micros")
+  content String? @db.Text
+  submittedAt DateTime? @map("submitted_at")
+  acceptedAt DateTime? @map("accepted_at")
+  deliveredAt DateTime? @map("delivered_at")
+  readAt DateTime? @map("read_at")
+  errorCode String? @map("error_code")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  sequence ProspectSequence @relation(fields: [sequenceId], references: [id], onDelete: Restrict)
+  recipient CampaignRecipient? @relation(fields: [recipientId], references: [id], onDelete: Restrict)
+  conversation ProspectConversation? @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+  messages ProspectMessage[]
+  @@unique([sequenceId, ordinal])
+  @@index([state, leaseExpiresAt])
+  @@map("outreach_attempts")
+}
+
+model ProspectOutbox {
+  id String @id @default(cuid())
+  eventId String @unique @map("event_id")
+  kind String
+  payload Json
+  resourceIds String[] @default([]) @map("resource_ids")
+  state String @default("pending")
+  availableAt DateTime @default(now()) @map("available_at")
+  leaseToken String? @map("lease_token")
+  leaseExpiresAt DateTime? @map("lease_expires_at")
+  attempts Int @default(0)
+  errorCode String? @map("error_code")
+  createdAt DateTime @default(now()) @map("created_at")
+  @@index([state, availableAt, id])
+  @@map("prospect_outbox")
+}
+
+model ProspectInboxEvent {
+  id String @id @default(cuid())
+  eventId String @map("event_id")
+  senderBindingId String @map("sender_binding_id")
+  eventKind String @map("event_kind")
+  payloadHash String @map("payload_hash")
+  payload Json
+  resourceIds String[] @default([]) @map("resource_ids")
+  nextAttemptAt DateTime @default(now()) @map("next_attempt_at")
+  providerOccurredAt DateTime? @map("provider_occurred_at")
+  receivedAt DateTime @default(now()) @map("received_at")
+  state String @default("pending")
+  processedAt DateTime? @map("processed_at")
+  errorCode String? @map("error_code")
+  sender PlatformProspectSenderBinding @relation(fields: [senderBindingId], references: [id], onDelete: Restrict)
+  @@unique([senderBindingId, eventKind, eventId])
+  @@index([state, receivedAt, id])
+  @@map("prospect_inbox_events")
+}
+
+model ProspectConversation {
+  modelUsage ProspectModelUsage[]
+  id String @id @default(cuid())
+  endpointId String @unique @map("endpoint_id")
+  prospectId String? @map("prospect_id")
+  ambiguousBindings String[] @default([]) @map("ambiguous_bindings")
+  mode String @default("ai")
+  assignedOperatorId String? @map("assigned_operator_id")
+  controlEpoch Int @default(0) @map("control_epoch")
+  revision Int @default(0)
+  changes ProspectConversationChange[]
+  lastSequence Int @default(0) @map("last_sequence")
+  lastInboundAt DateTime? @map("last_inbound_at")
+  lastInboundEventId String? @map("last_inbound_event_id")
+  lastInboundPreview String? @map("last_inbound_preview")
+  serviceWindowEndsAt DateTime? @map("service_window_ends_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  endpoint ProspectEndpoint @relation(fields: [endpointId], references: [id], onDelete: Restrict)
+  prospect PlatformProspect? @relation(fields: [prospectId], references: [id], onDelete: SetNull)
+  assignedOperator PlatformOperator? @relation(fields: [assignedOperatorId], references: [id], onDelete: SetNull)
+  messages ProspectMessage[]
+  notes ProspectNote[]
+  reads ProspectRead[]
+  attempts OutreachAttempt[]
+  @@index([assignedOperatorId, lastInboundAt])
+  @@index([lastInboundAt, id])
+  @@map("prospect_conversations")
+}
+
+model ProspectConversationChange {
+  id String @id @default(cuid())
+  conversationId String @map("conversation_id")
+  revision Int
+  kind String
+  sequence Int?
+  occurredAt DateTime @default(now()) @map("occurred_at")
+  conversation ProspectConversation @relation(fields:[conversationId],references:[id],onDelete:Restrict)
+  @@unique([conversationId,revision])
+  @@map("prospect_conversation_changes")
+}
+
+model ProspectMessage {
+  clientRequestId String? @unique @map("client_request_id")
+  controlEpoch Int? @map("control_epoch")
+  senderVersion Int? @map("sender_version")
+  campaignId String? @map("campaign_id")
+  reservedAmount BigInt @default(0) @map("reserved_amount")
+  costState String @default("none") @map("cost_state")
+  submittedAt DateTime? @map("submitted_at")
+  acceptedAt DateTime? @map("accepted_at")
+  errorCode String? @map("error_code")
+  id String @id @default(cuid())
+  conversationId String @map("conversation_id")
+  senderBindingId String @map("sender_binding_id")
+  sequence Int
+  authorType String @map("author_type")
+  authorId String? @map("author_id")
+  providerId String? @map("provider_id")
+  attemptId String? @map("attempt_id")
+  direction String
+  content String? @db.Text
+  state String
+  providerOccurredAt DateTime? @map("provider_occurred_at")
+  deliveredAt DateTime? @map("delivered_at")
+  readAt DateTime? @map("read_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  conversation ProspectConversation @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+  sender PlatformProspectSenderBinding @relation(fields: [senderBindingId], references: [id], onDelete: Restrict)
+  attempt OutreachAttempt? @relation(fields: [attemptId], references: [id], onDelete: Restrict)
+  @@unique([conversationId, sequence])
+  @@unique([senderBindingId, providerId])
+  @@index([conversationId, createdAt])
+  @@map("prospect_messages")
+}
+
+model ProspectModelUsage {
+  requestId String @id @map("request_id")
+  conversationId String @map("conversation_id")
+  campaignId String @map("campaign_id")
+  amountCents BigInt @map("amount_cents")
+  state String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  conversation ProspectConversation @relation(fields: [conversationId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  campaign ProspectCampaign @relation(fields: [campaignId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  @@index([campaignId, state], map: "prospect_model_usage_campaign_idx")
+  @@map("prospect_model_usage")
+}
+
+model ProspectNote {
+  id String @id @default(cuid())
+  conversationId String @map("conversation_id")
+  operatorId String @map("operator_id")
+  content String? @db.Text
+  clientRequestId String @unique @map("client_request_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  conversation ProspectConversation @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+  operator PlatformOperator @relation(fields: [operatorId], references: [id], onDelete: Restrict)
+  @@index([conversationId, createdAt, id])
+  @@map("prospect_notes")
+}
+
+model ProspectRead {
+  conversationId String @map("conversation_id")
+  operatorId String @map("operator_id")
+  readSequence Int @default(0) @map("read_sequence")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  conversation ProspectConversation @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+  operator PlatformOperator @relation(fields: [operatorId], references: [id], onDelete: Restrict)
+  @@id([conversationId, operatorId])
+  @@map("prospect_reads")
+}
+
+model SalesKnowledgePublication {
+  id String @id @default(cuid())
+  sourceId String @map("source_id")
+  version Int
+  title String
+  sourceRef String @map("source_ref")
+  draft Json
+  validFrom DateTime @map("valid_from")
+  validUntil DateTime? @map("valid_until")
+  state String @default("draft")
+  contentHash String @map("content_hash")
+  projectedHash String? @map("projected_hash")
+  projectedCount Int? @map("projected_count")
+  publishedBy String? @map("published_by")
+  publishedAt DateTime? @map("published_at")
+  withdrawnAt DateTime? @map("withdrawn_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  publisher PlatformOperator? @relation(fields: [publishedBy], references: [id], onDelete: Restrict)
+  @@unique([sourceId, version])
+  @@index([state, validFrom, validUntil])
+  @@map("sales_knowledge_publications")
+}
+
+model SalesKnowledgeActivePublication {
+  sourceId String @id @map("source_id")
+  publicationId String @unique @map("publication_id")
+  version Int
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  @@map("sales_knowledge_active_publications")
+}
+
+model ProspectBillingReceipt {
+  provider String
+  eventId String @map("event_id")
+  proposalId String @map("proposal_id")
+  subscriptionId String @map("subscription_id")
+  paymentRef String @map("payment_ref")
+  state String
+  amountCents BigInt @map("amount_cents")
+  occurredAt DateTime @map("occurred_at") @db.Timestamptz(6)
+  proposal ProspectBillingProposal @relation(fields:[proposalId],references:[id],onDelete:Restrict,onUpdate:NoAction)
+  @@id([provider,eventId])
+  @@index([provider,subscriptionId,paymentRef],map:"prospect_billing_receipts_payment_idx")
+  @@map("prospect_billing_receipts")
+}
+
+model ProspectBillingProposal {
+  receipts ProspectBillingReceipt[]
+  conversionEligible Boolean @default(false) @map("conversion_eligible")
+  id String @id @default(cuid())
+  prospectId String @map("prospect_id")
+  planKey String @map("plan_key")
+  offerVersion String @map("offer_version")
+  nonceHash String @unique @map("nonce_hash")
+  expiresAt DateTime @map("expires_at")
+  boundMerchantId String? @map("bound_merchant_id")
+  boundUserId String? @map("bound_user_id")
+  boundAt DateTime? @map("bound_at")
+  version Int @default(1)
+  clientRequestId String @unique @map("client_request_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  prospect PlatformProspect @relation(fields: [prospectId], references: [id], onDelete: Restrict)
+  conversions ProspectConversion[]
+  @@index([expiresAt])
+  @@map("prospect_billing_proposals")
+}
+
+model ProspectConversion {
+  id String @id @default(cuid())
+  prospectId String @map("prospect_id")
+  proposalId String @map("proposal_id")
+  merchantId String @map("merchant_id")
+  provider String
+  providerEventId String @map("provider_event_id")
+  subscriptionId String @map("subscription_id")
+  state String
+  occurredAt DateTime @map("occurred_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  prospect PlatformProspect @relation(fields: [prospectId], references: [id], onDelete: Restrict)
+  proposal ProspectBillingProposal @relation(fields: [proposalId], references: [id], onDelete: Restrict)
+  @@unique([provider, providerEventId])
+  @@index([prospectId, occurredAt])
+  @@index([state, occurredAt])
+  @@map("prospect_conversions")
+}
+
+model ProspectCommand {
+  clientRequestId String @id @map("client_request_id")
+  actorOperatorId String @map("actor_operator_id")
+  requestHash String @map("request_hash")
+  kind String
+  resourceIds String[] @default([]) @map("resource_ids")
+  state String @default("pending")
+  result Json?
+  errorCode String? @map("error_code")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  @@index([actorOperatorId, createdAt])
+  @@map("prospect_commands")
+}
+
+model ProspectAuditEvent {
+  id String @id @default(cuid())
+  actorOperatorId String? @map("actor_operator_id")
+  action String
+  resourceType String @map("resource_type")
+  resourceId String @map("resource_id")
+  resourceVersion Int @map("resource_version")
+  correlationId String @map("correlation_id")
+  outcome String
+  details Json?
+  occurredAt DateTime @default(now()) @map("occurred_at")
+  actor PlatformOperator? @relation(fields: [actorOperatorId], references: [id], onDelete: Restrict)
+  @@index([resourceType, resourceId, occurredAt])
+  @@index([correlationId])
+  @@map("prospect_audit_events")
+}
+
+model ProspectRetentionRun {
+  id String @id @default("daily")
+  lastRunAt DateTime @map("last_run_at")
+  nextRunAt DateTime @map("next_run_at")
+  erasedCount Int @default(0) @map("erased_count")
+  @@map("prospect_retention_runs")
+}
+
+
+
+model MarketingHistoryJob {
+  merchantId String @id @map("merchant_id")
+  status String
+  updatedAt DateTime @map("updated_at") @db.Timestamptz
+  data Json
+  @@index([status,updatedAt],map:"marketing_history_jobs_due")
+  @@map("marketing_history_jobs")
+}
+
+model MarketingSuppression {
+  merchantId String @map("merchant_id")
+  identityHash String @map("identity_hash")
+  recordedAt DateTime @map("recorded_at") @db.Timestamptz
+  data Json
+  @@id([merchantId,identityHash])
+  @@map("marketing_suppressions")
+}
+
+model MarketingContact {
+  merchantId String @map("merchant_id")
+  id String @db.Uuid
+  identityKey String @map("identity_key")
+  accountId String? @map("account_id")
+  phone String?
+  stage String
+  origin String
+  updatedAt DateTime @map("updated_at") @db.Timestamptz()
+  data Json
+  @@id([merchantId, id])
+  @@unique([merchantId, identityKey])
+  @@unique([merchantId, accountId])
+  @@unique([merchantId, phone])
+  @@index([merchantId, stage, updatedAt, id], map: "marketing_contacts_stage")
+  @@map("marketing_contacts")
+}
+
+model MarketingConversation {
+  merchantId String @map("merchant_id")
+  id String @db.Uuid
+  channel String
+  externalId String @map("external_id")
+  contactId String? @map("contact_id") @db.Uuid
+  updatedAt DateTime @map("updated_at") @db.Timestamptz()
+  data Json
+  @@id([merchantId, id])
+  @@unique([merchantId, channel, externalId])
+  @@index([merchantId, updatedAt], map: "marketing_conversations_recent")
+  @@map("marketing_conversations")
+}
+
+model MarketingMessage {
+  merchantId String @map("merchant_id")
+  id String @db.Uuid
+  conversationId String @map("conversation_id") @db.Uuid
+  dedupKey String @map("dedup_key")
+  providerMessageId String? @map("provider_message_id")
+  createdAt DateTime @map("created_at") @db.Timestamptz()
+  sequence BigInt @default(autoincrement())
+  data Json
+  @@id([merchantId, id])
+  @@unique([merchantId, dedupKey])
+  @@index([merchantId, conversationId, createdAt, sequence], map: "marketing_messages_conversation")
+  @@map("marketing_messages")
+}
+
+model MarketingConsent {
+  merchantId String @map("merchant_id")
+  id String @db.Uuid
+  contactId String @map("contact_id") @db.Uuid
+  channel String
+  recordedAt DateTime @map("recorded_at") @db.Timestamptz()
+  data Json
+  @@id([merchantId, id])
+  @@unique([merchantId, contactId, channel])
+  @@map("marketing_consents")
+}
+
+model MarketingStageHistory {
+  merchantId String @map("merchant_id")
+  id String @db.Uuid
+  contactId String @map("contact_id") @db.Uuid
+  occurredAt DateTime @map("occurred_at") @db.Timestamptz()
+  data Json
+  @@id([merchantId, id])
+  @@index([merchantId, contactId, occurredAt], map: "marketing_stage_history_contact")
+  @@map("marketing_stage_history")
+}
+
+model MarketingCampaign {
+  merchantId String @map("merchant_id")
+  id String @db.Uuid
+  status String
+  scheduledAt DateTime? @map("scheduled_at") @db.Timestamptz()
+  updatedAt DateTime @map("updated_at") @db.Timestamptz()
+  data Json
+  @@id([merchantId, id])
+  @@map("marketing_campaigns")
+}
+
+model MarketingCampaignRecipient {
+  merchantId String @map("merchant_id")
+  id String @db.Uuid
+  campaignId String @map("campaign_id") @db.Uuid
+  contactId String @map("contact_id") @db.Uuid
+  status String
+  leaseUntil DateTime? @map("lease_until") @db.Timestamptz()
+  providerMessageId String? @map("provider_message_id")
+  updatedAt DateTime @map("updated_at") @db.Timestamptz()
+  data Json
+  @@id([merchantId, id])
+  @@unique([merchantId, campaignId, contactId])
+  @@index([merchantId, campaignId, status, updatedAt], map: "marketing_recipients_due")
+  @@map("marketing_campaign_recipients")
+}
+
+model MarketingSettings {
+  merchantId String @id @map("merchant_id")
+  data Json
+  @@map("marketing_settings")
+}
+
+model MarketingEventReceipt {
+  merchantId String @map("merchant_id")
+  eventKey String @map("event_key")
+  occurredAt DateTime @map("occurred_at") @db.Timestamptz()
+  @@id([merchantId, eventKey])
+  @@map("marketing_event_receipts")
+}
+
+model MarketingPurchaseReceipt {
+  merchantId String @map("merchant_id")
+  orderId String @map("order_id")
+  contactId String @map("contact_id") @db.Uuid
+  amountCents BigInt @map("amount_cents")
+  occurredAt DateTime @map("occurred_at") @db.Timestamptz()
+  @@id([merchantId, orderId])
+  @@map("marketing_purchase_receipts")
+}
+
+model MarketingCommercialDispatch {
+  merchantId String @map("merchant_id")
+  contactKey String @map("contact_key")
+  dispatchKey String @map("dispatch_key")
+  reservedAt DateTime @map("reserved_at") @db.Timestamptz()
+  @@id([merchantId, dispatchKey])
+  @@index([merchantId, contactKey, reservedAt], map: "marketing_commercial_dispatches_contact")
+  @@map("marketing_commercial_dispatches")
 }

@@ -10,6 +10,7 @@ import { OrderStatusDonut } from "./components/OrderStatusDonut.js";
 import { TopProducts } from "./components/TopProducts.js";
 import { EmptyState } from "../../components/EmptyState.js";
 import { SectionErrorBoundary } from "../../components/PageErrorBoundary.js";
+import { PageHeader } from "../../components/PageHeader.js";
 import { AISuggestionsPanel } from "./sections/AISuggestionsPanel.js";
 import { ServiceOverviewPanel } from "./components/ServiceOverviewPanel.js";
 import { catalogBusinessMode } from "../product-detail/utils/catalog-business-mode.js";
@@ -270,14 +271,7 @@ function CommerceOverviewPage(props: CommerceOverviewPageProps) {
   return (
     <div className="page-container overview-page">
       {/* Header */}
-      <header className="page-head">
-        <div>
-          <span className="eyebrow">Início</span>
-          <h1>Visão Geral</h1>
-          <p className="page-lead">Métricas consolidadas do seu negócio</p>
-        </div>
-
-        <div className="overview-controls">
+      <PageHeader title="Visão Geral" description="Métricas consolidadas do seu negócio" actions={<div className="overview-controls">
           <LastUpdatedCounter lastUpdated={vm.lastUpdated} />
           <PeriodSelector value={vm.period} onChange={vm.setPeriod} />
           <button
@@ -305,8 +299,7 @@ function CommerceOverviewPage(props: CommerceOverviewPageProps) {
               <polyline points="14.5 14 14.5 10.5 11 10.5" />
             </svg>
           </button>
-        </div>
-      </header>
+        </div>} />
 
       <p className="overview-time-zone">Períodos e dias em America/Sao_Paulo</p>
       {vm.error && vm.hasData ? <div className="panel-error" role="alert">

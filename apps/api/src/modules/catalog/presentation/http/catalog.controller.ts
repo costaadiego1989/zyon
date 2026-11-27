@@ -239,11 +239,19 @@ export class StoreBuilderCatalogController {
       name: string;
       slug?: string;
       parentId?: string;
+      parent_id?: string;
       description?: string;
       imageUrl?: string;
+      image_url?: string;
     },
   ) {
-    return this.createCategory.execute(merchantId, body);
+    return this.createCategory.execute(merchantId, {
+      name: body.name,
+      slug: body.slug,
+      parentId: body.parentId ?? body.parent_id,
+      description: body.description,
+      imageUrl: body.imageUrl ?? body.image_url,
+    });
   }
 
   @Put(":mid/categories/:cid")

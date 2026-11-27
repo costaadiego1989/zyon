@@ -2,6 +2,8 @@ import { admitWhatsAppEffectInTransaction, currentWhatsAppExecution } from "../.
 import { revalidateNativeServiceBookingAdmission } from "../../../../shared/bookings/native-service-booking-authority.js";
 import { serviceCheckoutProvenance, assertServiceCheckoutCreationCapability, serviceBookingParentFingerprint, type ServiceCheckoutCreationIdentity } from "../../../../shared/bookings/service-checkout-provenance.js";
 import { hasPreparedCheckoutPayment } from "../checkout-payment-scope.js";
+import { recordFiscalOrderChange } from "../../../../shared/persistence/fiscal-commercial-change.js";
+import type { TenantContextService } from "../../../../shared/tenant/tenant-context.service.js";
 import { hasProfessionalServiceSelection, professionalHoldRequests } from "../../../../shared/bookings/service-checkout-selection.js";
 import { serviceSlotStore, newlyCreatedSlotLeaseProof, type RedisServiceSlots } from "../../../../shared/bookings/redis-service-slots.js";
 import { captureAppointmentLease } from "../../../../shared/bookings/appointment-lease-proof.js";
@@ -68,6 +70,8 @@ import { verifyNormalCheckoutEmailOtpInTransaction, readVerifiedNormalCheckoutBu
 import { detachNormalCheckoutBuyerEmailInTransaction } from "../../../../shared/persistence/normal-checkout-email-detachment.js";
 import type { CheckoutEmailOtpVerificationScope, CheckoutEmailOtpVerificationCommand } from "../../domain/services/checkout-email-otp-verification.js";
 import type { ChatExchangeClaim } from "../../domain/ports/checkout-session.repository.port.js";
+import type { CheckoutCommercialBenefitsService } from "../../../cashback/application/checkout-commercial-benefits.service.js";
+import type { FiscalOrderCommitInput, FiscalOrderCommitPort } from "../../../fiscal/domain/fiscal-order-commit.port.js";
 
 // P2 fix: single canonical default — no inline copy here.
 const DEFAULT_RULES: MerchantRules = DEFAULT_MERCHANT_RULES;
@@ -92,16 +96,31 @@ function assertBoundCheckoutSessionContextPreserved(current: {
 }
 
 export class PrismaCheckoutRepository implements CheckoutRepository {
+  private readonly commercialBenefits?: CheckoutCommercialBenefitsService;
+  private readonly initialLeaseStore: () => Pick<RedisServiceSlots, "acquire" | "releaseCaptured">;
   constructor(
     private readonly prisma: PrismaClient | Prisma.TransactionClient,
     private readonly inTransaction = false,
     private readonly orderQuota?: OrderQuotaService,
-    private readonly initialLeaseStore: () => Pick<RedisServiceSlots, "acquire" | "releaseCaptured"> = serviceSlotStore,
-  ) {}
+    benefitsOrInitialLeaseStore?: CheckoutCommercialBenefitsService | (() => Pick<RedisServiceSlots, "acquire" | "releaseCaptured">),
+    private readonly fiscalParticipant?: (transaction: Prisma.TransactionClient) => FiscalOrderCommitPort,
+    private readonly fiscalTenants?: TenantContextService,
+    initialLeaseStore: () => Pick<RedisServiceSlots, "acquire" | "releaseCaptured"> = serviceSlotStore,
+  ) {
+    this.commercialBenefits = typeof benefitsOrInitialLeaseStore === "function" ? undefined : benefitsOrInitialLeaseStore;
+    this.initialLeaseStore = typeof benefitsOrInitialLeaseStore === "function" ? benefitsOrInitialLeaseStore : initialLeaseStore;
+  }
 
   async transaction<T>(work: (repository: CheckoutRepository) => Promise<T>): Promise<T> {
     if (this.inTransaction) return work(this);
-    return (this.prisma as PrismaClient).$transaction((tx) => work(new PrismaCheckoutRepository(tx, true, this.orderQuota, this.initialLeaseStore)));
+    return (this.prisma as PrismaClient).$transaction((tx) => work(new PrismaCheckoutRepository(tx, true, this.orderQuota, this.commercialBenefits, this.fiscalParticipant, this.fiscalTenants, this.initialLeaseStore)));
+  }
+
+  async recordFiscalSale(input: FiscalOrderCommitInput) {
+    if (!this.fiscalParticipant) return undefined;
+    if (!this.inTransaction) throw new Error("fiscal_order_transaction_required");
+    const policy = await this.fiscalParticipant(this.prisma as Prisma.TransactionClient).record(input);
+    return policy.sellers.length ? policy : undefined;
   }
 
   async verifyEmailOtpAndRecognize(scope: CheckoutEmailOtpVerificationScope, command: CheckoutEmailOtpVerificationCommand,
@@ -293,12 +312,14 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     const work = async (tx: Prisma.TransactionClient) => {
       await admitWhatsAppEffectInTransaction(tx, input.expected.merchantId);
       const { merchantId, sessionId } = input.expected;
+      await this.commercialBenefits?.lockInTransaction(tx, merchantId);
       await lockExecutionMerchant(tx, merchantId);
       await tx.$queryRaw`SELECT id FROM merchant_rules WHERE merchant_id=${merchantId} FOR UPDATE`;
       await lockCheckoutSessionAnchor(tx, merchantId, sessionId);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${merchantId} AND session_id = ${sessionId} FOR UPDATE`;
       const stored = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId } } });
       assertNoUnprojectedWidgetReceipt(stored?.cart);
+      if (stored) await this.commercialBenefits?.assertMutableInTransaction(tx, toCheckoutSession(stored));
       if (stored && stripStoredCheckoutCouponBinding(stored.cart).source === "storefront") {
         const binding = readStoredCheckoutCouponBinding(stored.cart);
         if (binding && binding.state !== "released") assertNoCheckoutCouponBindingInput(stored.cart);
@@ -323,11 +344,15 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
             }
             await cancelUnboundStorefrontCouponSource(tx, dedicated.candidate);
           }
+          if (dedicated.invalidated) {
+            const reset = await this.commercialBenefits?.applyDedicatedCartChangeInTransaction(tx, current, dedicated.session, { persistSession: false });
+            if (reset) dedicated.session = reset;
+          }
           const cart = dedicated.binding ? { ...dedicated.session.cart, _storefrontCouponBinding: dedicated.binding } : dedicated.session.cart;
           const saved = await tx.checkoutSession.updateMany({ where: { id: stored.id, merchantId, sessionId, version: stored.version },
             data: { ...toCheckoutSessionUpdate(dedicated.session), cart: cart as unknown as Prisma.InputJsonValue } });
           if (saved.count !== 1) throw new ConflictException("CHECKOUT_SESSION_VERSION_CONFLICT");
-          const repo = new PrismaCheckoutRepository(tx, true, this.orderQuota);
+          const repo = new PrismaCheckoutRepository(tx, true, this.orderQuota, this.commercialBenefits, this.fiscalParticipant, this.fiscalTenants, this.initialLeaseStore);
           if (dedicated.event) await repo.appendOutbox(dedicated.event);
           if (input.cancel) await repo.recordEvent(merchantId, sessionId, "checkout_abandoned", { source: "acp.protocol", reason: "buyer_initiated" });
           return (await repo.getSession(merchantId, sessionId))!;
@@ -345,7 +370,11 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
           metadata: { path: ["reason"], equals: "buyer_initiated" } }, select: { id: true } })) {
         throw new ConflictException("CHECKOUT_COMMERCIAL_SESSION_CLOSED");
       }
-      const repository = new PrismaCheckoutRepository(tx, true, this.orderQuota);
+      const repository = new PrismaCheckoutRepository(tx, true, this.orderQuota, this.commercialBenefits, this.fiscalParticipant, this.fiscalTenants, this.initialLeaseStore);
+      if (mutation.invalidated) {
+        const reset = await this.commercialBenefits?.applyCartChangeInTransaction(tx, mutation.session, { persistSession: false });
+        if (reset) mutation.session = reset;
+      }
       try {
         await repository.saveSessionIfUnchanged(mutation.session, input.expected);
       } catch (error) {
@@ -449,7 +478,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
       const saved = await tx.checkoutSession.updateMany({ where: { id: stored.id, merchantId, sessionId, version: stored.version },
         data: { ...toCheckoutSessionUpdate(prepared.session), cart: cart as unknown as Prisma.InputJsonValue } });
       if (saved.count !== 1) throw new ConflictException("CHECKOUT_SESSION_VERSION_CONFLICT");
-      const repo = new PrismaCheckoutRepository(tx, true, this.orderQuota);
+      const repo = new PrismaCheckoutRepository(tx, true, this.orderQuota, this.commercialBenefits, this.fiscalParticipant, this.fiscalTenants, this.initialLeaseStore);
       if (!prepared.history.includes("payment_method_selected")) {
         await repo.recordEvent(merchantId, sessionId, "payment_method_selected", { method, source: "payment_preparation" });
       }
@@ -466,7 +495,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${merchantId} AND session_id = ${sessionId} FOR UPDATE`;
       const scope = { merchantId, sessionId };
       const stored = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: scope } });
-      const repo = new PrismaCheckoutRepository(tx, true, this.orderQuota);
+      const repo = new PrismaCheckoutRepository(tx, true, this.orderQuota, this.commercialBenefits, this.fiscalParticipant, this.fiscalTenants, this.initialLeaseStore);
       await repo.assertBuyerEditAllowed(merchantId, sessionId);
       if (stored && hasStoredCheckoutCouponBinding(stored.cart)) {
         const binding = readStoredCheckoutCouponBinding(stored.cart)!;
@@ -521,7 +550,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
       const stored = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId } }, select: { cart: true } });
       assertNoUnprojectedWidgetReceipt(stored?.cart);
       assertNoCheckoutCouponBindingInput(stored?.cart);
-      const repo = new PrismaCheckoutRepository(tx, true, this.orderQuota);
+      const repo = new PrismaCheckoutRepository(tx, true, this.orderQuota, this.commercialBenefits, this.fiscalParticipant, this.fiscalTenants, this.initialLeaseStore);
       const current = await repo.getSession(merchantId, sessionId);
       if (!current) throw new ConflictException("CHECKOUT_SESSION_NOT_FOUND");
       const scope = { merchantId, sessionId };
@@ -721,8 +750,9 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
       const session = await tx.checkoutSession.findUnique({
         where: { merchantId_sessionId: { merchantId, sessionId } }
       });
+      const now = await executionClock(tx);
       await tx.checkoutEvent.create({
-        data: { merchantId, sessionId, eventName: event, occurredAt: new Date(), metadata: metadata as any }
+        data: { merchantId, sessionId, eventName: event, occurredAt: now, metadata: metadata as any }
       });
       if (!session) return;
       const score = CheckoutAbandonmentService.applyEvent(session.abandonmentScore, event);
@@ -735,7 +765,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
         data: {
           abandonmentScore: score.nextScore,
           triggerAgent: score.triggerAgent,
-          ...(preservesLastActivity ? {} : { updatedAt: new Date() })
+          ...(preservesLastActivity ? {} : { updatedAt: now })
         }
       });
     };
@@ -982,7 +1012,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     status: CompletedOrderStatus;
   }): Promise<CompletedOrder | undefined> {
     if (currentWhatsAppExecution() && !this.inTransaction) return (this.prisma as PrismaClient).$transaction(tx =>
-      new PrismaCheckoutRepository(tx, true, this.orderQuota).updateCompletedOrderStatus(input));
+      new PrismaCheckoutRepository(tx, true, this.orderQuota, this.commercialBenefits, this.fiscalParticipant, this.fiscalTenants, this.initialLeaseStore).updateCompletedOrderStatus(input));
     await admitWhatsAppEffectInTransaction(this.prisma, input.merchantId);
     try {
       const row = await this.prisma.completedOrder.update({
@@ -1009,7 +1039,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     reason: string;
     cancelledAt: string;
   }): Promise<{ order: CompletedOrder; idempotent: boolean } | undefined> {
-    if (currentWhatsAppExecution() && !this.inTransaction) return this.transaction(async repository => repository.cancelCompletedOrder(input));
+    if (!this.inTransaction) return this.transaction(async repo => repo.cancelCompletedOrder(input));
     await admitWhatsAppEffectInTransaction(this.prisma, input.merchantId);
     const existing = await this.getCompletedOrder(
       input.merchantId,
@@ -1034,6 +1064,8 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
           cancellationReason: input.reason,
         },
       });
+      if (result.count) await recordFiscalOrderChange(this.prisma as Prisma.TransactionClient, { merchantId: input.merchantId, orderId: input.externalOrderId,
+        trigger: { id: "cancel:" + input.externalOrderId, kind: "cancelled" } }, this.fiscalTenants);
       const order = await this.getCompletedOrder(
         input.merchantId,
         input.sessionId,

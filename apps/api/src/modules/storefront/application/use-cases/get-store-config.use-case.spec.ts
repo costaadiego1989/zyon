@@ -12,7 +12,7 @@ test("projects the public store config from the query port", async () => {
         merchant: {
           id: "merchant_a",
           name: "Loja Exemplo",
-          theme: { accentColor: "#112233", textColor: "#000000", backgroundColor: "#ffffff", fontFamily: "Inter", logoUrl: "https://cdn.example/logo.png" },
+          theme: { accentColor: "#112233", textColor: "#000000", backgroundColor: "#ffffff", fontFamily: "Inter", logoUrl: "https://cdn.example/logo.png", trustBadges: ["Atendimento local", "Envio acompanhado"] },
           storeCategory: "fashion",
           storeSettings: { quick_replies: { stages: [{ stage: "welcome", replies: ["Legado"] }] } },
         },
@@ -28,6 +28,7 @@ test("projects the public store config from the query port", async () => {
   assert.deepEqual(identifiers, ["loja.exemplo.com"]);
   assert.equal(config.merchantId, "merchant_a");
   assert.equal(config.logo, "https://cdn.example/logo.png");
+  assert.deepEqual(config.theme.trustBadges, ["Atendimento local", "Envio acompanhado"]);
   assert.equal(config.favicon, "https://cdn.example/logo.png");
   assert.equal(config.agentName, "Lia");
   assert.equal(config.agentGreeting, "Olá");

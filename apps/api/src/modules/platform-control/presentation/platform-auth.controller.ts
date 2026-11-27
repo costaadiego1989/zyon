@@ -63,8 +63,12 @@ export class PlatformAuthController {
     const token = bearerToken(request.headers?.authorization);
     try {
       return await this.sessions.execute(token);
-    } catch {
-      throw new UnauthorizedException("platform_refresh_failed");
+    } catch (error) {
+      if (error instanceof Error && /^(?:platform_session_invalid|platform_refresh_replayed|platform_jwt_(?:expired|malformed|invalid_signature|invalid_header|wrong_audience|invalid_claims))$/.test(error.message)) {
+        throw new UnauthorizedException("platform_refresh_failed");
+      }
+      this.logger.error(`platform_control_refresh_failed:${platformAuthFailureCode(error)}`);
+      throw new ServiceUnavailableException("platform_auth_unavailable");
     }
   }
 

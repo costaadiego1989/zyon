@@ -17,6 +17,9 @@ import {
 } from "../../domain/ports/whatsapp-config-repository.port.js";
 import { connectedTwilioCredentials, twilioAuthorityAccountId } from "../../domain/services/connected-twilio-credentials.js";
 import { whatsappE164 } from "../../domain/services/whatsapp-phone.js";
+import type { StrictWhatsAppBinding, StrictWhatsAppResult } from "../../domain/ports/whatsapp-sender.port.js";
+import { strictWhatsAppTransport } from "./strict-whatsapp-transport.js";
+import { createHash } from "node:crypto";
 import { twilioOperatorStatusCallbackUrl } from "../../domain/services/public-url.js";
 
 interface TwilioCredentials {
@@ -34,6 +37,14 @@ export class TwilioSenderAdapter implements WhatsAppSenderPort {
     @Inject(WHATSAPP_CONFIG_REPOSITORY)
     private readonly configRepo: WhatsAppConfigRepository,
   ) {}
+
+  async sendTextStrict(msg: WhatsAppOutboundMessage, binding: StrictWhatsAppBinding): Promise<StrictWhatsAppResult> {
+    const config = await this.configRepo.findById(binding.configId); const credentials = connectedTwilioCredentials(config, binding.merchantId); const recipient = whatsappE164(msg.toNumber);
+    if (binding.credentialFingerprint && (!credentials || createHash("sha256").update(credentials.authToken).digest("hex") !== binding.credentialFingerprint)) return { status: "skipped", messageId: "" };
+    let callback: URL; try { callback = new URL(binding.statusCallbackUrl ?? ""); } catch { return { status: "skipped", messageId: "" }; }
+    if (!credentials || credentials.accountSid !== binding.accountId || !recipient || callback.protocol !== "https:" || callback.username || callback.password || callback.search || callback.hash) return { status: "skipped", messageId: "" };
+    return strictWhatsAppTransport("twilio", `${this.baseUrl}/${credentials.accountSid}/Messages.json`, { headers: { Authorization: `Basic ${Buffer.from(credentials.accountSid + ":" + credentials.authToken).toString("base64")}`, "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ To: `whatsapp:${recipient}`, From: credentials.senderId, Body: msg.text, StatusCallback: callback.toString() }).toString() });
+  }
 
   async sendText(msg: WhatsAppOutboundMessage): Promise<WhatsAppSendResult> {
     try {

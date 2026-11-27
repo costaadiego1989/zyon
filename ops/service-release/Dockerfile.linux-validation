@@ -1,0 +1,9 @@
+ARG NODE_BASE_IMAGE
+FROM ${NODE_BASE_IMAGE}
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates openssl libgomp1 && rm -rf /var/lib/apt/lists/*
+COPY .cache/service-release-docker-client /usr/local/bin/docker
+RUN docker --version
+ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+WORKDIR /repo
+CMD ["sh", "ops/service-release/run-linux-validation.sh"]

@@ -131,7 +131,7 @@ export class WhatsAppWebhookWorker implements OnModuleInit, OnModuleDestroy {
               if (payload.provider === "META_CLOUD") await this.handleMessage.execute({ ...payload, inboxClaim: claim });
               else {
                 if (!this.delivery) throw new Error("whatsapp_delivery_not_configured");
-                await this.delivery.process(claim, () => this.handleMessage.execute(payload), () => this.inbox.renew(claim),
+                await this.delivery.process(claim, () => this.handleMessage.execute({ ...payload, providerMessageId: claim.eventId }), () => this.inbox.renew(claim),
                   authority => this.handleMessage.recordSuppressed(claim, authority));
               }
             }

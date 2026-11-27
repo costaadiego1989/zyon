@@ -88,7 +88,7 @@ for (const changed of ["quantity", "price", "removed", "duplicate", "options", "
       if (changed === "duplicate") cart.items.push({ ...cart.items[0] });
       if (changed === "options") cart.items[0].selectedOptions = [{ itemId: "size", itemName: "Size", groupId: "size-group", groupName: "Size", priceModifierInCents: 0 }];
       if (changed === "slot") cart.items[0].selectedServiceSlot = { slotId: "slot" } as any;
-      if (changed === "marketplace") Reflect.set(cart.items[0], "marketplace", { lineItemId: "federated", sellerMerchantId: "seller" });
+      if (changed === "marketplace") cart.items[0].marketplace = { lineItemId: "federated", sellerMerchantId: "seller" } as StorefrontCart["items"][number]["marketplace"];
       if (changed === "foreign-merchant") cart.merchantId = "other";
       if (changed === "foreign-cart") cart.sessionId = "other";
     }); const before = f.stored();

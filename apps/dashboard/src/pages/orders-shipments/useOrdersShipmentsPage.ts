@@ -8,6 +8,16 @@ import { showToast } from "../../components/Toast.js";
 import { downloadCsv } from "../../hooks/useCsvExport.js";
 
 const PAGE_SIZE = 10;
+function orderLoadError(error: unknown): string {
+  if (error instanceof DashboardHttpError && error.status === 429) {
+    const seconds = error.retryAfterSeconds;
+    return typeof seconds === "number" && Number.isFinite(seconds) && seconds > 0
+      ? `Muitas consultas em pouco tempo. Aguarde ${Math.ceil(seconds)} segundos e tente novamente.`
+      : "Muitas consultas em pouco tempo. Aguarde um momento e tente novamente.";
+  }
+  return "Não foi possível carregar os pedidos. Tente novamente.";
+}
+
 export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
   const api = useApi();
   const [orders, setOrders] = useState<TenantOrder[]>([]);
@@ -46,13 +56,7 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
       setHasMore(items.length === PAGE_SIZE);
       setHasLoaded(true);
     } catch (e) {
-      setMessage(
-        e instanceof DashboardHttpError
-          ? e.responseBody.slice(0, 160)
-          : e instanceof Error
-            ? e.message
-            : String(e),
-      );
+      setMessage(orderLoadError(e));
     } finally {
       setBusy(false);
     }
@@ -85,13 +89,7 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
       setHasMore(false);
       setHasLoaded(true);
     } catch (e) {
-      setMessage(
-        e instanceof DashboardHttpError
-          ? e.responseBody.slice(0, 160)
-          : e instanceof Error
-            ? e.message
-            : String(e),
-      );
+      setMessage(orderLoadError(e));
     } finally {
       setBusy(false);
     }
@@ -348,15 +346,17 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
   // Budget requests
   const [budgetRequests, setBudgetRequests] = useState<any[]>([]);
   const [budgetLoading, setBudgetLoading] = useState(false);
+  const [budgetLoadError, setBudgetLoadError] = useState("");
 
   const loadBudgets = useCallback(async () => {
     if (!props.me) return;
     setBudgetLoading(true);
+    setBudgetLoadError("");
     try {
       const data = await api.getBudgetRequests(props.me.id);
       setBudgetRequests(data);
-    } catch (e) {
-      setMessage(e instanceof DashboardHttpError ? e.responseBody.slice(0, 160) : e instanceof Error ? e.message : String(e));
+    } catch {
+      setBudgetLoadError("Não foi possível carregar os orçamentos. Tente novamente.");
     } finally {
       setBudgetLoading(false);
     }
@@ -416,6 +416,7 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
     updateTrackingDraft,
     budgetRequests,
     budgetLoading,
+    budgetLoadError,
     updateBudgetStatus,
   };
 }

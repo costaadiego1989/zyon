@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { ERP_REPOSITORY, type ErpRepositoryPort, type ErpConnectionRow } from "../../domain/ports/erp-repository.port.js";
+import { unresolvedConnectionStock } from "../../../../shared/persistence/erp-stock-write-state.js";
 
 export class PrismaErpRepository implements ErpRepositoryPort {
   constructor(private readonly prisma: PrismaClient) {}
@@ -100,8 +101,12 @@ export class PrismaErpRepository implements ErpRepositoryPort {
   }
 
   async delete(merchantId: string, id: string): Promise<void> {
-    const result = await this.prisma.erpConnection.deleteMany({ where: { id, merchantId } });
-    if (result.count !== 1) throw new Error("erp_connection_not_found");
+    await this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM erp_connections WHERE id = ${id} AND merchant_id = ${merchantId} FOR UPDATE`;
+      if (await unresolvedConnectionStock(tx, merchantId, id)) throw new Error("erp_stock_reconciliation_required");
+      const result = await tx.erpConnection.deleteMany({ where: { id, merchantId } });
+      if (result.count !== 1) throw new Error("erp_connection_not_found");
+    });
   }
 
   async markSynced(merchantId: string, id: string): Promise<void> {

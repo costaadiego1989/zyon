@@ -1,0 +1,256 @@
+{
+  "version": 1,
+  "kind": "identified-prisma-baseline-not-historical-replay",
+  "sourceRevision": "432d147a3c24001c4bb02aff4706e7dd7dd5f59a",
+  "sourceSchemaPath": "apps/api/prisma/schema.prisma",
+  "canonicalSchemaSha256": "4ad480176ee70a739c995d6fbe9b585e8f617a91377fe4e89e44bbe7afef81fb",
+  "baselineMigrations": [
+    {
+      "id": "20260924230000_strategy_turn_completions",
+      "canonicalSha256": "7a7d9a37a639ac89a3794a4e699479f1fe47751432375a25e2399feadf27948a",
+      "source": "restored-applied-history"
+    },
+    {
+      "id": "20260929020000_checkout_session_write_version",
+      "canonicalSha256": "dfa87b34579799984b7aa9a10770de37bcb68ccf68b552cf0d8102263432b267",
+      "source": "restored-applied-history"
+    },
+    {
+      "id": "20261003021500_digital_order_fulfillment",
+      "canonicalSha256": "485bce8aa74d04f420512dc982b4c72cad8b2e1fab23bb4c7cdc0426c52943ce",
+      "source": "restored-applied-history"
+    },
+    {
+      "id": "20261018160000_platform_technical_support",
+      "canonicalSha256": "2fc51344854f6db67fd161a0971216292782c8a8566e9b588ce12e76e6feb306",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261030120000_melhor_envio_wallet",
+      "canonicalSha256": "22f5249752c79d94bb17cd5f36190ccc8a24631d2f3fc5b25c412e2120a60a49",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261114091000_buyer_verified_phones",
+      "canonicalSha256": "05c68f7462ee254bcdb8dee90be5bc869baa31ea822d1b90834ec2a663370304",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261114120000_cashback",
+      "canonicalSha256": "a9dfe14774f75e1b404686e2af95a1df492f02757c88dbbe0af57981926fffa0",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261114120000_fiscal_invoicing",
+      "canonicalSha256": "22eeea92ffa0000ee1f6e9e2ca1e2df75a67389dc79a1833b337ffcd33f9314f",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261114130000_cashback_notifications",
+      "canonicalSha256": "c04b66cb9b31b331afe36d4f59d31156b42b98561bc53f2361bb137f498ef448",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261114150000_cashback_combination",
+      "canonicalSha256": "e12aa03491e8c2af97c78e9971bb55bbdb1a7135cf554391e654648abd9124ff",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261114180000_meta_ads_agent",
+      "canonicalSha256": "ecb83b1cfa48f1e83c0bd46f5513768c159e8764e59da249658dd851aaed14c0",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261115170000_fiscal_durable_stages",
+      "canonicalSha256": "3605aa85b7ebd12a0c79566904f28fb63e5a57ceb3eedcfbe0b06b7789feaa2d",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261115190000_fiscal_artifact_immutability",
+      "canonicalSha256": "873710288ce3ed4a486ab714d8ae5d79f81b1b825d16ce9cb9cc4fe6e3aa87d5",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261115200000_fiscal_delivery_binding",
+      "canonicalSha256": "435cb290b95105c332ce6d09f1de810302cef30f4874c608399dd7532553dfa7",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261115210000_fiscal_cancellation_fence",
+      "canonicalSha256": "8247696eb548ddc376d9949a249f495f74c10d388991c0e5e7caf7a36261fb29",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261115220000_fiscal_protected_setup",
+      "canonicalSha256": "bd01d32acdf1f198678421bc72e027ebf4fb9f34f2d8388c0ed84b634eb993c8",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261115230000_private_payment_receipt",
+      "canonicalSha256": "8d850599fd03fe3ab33f0276e2204dd955c75d2877e250a30b12878bbdb47b13",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261116103000_merchant_assistant",
+      "canonicalSha256": "2a7a6135fe2b0edda20227b3e8c2febdf8b6a0014b4943db7c07242cf545aa0a",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261116120000_platform_support_plan_limits",
+      "canonicalSha256": "1caf039294fc815d17c167c19df889b9a939c8a9d040b34c099d9bbe006c6056",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261116193000_experiment_activation_approval",
+      "canonicalSha256": "cae2151e4f51c0e13c5c6e4e845c3f1c168e02f3a8893c6818c24369540877f1",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261116202000_product_content_visibility",
+      "canonicalSha256": "351f04e3f309d4248628adc3ce1b2cffbd9938a37e4a5f8dac2354ba3d492186",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261117010000_campaign_approval",
+      "canonicalSha256": "511c180adfabd1772bce57737404b441dc81cdec0cec4c2549ec05a02fe6caf7",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261117053000_recovery_origin_evidence",
+      "canonicalSha256": "202fc63a31980099fb59b41ef71986f4403f4598dfbcce9eae8b5100a59457c8",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261117190000_platform_prospecting",
+      "canonicalSha256": "d547f85ef0f51f7c4e3c19b28e1f1a631ce444ca6dda3e165457675e9e26de1a",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261118140000_fiscal_olist_oauth",
+      "canonicalSha256": "609ad92852c3901e9ea598cf9c98f8f19f6834968fd7e9537e32233b9bcdff2a",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261121120000_prospect_contact_identity",
+      "canonicalSha256": "37d85bbd81d15c10ff461336e9d1e36fc2c5e616d0c8b47d7d67a957964f759c",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261121130000_prospect_privacy",
+      "canonicalSha256": "173707c9c53a4cf73155b980985aedac58bd70ce221073ac73d662eed635515a",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261121140000_prospect_audience",
+      "canonicalSha256": "d3aed1d9df0a6a19fafbbdd34e46c64ff2f85e6b4324dafd08567ef8af0f9ce3",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261121150000_prospect_reservation_day",
+      "canonicalSha256": "8196c1facb1f3b35f5a3788521ef38d47b30fa795e61f329e7f3de547b2df3dc",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261121160000_prospect_inbox_time",
+      "canonicalSha256": "4f605399e2a925cc6b1468054bfb3359d46994f59cb6a8956d5b08711f4ca313",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261121170000_prospect_conversation_dispatch",
+      "canonicalSha256": "8d44667bab3beeff873ecbf4501ef7e06521a423936f377c45ee66cea16d465c",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261121180000_prospect_endpoint_alias",
+      "canonicalSha256": "abeaac238e8dcc6e4aafe9620f57ab7824a27caa2a6fb16a2567347cd0d71815",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261121190000_prospect_model_usage",
+      "canonicalSha256": "e64ec015c43de95d1d4620047d89ccaaa9efaf8070cba8f96bca54fe72e9d1be",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261121200000_prospect_billing_attribution",
+      "canonicalSha256": "22409d553c4bf1f15eb1f4f8ad49571a75912a17b262bfbafbe557e2a26c463f",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261122120000_ads_attribution_touches",
+      "canonicalSha256": "d5a19863c47c7e6e64fa1807ec3526da4e895a6ec3faa47dd505e621e8f344bd",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261123010000_prospect_retention_hold",
+      "canonicalSha256": "ac00c6a879cfa7dd1d0e175fb993ab0d3646c56ada3d7b89f21042ee833a3e43",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261123153000_cart_recovery_follow_ups",
+      "canonicalSha256": "381ffba2cc899cdc2f5e796df2e1cd1b2f5db379edb23c078ffcfa30a1467ea9",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261123230000_prospect_campaign_setup",
+      "canonicalSha256": "e9af18c80a534ea638c8c0a41e7958ac7fda265ee2603160709c9dcf052738cf",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261124170000_prospect_max_price",
+      "canonicalSha256": "e3c787504da0ae20b03a56cb348c4546874bbb3efe020a40c5d704a11ce7a62a",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261124171000_prospect_campaign_template_ref",
+      "canonicalSha256": "e1e0e5a94ba4e06f6ebc68c301d9fba5d364a7ff4510ef0dc1d961db16f02e36",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261124172000_prospect_delivery_cost",
+      "canonicalSha256": "4dea17cfe8f240be09cf50c5dce6d73d9e0f6e5fffbe24294b8697e435df19dc",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261127090000_merchant_marketing_crm",
+      "canonicalSha256": "4b9d46a47f12a0d4940fbde58d3a5f690d4f8e3af2159e9671a1764325d66e68",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261127091000_marketing_message_order",
+      "canonicalSha256": "4b8ee72f1877eefbc1ac1507d998d770f2a3f661075a396615bd996e42405025",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261127092000_marketing_lifecycle",
+      "canonicalSha256": "607f712d385e7d2f0695788dcbc75cd8fd912608ed757f0e47bd3d63bad7a8f3",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261127093000_marketing_purchase_amount",
+      "canonicalSha256": "d02136d0c5dd4942ba029fdf4f044d7e267d6ce9f166838988b2bd1eaa311278",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261127094000_marketing_unresolved_messages",
+      "canonicalSha256": "4fb634ed4aa9b90c3ddaf50bacf5cdfc18a5fb5668c7f16b9be59290850feb43",
+      "source": "live-deploy-tree"
+    },
+    {
+      "id": "20261127210000_recovery_message_history",
+      "canonicalSha256": "575c2a5324d0161c661c440e9294f9034554215b9e5d320280573420198d39a8",
+      "source": "live-deploy-tree"
+    }
+  ],
+  "executeMigrations": [
+    "20261114000000_service_business_capability",
+    "20261116000000_support_notification_settings",
+    "20261118000000_service_appointment_original_lease",
+    "20261118010000_service_reschedule_receipt",
+    "20261118020000_service_order_authority"
+  ],
+  "actualAppliedEvidence": {
+    "sandbox": "read-only all metadata 2026-11-27T20:42Z",
+    "production": "read-only all metadata 2026-11-27T20:42Z"
+  },
+  "customSql": "Existing exact checkout-version and strategy-context trigger installer is retained; Prisma-managed baseline does not claim full historical trigger/check replay."
+}

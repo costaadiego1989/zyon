@@ -1,0 +1,9 @@
+.zyon-agent-orb{display:inline-flex;position:relative;flex:none;vertical-align:middle;isolation:isolate}
+.zyon-agent-orb__sphere{position:absolute;inset:0;border-radius:50%;background:radial-gradient(120% 120% at 30% 25%,rgb(255 255 255/.92),rgb(255 255 255/0) 42%),var(--color-brand);box-shadow:inset 0 0 20px rgb(255 255 255/.28)}
+.zyon-agent-orb>.zyon-agent-orb__eyes{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;animation:zyon-agent-look 6s ease-in-out infinite}
+.zyon-agent-orb__eyes>span{display:block;background:#fff;border-radius:50%;animation:zyon-agent-blink 4s ease-in-out infinite;box-shadow:0 0 6px rgb(0 0 0/.12)}
+.zyon-agent-orb__eyes>span+span{animation-delay:.12s}
+@keyframes zyon-agent-blink{0%,92%,100%{transform:scaleY(1)}96%{transform:scaleY(.12)}}
+@keyframes zyon-agent-look{0%,100%{transform:translateX(-1px)}50%{transform:translateX(1px)}}
+@media(prefers-reduced-motion:reduce){.zyon-agent-orb__eyes,.zyon-agent-orb__eyes>span{animation:none}}
+@media(forced-colors:active){.zyon-agent-orb__sphere,.zyon-agent-orb__eyes{forced-color-adjust:none}}

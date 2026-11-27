@@ -12,14 +12,14 @@ import type { PostSaleTemplate } from "./usePostSalePage.js";
  */
 export const TEMPLATE_TYPES: Array<{ type: string; label: string; hasCoupon: boolean }> = [
   { type: "follow_up", label: "Acompanhamento da entrega", hasCoupon: false },
-  { type: "review_request", label: "Pedido de avaliaÃ§Ã£o", hasCoupon: false },
-  { type: "nps", label: "Pesquisa de satisfaÃ§Ã£o (NPS)", hasCoupon: false },
+  { type: "review_request", label: "Pedido de avaliação", hasCoupon: false },
+  { type: "nps", label: "Pesquisa de satisfação (NPS)", hasCoupon: false },
   { type: "cross_sell", label: "Produtos complementares", hasCoupon: true },
   { type: "win_back", label: "Retorno de clientes", hasCoupon: true },
   { type: "loyalty", label: "Fidelidade", hasCoupon: true },
   { type: "reorder", label: "Recompra", hasCoupon: true },
-  { type: "cart_recovery", label: "RecuperaÃ§Ã£o de carrinho", hasCoupon: true },
-  { type: "order_confirmation", label: "ConfirmaÃ§Ã£o do pedido", hasCoupon: false },
+  { type: "cart_recovery", label: "Recuperação de carrinho", hasCoupon: true },
+  { type: "order_confirmation", label: "Confirmação do pedido", hasCoupon: false },
   { type: "order_shipped", label: "Pedido enviado", hasCoupon: false },
   { type: "order_delivered", label: "Pedido entregue", hasCoupon: false },
 ];

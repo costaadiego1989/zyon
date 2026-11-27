@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { readCashbackCouponComposition } from "../../../../shared/persistence/storefront-coupon/cashback-composition.js";
+import { readNormalCashbackCombinationOwner } from "../../../../shared/persistence/normal-checkout-cashback-combination.js";
 import { normalCheckoutCrossSellLegacyEventFields } from "../../domain/events/normal-checkout-cross-sell-event.js";
 import { ConflictException, HttpException } from "@nestjs/common";
 import { assertCheckoutBuyerIdentityTransition, assertCheckoutBuyerIdentityChatClaim } from "../../../../shared/persistence/checkout-buyer-identity-transition.js";
@@ -50,11 +52,11 @@ const promotionSchema = z.object({id,merchantId:id,updatedAt:z.date(),status:z.e
   startsAt:z.date(),endsAt:z.date().nullable(),recommendedSkus:z.array(id).min(1).max(200),discountPercent:decimal,maxDiscountPercent:decimal,
   trigger:z.strictObject({sku_in_cart:z.array(id).min(1).max(200).optional(),category_in_cart:z.array(id).min(1).max(200).optional(),
     cart_total_above:z.number().finite().nonnegative().optional()})});
-const catalogSelect = {id:true,sku:true,isActive:true,price:{select:{variantId:true,basePriceInCents:true,currency:true}},
+const catalogSelect = {id:true,sku:true,isActive:true,price:{select:{variantId:true,basePriceInCents:true,costInCents:true,currency:true}},
   weightGrams:true,heightCm:true,widthCm:true,lengthCm:true,media:{select:{url:true},orderBy:{order:"asc"},take:1},
   product:{select:{id:true,merchantId:true,name:true,type:true,isActive:true,deletedAt:true,metadata:true,categoryId:true,updatedAt:true}},
   stock:{select:{quantity:true,reserved:true}}} as const satisfies Prisma.ProductVariantSelect;
-const rowSchema = z.object({id,sku:id,isActive:z.literal(true),price:z.object({variantId:id,basePriceInCents:cents,currency:z.literal("BRL")}),
+const rowSchema = z.object({id,sku:id,isActive:z.literal(true),price:z.object({variantId:id,basePriceInCents:cents,costInCents:cents.nullable().optional(),currency:z.literal("BRL")}),
   weightGrams:cents.nullable().optional(),heightCm:z.number().finite().nonnegative().nullable().optional(),
   widthCm:z.number().finite().nonnegative().nullable().optional(),lengthCm:z.number().finite().nonnegative().nullable().optional(),
   media:z.array(z.object({url:z.string().min(1).max(2048)})).max(1).optional(),
@@ -148,6 +150,9 @@ export async function readNormalCheckoutCrossSellAuthority(tx:Prisma.Transaction
   const originalCart=structuredClone(cart);
   const source=cart.source==="storefront"?await readNormalCrossSellSource(tx,scope,originalCart,stored.globalUserId,
     request||options.mutation?"mutation":"read"):undefined;
+  const mutationComposition=(options.mutation||request)&&cart.commercialBenefitsVersion
+    ?await readCashbackCouponComposition(tx,toCheckoutSession(stored)):undefined;
+  if(mutationComposition?.combinedDiscountCents)await readNormalCashbackCombinationOwner(tx,stored,toCheckoutSession(stored).cart,new Date());
   const priorQuantities=new Map(cart.items.map(item=>[JSON.stringify([item.sku,item.variant??null]),item.quantity]));
   if(options.mutation){const mutation=normalCrossSellCartMutationSchema.parse(options.mutation);
     if(request||mutation.expectedVersion!==stored.version||!originalCart.items.some(item=>item.crossSellIntent))return requireNormalCrossSellReview("snapshot_changed");
@@ -157,10 +162,15 @@ export async function readNormalCheckoutCrossSellAuthority(tx:Prisma.Transaction
     const total=cart.items.reduce((sum,item)=>sum+BigInt(normalCrossSellRequiredCents(item.price))*BigInt(item.quantity),0n);
     if(total>2_147_483_647n)return requireNormalCrossSellReview("monetary_overflow");cart.total=Number(total)/100;
   }
+  if(mutationComposition){
+    cart.currentDiscount=(source?.basis.discount??0)/100;
+    Reflect.deleteProperty(cart,"commercialBenefitsVersion");
+    if(source?.basis.couponCode){cart.commercialNudge={kind:"coupon",title:"Cupom aplicado",message:"Cupom autorizado",couponCode:source.basis.couponCode};
+      cart.appliedBenefits=[{kind:"discount",label:`Cupom ${source.basis.couponCode}`,amount:cart.currentDiscount}];}
+    else{Reflect.deleteProperty(cart,"commercialNudge");Reflect.deleteProperty(cart,"appliedBenefits");}
+  }
   const sourceDiscount=source?.basis.discount??0;
   const existingDiscount=normalCrossSellRequiredCents(cart.currentDiscount??0);
-  if(sourceDiscount>0&&existingDiscount!==sourceDiscount)
-    return requireNormalCrossSellReview("existing_benefit_requires_review");
   if(Object.keys(cart).some(key=>key.startsWith("_")&&!(key==="_storefrontCouponBinding"&&source?.binding))||cart.cart_ref!==undefined&&!source||cart.commerceCartRef!==undefined
     ||cart.commercialNudge!==undefined&&!existingDiscount||Array.isArray(cart.appliedBenefits)&&cart.appliedBenefits.length>0&&!existingDiscount
     ||cart.items.some(item=>Object.keys(item).some(key=>key.startsWith("_"))||item.marketplace!==undefined||item.fulfillmentSchedule!==undefined))return requireNormalCrossSellReview("unsupported_owner");
@@ -180,12 +190,17 @@ export async function readNormalCheckoutCrossSellAuthority(tx:Prisma.Transaction
     if(!ownAuthority)return requireNormalCrossSellReview("active_owner");
   }
   if(options.ownChatClaim)await assertCheckoutBuyerIdentityChatClaim(tx,scope,options.ownChatClaim,stored.conversationId);
+  const pinnedOwner=ownAuthority?.discountOwner?.kind==="cashback_combination"?ownAuthority.discountOwner:undefined;
+  const cashComposition=!options.mutation&&!request&&cart.commercialBenefitsVersion
+    ?await readCashbackCouponComposition(tx,toCheckoutSession(stored),{cashbackRuleVersion:pinnedOwner?.cashbackRuleVersion}):undefined;
+  if(sourceDiscount>0&&existingDiscount!==sourceDiscount&&!cashComposition)
+    return requireNormalCrossSellReview("existing_benefit_requires_review");
   const standaloneCoupon=!sourceDiscount?await tx.couponRedemption.findFirst({where:{...scope,status:{not:"cancelled"}},select:{id:true}}):null;
   const acceptedOffer=await tx.acceptedOffer.findFirst({where:scope,select:{id:true}});
   if(await tx.paymentIntent.findFirst({where:{...scope,status:{notIn:["failed","cancelled"]},...(ownAuthority?{id:{not:ownAuthority.paymentId}}:{})},select:{id:true}})
     ||await tx.completedOrder.findFirst({where:scope,select:{id:true}})
     ||!options.ownChatClaim&&await tx.checkoutChatRequest.findFirst({where:{...scope,status:{in:["processing","unknown"]}},select:{id:true}})
-    ||!existingDiscount&&(standaloneCoupon||acceptedOffer)
+    ||!existingDiscount&&(standaloneCoupon||acceptedOffer)&&!mutationComposition
     ||await tx.strategyAssignment.findUnique({where:{merchantId_sessionId:scope},select:{id:true}})
     ||await tx.strategyIncentiveReservation.findFirst({where:{...scope,status:{in:["reserved","spent"]}},select:{id:true}}))return requireNormalCrossSellReview("active_owner");
   const rules=z.object({merchantId:id,maxDiscountPercent:decimal}).parse(await tx.merchantRule.findUnique({where:{merchantId:scope.merchantId},select:{merchantId:true,maxDiscountPercent:true}}));
@@ -213,19 +228,22 @@ export async function readNormalCheckoutCrossSellAuthority(tx:Prisma.Transaction
   const products=z.array(productPromoSchema).parse(await tx.productPromotion.findMany({where:{merchantId:scope.merchantId,OR:[{variantId:{in:ids}},{productId:{in:rows.map(row=>row.product.id)}},{categoryId:{in:rows.flatMap(row=>row.product.categoryId?[row.product.categoryId]:[])}}]},select:productPromoSelect}));
   const [clock]=z.array(z.object({now:z.date()})).length(1).parse(await tx.$queryRaw`SELECT clock_timestamp() AS now`);
   if(source&&source.row.expiresAt.getTime()<=clock!.now.getTime())return requireNormalCrossSellReview("source_expired");
-  const coupon=sourceDiscount?await readNormalCrossSellCouponAuthority(tx,scope):undefined;
+  let coupon=sourceDiscount?await readNormalCrossSellCouponAuthority(tx,scope,{cashbackRuleVersion:pinnedOwner?.cashbackRuleVersion}):undefined;
+  if(coupon&&mutationComposition){const {combinedDiscountCents:_combined,commercialBenefitsVersion:_version,...candidate}=coupon.candidate;
+    coupon={...coupon,candidate};}
   if(coupon){
     if(coupon.candidate.discountCents!==sourceDiscount||coupon.candidate.cartId!==source!.row.sessionId||coupon.candidate.buyerId!==stored.globalUserId
       ||cart.couponCode!==undefined&&cart.couponCode!==coupon.candidate.couponCode)return requireNormalCrossSellReview("coupon_owner_required");
     const nudge=cart.commercialNudge;
-    if(nudge!==undefined&&(!nudge||typeof nudge!=="object"||!("kind"in nudge)||nudge.kind!=="coupon"
+    if(!cashComposition&&nudge!==undefined&&(!nudge||typeof nudge!=="object"||!("kind"in nudge)||nudge.kind!=="coupon"
       ||!("couponCode"in nudge)||nudge.couponCode!==coupon.candidate.couponCode))return requireNormalCrossSellReview("coupon_owner_required");
-    if(cart.appliedBenefits!==undefined&&(!Array.isArray(cart.appliedBenefits)||cart.appliedBenefits.length!==1
+    if(!cashComposition&&cart.appliedBenefits!==undefined&&(!Array.isArray(cart.appliedBenefits)||cart.appliedBenefits.length!==1
       ||cart.appliedBenefits.some(value=>!value||typeof value!=="object"||value.kind!=="discount"||normalCrossSellRequiredCents(value.amount)!==sourceDiscount)))return requireNormalCrossSellReview("coupon_owner_required");
     if(source!.binding?.state==="active"){
       const binding=source!.binding,candidate=coupon.candidate;
       const keys=["merchantId","cartId","checkoutSessionId","buyerId","reservationBuyerId","redemptionId","couponId","discountCents","basisHash"]as const;
-      if(keys.some(key=>binding[key]!==candidate[key]))return requireNormalCrossSellReview("coupon_owner_required");
+      if(keys.some(key=>binding[key]!==candidate[key])||binding.version===2
+        &&(binding.combinedDiscountCents!==candidate.combinedDiscountCents||binding.commercialBenefitsVersion!==candidate.commercialBenefitsVersion))return requireNormalCrossSellReview("coupon_owner_required");
     }
   }
   const stockRequests=new Map<string,number>();
@@ -294,7 +312,7 @@ export async function readNormalCheckoutCrossSellAuthority(tx:Prisma.Transaction
   for(const[variantId,quantity]of stockRequests){const row=rows.find(row=>row.id===variantId)!;
     if(row.stock.reduce((sum,stock)=>sum+BigInt(stock.quantity)-BigInt(stock.reserved),0n)<BigInt(quantity))return requireNormalCrossSellReview("stock_unavailable");}
   const input=normalCheckoutCrossSellBatchPricingInputSchema.parse({merchantId:scope.merchantId,now:clock!.now.toISOString(),
-    policy:{merchantId:rules.merchantId,maxDiscountPercent:rules.maxDiscountPercent.toNumber()},currentDiscountCents:existingDiscount,lines,targets,
+    policy:{merchantId:rules.merchantId,maxDiscountPercent:cashComposition?.effectiveRules.maxDiscountPercent??mutationComposition?.effectiveRules.maxDiscountPercent??rules.maxDiscountPercent.toNumber()},currentDiscountCents:existingDiscount,lines,targets,
     catalogVariants:rows.map(row=>({variantId:row.id,productId:row.product.id,sku:row.sku,merchantId:row.product.merchantId,isActive:row.isActive,
       productActive:row.product.isActive,productDeletedAt:null,currency:row.price.currency,baseUnitPriceCents:row.price.basePriceInCents}))});
   const pricing=prepareNormalCheckoutCrossSellBatchPricing(input);if(pricing.kind!=="quote_candidate")return requireNormalCrossSellReview(pricing.reason);
@@ -305,17 +323,26 @@ export async function readNormalCheckoutCrossSellAuthority(tx:Prisma.Transaction
         ===JSON.stringify([line.variantId,(line.selectedOptions??[]).map(option=>option.itemId).sort()]));
       const {originalPrice:_original,selected_options:_savedOptions,...saved}=existing??{};
       Reflect.deleteProperty(saved,"category");
+      Reflect.deleteProperty(saved,"cost");
       const category=rows.find(row=>row.id===line.variantId)!.product.categoryId;
+      const cost=rows.find(row=>row.id===line.variantId)!.price.costInCents;
       const fulfillment=fulfillments.get(line.variantId)!;
       return {...saved,sku:line.sku,name:existing?.name??line.sku,variantId:line.variantId,product_id:line.productId,productType:fulfillment.productType,
         fulfillmentStrategy:fulfillment.fulfillmentStrategy,
         quantity:line.quantity,price:line.unitPriceCents/100,variant:JSON.stringify([line.variantId,(line.selectedOptions??[]).map(option=>option.itemId).sort()]),
         ...(category?{category}:{}),
+        ...(cost===undefined||cost===null?{}:{cost:cost/100}),
         ...(line.unitPriceCents<line.baseUnitPriceCents?{originalPrice:line.baseUnitPriceCents/100}:{}),
         ...(line.selectedOptions?.length?{selected_options:line.selectedOptions.map(option=>({group_name:option.groupName,item_name:option.itemName,price_modifier:option.priceModifierInCents/100}))}:{})};
     })};
   let discountOwner:NormalCheckoutDiscountOwner|undefined;
-  if(!sourceDiscount&&existingDiscount){
+  if(cashComposition&&existingDiscount){
+    discountOwner=await readNormalCashbackCombinationOwner(tx,stored,canonicalCart,clock!.now,pinnedOwner);
+    if(!discountOwner||standaloneCoupon&&discountOwner.coupon?.kind!=="checkout_coupon"
+      ||acceptedOffer&&discountOwner.advanced?.kind==="accepted_offer"&&discountOwner.advanced.acceptedOfferRowId!==acceptedOffer.id)
+      return requireNormalCrossSellReview("benefit_owner_required");
+  }
+  if(!cashComposition&&!mutationComposition&&!sourceDiscount&&existingDiscount){
     try{
       if(canonicalCart.commercialNudge?.kind==="coupon"){
         if(source)return requireNormalCrossSellReview("coupon_owner_required");
@@ -329,9 +356,9 @@ export async function readNormalCheckoutCrossSellAuthority(tx:Prisma.Transaction
     if(!discountOwner||standaloneCoupon&&discountOwner.kind!=="checkout_coupon"
       ||acceptedOffer&&(discountOwner.kind!=="accepted_offer"||discountOwner.acceptedOfferRowId!==acceptedOffer.id))return requireNormalCrossSellReview("benefit_owner_required");
   }
-  if(sourceDiscount&&acceptedOffer)return requireNormalCrossSellReview("benefit_owner_required");
+  if(!cashComposition&&!mutationComposition&&sourceDiscount&&acceptedOffer)return requireNormalCrossSellReview("benefit_owner_required");
   if(coupon)assertNormalCrossSellCouponProjection(coupon,{...toCheckoutSession(stored).cart,total:pricing.merchandiseSubtotalCents/100,
-    currentDiscount:sourceDiscount/100,items:pricing.items.map(line=>({sku:line.sku,name:line.sku,quantity:line.quantity,price:line.unitPriceCents/100}))},clock!.now);
+    currentDiscount:existingDiscount/100,items:pricing.items.map(line=>({sku:line.sku,name:line.sku,quantity:line.quantity,price:line.unitPriceCents/100}))},clock!.now);
   // Existing acceptance is a ceiling, not permission to silently change its
   // saved quotation when another catalog/promotion candidate moves. Until an
   // explicit reacceptance lifecycle exists, preserve its exact effective cents.
@@ -354,7 +381,8 @@ export async function readNormalCheckoutCrossSellAuthority(tx:Prisma.Transaction
     ||ownAuthority.buyerId!==stored.globalUserId||ownAuthority.contextHash!==contextHash||ownAuthority.basisHash!==basisHash
     ||!isDeepStrictEqual(ownAuthority.acceptanceEventIds,[...acceptanceEventIds].sort())||!isDeepStrictEqual(ownAuthority.discountOwner,discountOwner)
     ||Date.parse(ownAuthority.admittedAt)>clock!.now.getTime()))return requireNormalCrossSellReview("payment_source_changed");
-  return {stored,cart,originalCart,rows,input,pricing,suggestion,now:clock!.now,acceptanceEventIds,contextHash,basisHash,source,coupon,discountOwner};
+  return {stored,cart,originalCart,rows,input,pricing,suggestion,now:clock!.now,acceptanceEventIds,contextHash,basisHash,source,coupon,discountOwner,
+    cashComposition,cashbackMutation:Boolean(mutationComposition)};
 }
 
 /** Actual reference from the authenticated persisted checkout, never an inferred

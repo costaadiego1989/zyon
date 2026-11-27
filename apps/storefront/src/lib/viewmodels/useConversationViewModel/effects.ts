@@ -8,14 +8,19 @@ export function useNudgeTriggers(
   merchantId: string | undefined,
   conversationIdRef: { current: string | null },
   fireNudge: (t: TriggerName) => void,
+  idleSeconds?: number,
 ) {
   const fireNudgeRef = useRef(fireNudge);
   fireNudgeRef.current = fireNudge;
+  const idleActivityRef = useRef({ merchantId, lastActivityAt: Date.now(), triggered: false });
 
   useEffect(() => {
+    if (idleActivityRef.current.merchantId !== merchantId) {
+      idleActivityRef.current = { merchantId, lastActivityAt: Date.now(), triggered: false };
+    }
     const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
     const cfg = {
-      idleSeconds: 300,
+      idleSeconds: idleSeconds ?? 180,
       apiBaseUrl: API_BASE,
       merchantId,
       get sessionId() {
@@ -23,13 +28,13 @@ export function useNudgeTriggers(
       },
     };
     const onTrigger = (t: TriggerName) => fireNudgeRef.current(t);
-    const cleanupIdle = setupIdleTrigger(cfg, onTrigger);
+    const cleanupIdle = setupIdleTrigger(cfg, onTrigger, idleActivityRef.current);
     const cleanupExit = setupExitIntentTrigger(cfg, onTrigger);
     return () => {
       cleanupIdle();
       cleanupExit();
     };
-  }, [merchantId]);
+  }, [merchantId, idleSeconds]);
 }
 
 export function useProactiveMode(

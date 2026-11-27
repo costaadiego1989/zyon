@@ -1,13 +1,16 @@
-import { Injectable, Inject, NotFoundException } from "@nestjs/common";
+import { MARKETING_RELATIONSHIP, type MarketingRelationshipPort, type MarketingInboundDecision } from "../../../../shared/contracts/marketing.js";
+import { Injectable, Inject, NotFoundException, Optional } from "@nestjs/common";
 import { decodePersistedTheme } from "../../../merchant/domain/services/merchant-theme.validators.js";
 import { STOREFRONT_CONFIG_QUERY_PORT, type StorefrontConfigQueryPort, type StorefrontConfigSnapshot } from "../../domain/ports/storefront-config-query.port.js";
 import { BILLING_PLAN_ACCESS, type BillingPlanAccessPort } from "../../../payment/domain/ports/billing-plan-access.port.js";
 import { checkoutTone, type CheckoutTone } from "../../../checkout/domain/services/checkout-collection-copy.js";
+import { CashbackService } from "../../../cashback/application/cashback.service.js";
 
 export interface StoreConfigOutput {
   publishedPolicies?: Record<string, string>;
   policiesAvailable?: boolean;
   budgetModeEnabled: boolean;
+  cashbackEnabled: boolean;
   /** Canonical public presentation hint; never booking or checkout authority. */
   businessMode?: "products" | "services";
   merchantId: string;
@@ -15,6 +18,7 @@ export interface StoreConfigOutput {
   logo?: string;
   favicon?: string;
   theme: {
+    trustBadges?: string[];
     accentColor: string;
     secondaryColor?: string;
     textColor: string;
@@ -44,6 +48,7 @@ export interface StoreConfigOutput {
   showBranding?: boolean;
   /** Public UI hint only; the voice route remains the enforcement point. */
   voiceCheckoutEnabled?: boolean;
+  marketingCrmEnabled?: boolean;
   agentMode?: "silent_until_trigger" | "proactive" | "manual_only";
   agentInitialDelaySeconds?: number;
 }
@@ -53,6 +58,8 @@ export class GetStoreConfigUseCase {
   constructor(
     @Inject(STOREFRONT_CONFIG_QUERY_PORT) private readonly configQuery: StorefrontConfigQueryPort,
     @Inject(BILLING_PLAN_ACCESS) private readonly billing?: BillingPlanAccessPort,
+    @Optional() private readonly cashback?: CashbackService,
+    @Optional() @Inject(MARKETING_RELATIONSHIP) private readonly marketing?: MarketingRelationshipPort,
   ) {}
 
   async execute(slug: string): Promise<StoreConfigOutput> {
@@ -98,17 +105,23 @@ export class GetStoreConfigUseCase {
       delete publicCompany.serviceNames;
       publicSettings = { ...storedSettings, company: publicCompany };
     }
-    const voiceCheckoutEnabled = await this.isVoiceCheckoutEnabled(row.id);
+    const [voiceCheckoutEnabled, cashbackEnabled] = await Promise.all([
+      this.isVoiceCheckoutEnabled(row.id), this.isCashbackEnabled(row.id),
+    ]);
+    const marketingCrmEnabled = await this.marketing?.enabled(row.id) ?? false;
     return {
       publishedPolicies: config.publishedPolicies ?? {},
       policiesAvailable: config.policiesAvailable,
       budgetModeEnabled: row.budgetModeEnabled === true,
+      cashbackEnabled,
       ...(businessMode ? { businessMode } : {}),
       merchantId: row.id,
+      marketingCrmEnabled,
       name: row.name,
       logo: theme?.logoUrl ?? undefined,
       favicon: (theme as any)?.faviconUrl ?? theme?.logoUrl ?? undefined,
       theme: {
+        trustBadges: theme?.trustBadges,
         accentColor: theme?.accentColor ?? "#0F766E",
         secondaryColor: theme?.secondaryColor,
         textColor: theme?.textColor ?? "#111827",
@@ -131,7 +144,7 @@ export class GetStoreConfigUseCase {
       agentName: identity?.agentName ?? theme?.agentName,
       agentGreeting: identity?.greeting,
       agentTone: checkoutTone(identity?.tone),
-      quickReplies,
+      quickReplies: cashbackEnabled ? quickReplies : quickReplies.filter(label => !/cashback/i.test(label)),
       stories: config.stories as any[],
       storeCategory: row.storeCategory ?? undefined,
       storeSettings: publicSettings,
@@ -140,6 +153,14 @@ export class GetStoreConfigUseCase {
       agentMode,
       agentInitialDelaySeconds: typeof checkoutSettings?.initialDelaySeconds === "number" ? checkoutSettings.initialDelaySeconds : 5,
     };
+  }
+
+  private async isCashbackEnabled(merchantId: string): Promise<boolean> {
+    try {
+      return await this.cashback?.isProgramEnabled(merchantId) === true;
+    } catch {
+      return false;
+    }
   }
 
   private async isVoiceCheckoutEnabled(merchantId: string): Promise<boolean> {

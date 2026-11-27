@@ -6,6 +6,7 @@ import {
 import { DOMAIN_EVENT_BUS, type DomainEventBus } from "../events/domain-event-bus.port.js";
 
 export const OUTBOX_DISPATCHER_OPTIONS = Symbol("OUTBOX_DISPATCHER_OPTIONS");
+export const OUTBOX_BACKGROUND_TICK = Symbol("OUTBOX_BACKGROUND_TICK");
 export interface OutboxDispatcherOptions {
   concurrency: number;
   drainTimeoutMs: number;
@@ -23,6 +24,8 @@ export class OutboxDispatcher implements OnApplicationBootstrap, OnModuleDestroy
   private readonly options: OutboxDispatcherOptions;
   private timer: ReturnType<typeof setInterval> | undefined;
   private active: Promise<void> | undefined;
+  private backgroundActive: Promise<void> | undefined;
+  private nextBackgroundAt = 0;
   private shutdown: Promise<void> | undefined;
   private readonly heartbeats = new Set<ReturnType<typeof setInterval>>();
   private stopping = false;
@@ -36,6 +39,7 @@ export class OutboxDispatcher implements OnApplicationBootstrap, OnModuleDestroy
     @Inject(OUTBOX_REPOSITORY) private readonly outbox: LeasedOutboxRepository,
     @Inject(DOMAIN_EVENT_BUS) private readonly eventBus: DomainEventBus,
     @Optional() @Inject(OUTBOX_DISPATCHER_OPTIONS) options?: Partial<OutboxDispatcherOptions>,
+    @Optional() @Inject(OUTBOX_BACKGROUND_TICK) private readonly background?: { tick(): Promise<void> },
   ) {
     this.options = { concurrency: 4, drainTimeoutMs: 30_000, ...options };
     if (!Number.isSafeInteger(this.options.concurrency) || this.options.concurrency < 1 || this.options.concurrency > 50
@@ -65,10 +69,11 @@ export class OutboxDispatcher implements OnApplicationBootstrap, OnModuleDestroy
   }
 
   private async drainActive(): Promise<void> {
-    if (!this.active) return;
+    const active = [this.active, this.backgroundActive].filter((work): work is Promise<void> => !!work);
+    if (!active.length) return;
     let timeout: ReturnType<typeof setTimeout> | undefined;
     const timedOut = await Promise.race([
-      this.active.then(() => false),
+      Promise.allSettled(active).then(() => false),
       new Promise<boolean>((resolve) => { timeout = setTimeout(() => resolve(true), this.options.drainTimeoutMs); }),
     ]);
     clearTimeout(timeout);
@@ -83,6 +88,7 @@ export class OutboxDispatcher implements OnApplicationBootstrap, OnModuleDestroy
 
   dispatch(): Promise<void> {
     if (this.stopping) return Promise.resolve();
+    this.scheduleBackground();
     if (this.active) return this.active;
     if (Date.now() - this.lastErrorAt < ERROR_COOLDOWN_MS) return Promise.resolve();
     this.active = this.runRound().then(() => {
@@ -99,6 +105,15 @@ export class OutboxDispatcher implements OnApplicationBootstrap, OnModuleDestroy
   }
 
   getLastCompletedRoundAt(): number { return this.lastCompletedRoundAt; }
+
+  private scheduleBackground(): void {
+    if (!this.background || this.backgroundActive || Date.now() < this.nextBackgroundAt) return;
+    this.nextBackgroundAt = Date.now() + 1000;
+    this.backgroundActive = Promise.resolve().then(() => this.background!.tick()).catch(() => {
+      this.nextBackgroundAt = Date.now() + ERROR_COOLDOWN_MS;
+      this.logger.warn("fiscal_background_tick_failed");
+    }).finally(() => { this.backgroundActive = undefined; });
+  }
 
   private async runRound(): Promise<void> {
     await this.reportBacklog();

@@ -77,6 +77,59 @@ async function expectDenied(method, headers, origin = internalOrigin) {
 }
 
 for (const method of ["GET", "HEAD"]) {
+  test(`marketing ${method} history preserves the conversation capability and public origin`, async () => {
+    const route = fixture();
+    const response = await route.invoke(method, {}, internalOrigin, ["conversations", "session-1"]);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { status: "fixture" });
+    assert.equal(response.headers.get("Cache-Control"), "no-store");
+    assert.equal(route.calls.length, 1);
+    const call = route.calls[0];
+    assert.equal(call.url, "https://api.fixture.invalid/storefront/conversations/session-1?current=true");
+    assert.equal(call.method, method);
+    assert.equal(call.cache, "no-store");
+    assert.equal(call.headers.get("Authorization"), authorization);
+    assert.equal(call.headers.get("Origin"), publicOrigin);
+    assert.equal(call.headers.get("X-Internal-Service-Token"), "fixture-internal-only");
+  });
+}
+
+test("marketing identity forwards both credentials only through its exact POST route", async () => {
+  const route = fixture();
+  const selected = ["conversations", "session-1", "identity"];
+  const response = await route.invoke("POST", { origin: publicOrigin, "x-buyer-authorization": "Bearer fixture-buyer" }, internalOrigin, selected);
+  assert.equal(response.status, 200);
+  assert.equal(route.calls.length, 1);
+  const call = route.calls[0];
+  assert.equal(call.url, "https://api.fixture.invalid/storefront/conversations/session-1/identity?current=true");
+  assert.equal(call.headers.get("Authorization"), authorization);
+  assert.equal(call.headers.get("X-Buyer-Authorization"), "Bearer fixture-buyer");
+  assert.equal(call.headers.get("Origin"), publicOrigin);
+  assert.equal(call.body, '{"enabled":true}');
+  for (const method of ["GET", "HEAD", "PATCH"]) {
+    assert.equal((await route.invoke(method, { origin: publicOrigin }, internalOrigin, selected)).status, 404);
+  }
+  assert.equal((await route.invoke("POST", { origin: publicOrigin }, internalOrigin, ["conversations", "session-1"])).status, 404);
+  assert.equal((await route.invoke("POST", { origin: publicOrigin }, internalOrigin, [...selected, "arbitrary"])).status, 404);
+  assert.equal(route.calls.length, 1);
+});
+
+test("marketing proxy rejects missing capabilities and foreign origins before upstream IO", async () => {
+  for (const [method, selected] of [["GET", ["conversations", "session-1"]], ["POST", ["conversations", "session-1", "identity"]]]) {
+    for (const [overrides, status] of [
+      [{ origin: publicOrigin, authorization: null }, 401],
+      [{ origin: "https://foreign.example" }, 403],
+      [{ origin: publicOrigin, "sec-fetch-site": "cross-site" }, 403],
+    ]) {
+      const route = fixture();
+      const response = await route.invoke(method, overrides, internalOrigin, selected);
+      assert.equal(response.status, status);
+      assert.equal(route.calls.length, 0);
+    }
+  }
+});
+
+for (const method of ["GET", "HEAD"]) {
   test(`Railway ${method} without Origin preserves the public capability origin`, async () => {
     const route = fixture();
     assert.equal((await route.invoke(method)).status, 200);

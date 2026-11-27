@@ -15,6 +15,7 @@ export function parseSuggestedReadActions(value: unknown): StorefrontSuggestedRe
       if (!record(candidate) || !keys(candidate, ["id", "label", "action"])) return null;
       const { id, label, action: selected } = candidate;
       if (!boundedText(id, 191) || !boundedText(label, 500) || seen.has(id) || !isStorefrontReadUiAction(selected)) return null;
+      if (selected.tool !== "get_product_details" && selected.tool !== "search_products") return null;
       seen.add(id);
       const action: StorefrontReadUiAction = selected.tool === "get_product_details"
         ? { tool: "get_product_details", args: { productId: selected.args.productId } }

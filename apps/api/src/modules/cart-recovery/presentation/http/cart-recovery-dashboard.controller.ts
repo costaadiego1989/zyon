@@ -3,6 +3,8 @@ import {
   Controller,
   Get,
   Patch,
+  Param,
+  Optional,
   Query,
   Req,
   UseGuards,
@@ -21,6 +23,7 @@ import { UpdateStrategyPreferencesUseCase } from "../../application/use-cases/up
 import { GetStrategyConfigUseCase } from "../../application/use-cases/get-strategy-config.use-case.js";
 import { UpdateStrategyConfigUseCase } from "../../application/use-cases/update-strategy-config.use-case.js";
 import { ListRecoveryAttemptsUseCase } from "../../application/use-cases/list-recovery-attempts.use-case.js";
+import { RecoveryAttemptDetailsService } from "../../application/recovery-attempt-details.service.js";
 
 @ApiTags("Dashboard / Cart Recovery")
 @Controller("dashboard/cart-recovery")
@@ -34,6 +37,7 @@ export class CartRecoveryDashboardController {
     private readonly getStrategyConfig: GetStrategyConfigUseCase,
     private readonly updateStrategyConfig: UpdateStrategyConfigUseCase,
     private readonly listRecoveryAttempts: ListRecoveryAttemptsUseCase,
+    @Optional() private readonly attemptDetails?: RecoveryAttemptDetailsService,
   ) {}
 
   @Get("metrics")
@@ -59,9 +63,10 @@ export class CartRecoveryDashboardController {
   @ApiOkResponse({ description: "Recovery attempts retrieved" })
   async listAttempts(
     @Req() req: any,
-    @Query() query?: { status?: string; limit?: number; offset?: number },
+    @Query() query?: { status?: string; channel?: string; limit?: number; offset?: number },
   ) {
     const user = currentUser(req);
+    if (this.attemptDetails) return this.attemptDetails.list(user.merchantId, query);
     const attempts = await this.listRecoveryAttempts.execute({
       merchantId: user.merchantId,
       status: query?.status,
@@ -78,6 +83,12 @@ export class CartRecoveryDashboardController {
         created_at: attempt.createdAt.toISOString(),
       })),
     };
+  }
+
+  @Get("attempts/:id")
+  @ApiOperation({ summary: "Recipient snapshot, message content, receipts and follow-ups" })
+  async getAttempt(@Req() req: any, @Param("id") id: string) {
+    return this.attemptDetails!.detail(currentUser(req).merchantId, id);
   }
 
   @Get("strategies")

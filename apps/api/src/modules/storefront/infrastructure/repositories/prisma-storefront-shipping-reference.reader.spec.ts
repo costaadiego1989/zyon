@@ -98,7 +98,7 @@ test("product-only request cannot fabricate a cart or choose the first variant",
 
 test("hybrid reader retains canonical saved locality when available and permits carrier-only reference otherwise", async () => {
   const f = fixture(); f.state.carrierEnabled = true;
-  const covered = await f.reader.read(f.scope, { zipCode: "01310100" });
+  const covered: Awaited<ReturnType<typeof f.reader.read>> & {carrierEnabled?:boolean} = await f.reader.read(f.scope, { zipCode: "01310100" });
   assert.equal(covered.kind, "ready");
   if (covered.kind === "ready") { assert.equal(covered.destinationNeighborhood, "Saved district"); assert.equal(Reflect.get(covered,"carrierEnabled"), true); }
   f.state.addresses = [];

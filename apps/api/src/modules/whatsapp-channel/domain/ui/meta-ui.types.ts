@@ -49,6 +49,8 @@ export interface MetaUiPresentation {
 }
 
 export interface WhatsAppConversationState {
+  /** Internal interpreted reference retained while the opening awaits a choice. */
+  marketingPendingAttachment?: string;
   /** Filled only by the authenticated service dispatcher. */
   serviceBooking?: NativeServiceBookingControls;
   agentTone?: import("@zyon/shared-types").AgentTone;
@@ -58,6 +60,7 @@ export interface WhatsAppConversationState {
   cartHasItems?: boolean;
   checkoutSessionId?: string;
   checkoutConversationId?: string;
+  recoveredCheckout?: boolean;
   checkoutGeneration?: number;
   payment?: { intentId: string; sessionId: string; method?: "pix" | "card" | "boleto"; amount_cents: number; status: string; copy_paste?: string; ticket_url?: string };
   checkoutSummaryFingerprint?: string;

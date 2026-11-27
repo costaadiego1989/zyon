@@ -1,3 +1,5 @@
+import {SUBSCRIPTION_ATTRIBUTION,type SubscriptionAttribution} from "../domain/ports/subscription-attribution.port.js";
+import {observeStripeSubscriptionPayment} from "./observe-stripe-subscription-payment.js";
 import { savePaymentTransition } from "./services/save-payment-transition.js";
 import { BadRequestException, ServiceUnavailableException, Inject, Injectable, Optional , Logger} from "@nestjs/common";
 import Stripe from "stripe";
@@ -50,6 +52,7 @@ export class HandleStripeWebhookUseCase {
     @Optional() private readonly chargebackPaymentHold?: ChargebackPaymentHoldUseCase,
     @Inject(PAYMENT_PROVIDER_PORT) private readonly paymentProvider?: PaymentProviderPort,
     @Optional() @Inject(BILLING_ADMIN_NOTICE_PORT) private readonly adminNotices?: BillingAdminNoticePort,
+    @Optional() @Inject(SUBSCRIPTION_ATTRIBUTION) private readonly attribution?:SubscriptionAttribution,
   ) {
     const { secretKey } = readStripeConnection();
     // Stripe is optional: an Asaas-only installation must still boot.
@@ -57,7 +60,7 @@ export class HandleStripeWebhookUseCase {
     this.stripe = secretKey ? new Stripe(secretKey, { apiVersion: "2026-04-22.dahlia" }) : null;
   }
 
-  async execute(rawBody: Buffer, signature: string | undefined): Promise<HandleStripeWebhookResult> {
+  async execute(rawBody: Buffer, signature: string | undefined): Promise<HandleStripeWebhookResult & {attribution?: "allocation_coverage_unknown"}> {
     const { webhookSecret } = readStripeConnection();
 
     if (!this.stripe || !webhookSecret) {
@@ -75,11 +78,18 @@ export class HandleStripeWebhookUseCase {
       throw new StripeSignatureError();
     }
 
-    return this.dispatchEvent(event);
+    const result=await this.dispatchEvent(event);
+    if(this.attribution && result.outcome!=="ignored" && event.livemode===!!readStripeConnection().secretKey?.startsWith("sk_live_")){
+      const coverage=await observeStripeSubscriptionPayment(this.stripe,event,this.attribution);
+      if(coverage)return {...result,attribution:coverage};
+    }
+    return result;
   }
 
   /** Exposed for testing — bypasses signature verification. */
   async dispatchEvent(event: Stripe.Event): Promise<HandleStripeWebhookResult> {
+    const object = event.data.object as { metadata?: Record<string, string>; parent?: { subscription_details?: { metadata?: Record<string, string> } } };
+    if (object.metadata?.zyon_module || object.parent?.subscription_details?.metadata?.zyon_module) return { outcome: "ignored", reason: "non_base_billing_module" };
     const merchantId = await this.resolveMerchantId(event);
     const eventKey: ProviderEventKey = { provider: "stripe", merchantId, eventId: event.id };
 
@@ -304,15 +314,15 @@ export class HandleStripeWebhookUseCase {
     ) {
       return "ignored_non_billing_checkout";
     }
+    const subscriptionId = idFrom(session.subscription);
+    const current = subscriptionId && this.billingStripe ? await this.billingStripe.retrieveBillingSubscription(subscriptionId) : undefined;
+    if (current?.module) return "ignored_non_base_billing_module";
     await this.platformEvents.checkoutCompleted({
       merchantId,
       customerId: idFrom(session.customer),
       subscriptionId: idFrom(session.subscription),
     });
-    const subscriptionId = idFrom(session.subscription);
-    if (subscriptionId && this.billingStripe) {
-      await this.platformEvents.subscriptionUpdated(await this.billingStripe.retrieveBillingSubscription(subscriptionId));
-    }
+    if (current) await this.platformEvents.subscriptionUpdated(current);
     return "billing_checkout_completed";
   }
 
@@ -322,7 +332,9 @@ export class HandleStripeWebhookUseCase {
     if (!this.platformEvents) return "ignored_platform_events_disabled";
     if (this.billingStripe) {
       // Read current state so delayed events cannot restore a cancelled plan.
-      await this.platformEvents.subscriptionUpdated(await this.billingStripe.retrieveBillingSubscription(subscription.id));
+      const current = await this.billingStripe.retrieveBillingSubscription(subscription.id);
+      if (current.module) return "ignored_non_base_billing_module";
+      await this.platformEvents.subscriptionUpdated(current);
       return "billing_subscription_updated";
     }
     const raw = subscription as Stripe.Subscription & {
@@ -347,6 +359,7 @@ export class HandleStripeWebhookUseCase {
     const subscriptionId = idFrom(invoice.parent?.subscription_details?.subscription ?? invoice.subscription);
     if (!subscriptionId || !this.billingStripe || !this.platformEvents) return "ignored_non_subscription_invoice";
     const current = await this.billingStripe.retrieveBillingSubscription(subscriptionId);
+    if (current.module) return "ignored_non_base_billing_module";
     await this.platformEvents.subscriptionUpdated(current);
     const planKey = planFromPriceId(current.priceId);
     if (event.type === "invoice.paid" && !event.account && invoice.status === "paid" && invoice.billing_reason === "subscription_create" && current.status === "active" && current.merchantId &&
@@ -418,7 +431,12 @@ export class HandleStripeWebhookUseCase {
       this.metrics?.paymentWebhookAnomaly.inc({ provider: "stripe", kind: "marketplace_refund_requires_reconciliation" });
       return "marketplace_refund_reconciliation_required";
     }
-    if (charge.amount_refunded < snapshot.amountCents) return "payment_partially_refunded";
+    if (charge.amount_refunded < snapshot.amountCents) {
+      await this.payments.recordFiscalRefundObservation?.({ merchantId: snapshot.merchantId, paymentIntentId: snapshot.id,
+        providerPaymentId: piId, amountCents: charge.amount, currency: charge.currency, refundedCents: charge.amount_refunded,
+        providerEventRef: "stripe-refund:" + charge.id + ":" + charge.amount_refunded });
+      return "payment_partially_refunded";
+    }
 
     await this.paymentDispatch.markRefunded(intentEntity, "charge.refunded");
     await this.refundPaymentHold?.execute(intentId);

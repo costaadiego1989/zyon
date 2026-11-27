@@ -1,0 +1,130 @@
+.fiscal-page {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+}
+.fiscal-page :is(h1, h2, h3) {
+  font-family: var(--font-sans);
+}
+.fiscal-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.fiscal-table-scroll {
+  overflow-x: auto;
+}
+.fiscal-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.fiscal-table th {
+  text-align: left;
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+.fiscal-table td,
+.fiscal-table th {
+  padding: 16px 12px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+}
+.fiscal-table td {
+  overflow-wrap: anywhere;
+  min-width: 130px;
+}
+.fiscal-page section {
+  min-width: 0;
+}
+.fiscal-page .fiscal-section {
+  padding: 24px;
+  background: var(--surface-1);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+}
+.fiscal-page h2 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+.fiscal-page h3 {
+  font-size: 15px;
+}
+.fiscal-page p {
+  line-height: 1.6;
+  max-width: 75ch;
+}
+.fiscal-page .fiscal-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.fiscal-page .fiscal-state {
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+.fiscal-page .fiscal-readiness {
+  padding: 0;
+  list-style: none;
+}
+.fiscal-page .fiscal-readiness li {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.fiscal-page .fiscal-readiness li strong {
+  min-width: 200px;
+}
+.fiscal-page .fiscal-item {
+  border-top: 1px solid var(--color-border);
+  padding-top: 20px;
+  display: grid;
+  gap: 16px;
+}
+.fiscal-page .fiscal-tax {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr auto;
+  gap: 12px;
+  align-items: end;
+}
+.fiscal-page .fiscal-tax label {
+  display: block;
+}
+.fiscal-page code {
+  overflow-wrap: anywhere;
+}
+.fiscal-page button {
+  min-height: 40px;
+}
+.fiscal-page input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+.fiscal-page .fiscal-check {
+  display: block;
+  margin: 12px 0;
+  line-height: 1.5;
+}
+@media (max-width: 768px) {
+  .fiscal-page .page-header {
+    flex-wrap: nowrap;
+  }
+  .fiscal-page .page-header__copy {
+    flex-basis: auto;
+  }
+}
+@media (max-width: 600px) {
+  .fiscal-page .fiscal-section {
+    padding: 16px;
+  }
+  .fiscal-page .fiscal-tax {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

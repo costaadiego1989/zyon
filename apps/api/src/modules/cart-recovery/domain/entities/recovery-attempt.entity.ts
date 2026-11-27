@@ -4,6 +4,12 @@ import type { AbandonmentReason } from "../values/abandonment-reason.js";
 export type RecoveryAttemptStatus = "pending" | "sent" | "recovered" | "failed" | "expired" | "unknown";
 export type RecoveryChannel = "in_session" | "none" | "whatsapp_template" | "email";
 
+export interface RecoveryDeliveryMetadata {
+  providerMessageId?: string;
+  reason?: string;
+  fallbackReason?: string;
+}
+
 export interface RecoveryAttemptProps {
   id: string;
   merchantId: string;
@@ -18,6 +24,8 @@ export interface RecoveryAttemptProps {
   recoveredAt: Date | null;
   recoveredOrderId: string | null;
   createdAt: Date;
+  lastBuyerActivityAt?: Date | null;
+  deliveryMetadata?: RecoveryDeliveryMetadata | null;
 }
 
 export class RecoveryAttempt {
@@ -36,6 +44,12 @@ export class RecoveryAttempt {
   get recoveredAt() { return this.props.recoveredAt; }
   get recoveredOrderId() { return this.props.recoveredOrderId; }
   get createdAt() { return this.props.createdAt; }
+  get lastBuyerActivityAt() { return this.props.lastBuyerActivityAt ?? null; }
+  get deliveryMetadata() { return this.props.deliveryMetadata ?? null; }
+
+  withDeliveryMetadata(deliveryMetadata: RecoveryDeliveryMetadata): RecoveryAttempt {
+    return new RecoveryAttempt({ ...this.props, deliveryMetadata });
+  }
 
   markSent(at: Date, channel: RecoveryChannel = this.props.channel): RecoveryAttempt {
     return new RecoveryAttempt({ ...this.props, status: "sent", sentAt: at, channel });

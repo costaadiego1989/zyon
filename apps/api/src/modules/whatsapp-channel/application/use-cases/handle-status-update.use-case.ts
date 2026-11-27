@@ -6,6 +6,7 @@
 import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { RecoveryMessageJournal } from "../../../cart-recovery/infrastructure/recovery-message-journal.js";
 
 export interface StatusUpdateInput {
   merchantId: string;
@@ -31,6 +32,7 @@ interface MetaReceiptInput {
 }
 const SERVICE_CORRELATION = /^service_notification:[a-f0-9]{64}$/;
 const ORDER_CORRELATION = /^order_notification:[a-f0-9]{64}$/;
+const CAMPAIGN_CORRELATION = /^campaign_ready:[a-f0-9]{64}$/;
 const ORDER_NOTIFICATION_TYPES = new Set(["order_confirmation", "order_nonphysical_confirmation", "order_shipped", "order_delivered", "merchant_order_paid", "order_paid_animation", "order_shipped_animation"]);
 // An authenticated positive delivery/read is stronger than a contradictory
 // failure. A late acceptance alone can never erase a delivery failure.
@@ -42,6 +44,14 @@ export class HandleStatusUpdateUseCase {
   constructor(@Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient) {}
 
   async receiveMetaReceipt(input: MetaReceiptInput): Promise<void> {
+    if (input.correlationId && /^(rec_|c[a-z0-9]{20,}$)/.test(input.correlationId)) {
+      if (!this.prisma) throw new Error("whatsapp_receipt_store_unavailable");
+      await new RecoveryMessageJournal(this.prisma).receipt(input);
+      return;
+    }
+    if(typeof input.correlationId==='string'&&CAMPAIGN_CORRELATION.test(input.correlationId)){
+      await this.receiveCampaignReadyReceipt(input);return;
+    }
     if (input.correlationId !== undefined && SERVICE_CORRELATION.test(input.correlationId)) {
       await this.receiveServiceNotificationReceipt(input); return;
     }
@@ -149,6 +159,35 @@ export class HandleStatusUpdateUseCase {
       } });
       if (updated.count !== 1) throw new Error("whatsapp_order_receipt_conflict");
     });
+  }
+
+  /** The dispatcher supplied this purpose nonce to Meta. Lock notice before ledger,
+   * matching admission/finalization, and project receipt facts without reopening work. */
+  private async receiveCampaignReadyReceipt(input:MetaReceiptInput):Promise<void>{
+    if(!Object.hasOwn(ORDER_RECEIPT_RANK,input.status)||typeof input.messageId!=='string'||!input.messageId||input.messageId.length>1024||/[\s\u0000-\u001f]/.test(input.messageId))return;
+    if(input.timestamp!==undefined&&(typeof input.timestamp!=='string'||!/^[1-9]\d{0,15}$/.test(input.timestamp)||!Number.isSafeInteger(Number(input.timestamp))))return;
+    if(!this.prisma)throw new Error('whatsapp_receipt_store_unavailable');
+    const object=(value:unknown):Record<string,unknown>|null=>value&&typeof value==='object'&&!Array.isArray(value)?value as Record<string,unknown>:null;
+    await this.prisma.$transaction(async tx=>{
+      const candidates=await tx.$queryRaw<Array<{id:string;response:unknown}>>(Prisma.sql`SELECT id,response FROM whatsapp_deliveries WHERE id=${input.correlationId} AND merchant_id=${input.merchantId} AND config_id=${input.configId}`);
+      const candidate=candidates[0],initial=object(candidate?.response),noticeId=initial?.noticeId;
+      if(candidates.length!==1||initial?.kind!=='campaign_ready'||typeof noticeId!=='string'||noticeId!==input.correlationId!.replace('campaign_ready:','campaign_notice_'))return;
+      const notices=await tx.$queryRaw<Array<{id:string;merchant_id:string;campaign_id:string;proposal_id:string;proposal_digest:string;whatsapp_status:string;dispatch_snapshot:unknown;dispatch_started_at:Date|null;fence:number}>>(Prisma.sql`SELECT id,merchant_id,campaign_id,proposal_id,proposal_digest,whatsapp_status,dispatch_snapshot,dispatch_started_at,fence FROM meta_ads_campaign_ready_notices WHERE id=${noticeId} AND merchant_id=${input.merchantId} FOR UPDATE`);
+      const notice=notices[0];if(!notice?.dispatch_started_at)return;
+      const rows=await tx.$queryRaw<Array<{id:string;merchant_id:string;config_id:string;device_id:string;state:string;response:unknown;provider_message_id:string|null;campaign_ready_notice_id:string|null}>>(Prisma.sql`SELECT id,merchant_id,config_id,device_id,state,response,provider_message_id,campaign_ready_notice_id FROM whatsapp_deliveries WHERE id=${input.correlationId} AND merchant_id=${input.merchantId} AND config_id=${input.configId} FOR UPDATE`);
+      const row=rows[0],metadata=object(row?.response),snapshot=object(notice.dispatch_snapshot);
+      if(!row||!metadata||!snapshot||row.campaign_ready_notice_id!==notice.id||row.merchant_id!==notice.merchant_id||row.config_id!==snapshot.configId||row.device_id!==snapshot.phoneNumberId||!['sending','submission_unknown','sent','notification_delivery_failed'].includes(row.state)||row.provider_message_id!==null&&row.provider_message_id!==input.messageId||
+        metadata.kind!=='campaign_ready'||metadata.channel!=='whatsapp_template'||metadata.noticeId!==notice.id||metadata.campaignId!==notice.campaign_id||metadata.proposalId!==notice.proposal_id||metadata.proposalDigest!==notice.proposal_digest||metadata.attemptFence!==notice.fence)return;
+      const previous=metadata.receipt;
+      if(previous!==undefined){const receipt=object(previous);if(!receipt||receipt.messageId!==input.messageId||typeof receipt.status!=='string'||!Object.hasOwn(ORDER_RECEIPT_RANK,receipt.status)||ORDER_RECEIPT_RANK[receipt.status]!>=ORDER_RECEIPT_RANK[input.status]!)return;}
+      const failed=input.status==='failed',delivered=input.status==='delivered'||input.status==='read';
+      const response:Record<string,unknown>={...metadata,status:failed?'failed':'accepted',receipt:{status:input.status,messageId:input.messageId,...(input.timestamp!==undefined?{timestamp:input.timestamp}:{}),...(failed&&Number.isSafeInteger(input.errorCode)&&input.errorCode!>0?{errorCode:input.errorCode}:{})}};
+      if(failed)response.reason='provider_delivery_failed';else delete response.reason;
+      const delivery=await tx.whatsAppDelivery.updateMany({where:{id:row.id,merchantId:input.merchantId,configId:input.configId,state:row.state,providerMessageId:row.provider_message_id},data:{providerMessageId:input.messageId,state:failed?'notification_delivery_failed':'sent',response:response as Prisma.InputJsonValue}});
+      if(delivery.count!==1)throw new Error('whatsapp_campaign_receipt_conflict');
+      const updated=await tx.metaAdsCampaignReadyNotice.updateMany({where:{id:notice.id,merchantId:input.merchantId,fence:notice.fence},data:{whatsappStatus:failed?'failed':delivered?'delivered':'accepted',error:failed?'provider_delivery_failed':null,leaseToken:null,leaseUntil:null}});
+      if(updated.count!==1)throw new Error('whatsapp_campaign_receipt_conflict');
+    },{maxWait:20000,timeout:20000});
   }
 
   /** Authenticated canonical service notices have their own purpose/ledger and

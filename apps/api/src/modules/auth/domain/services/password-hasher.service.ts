@@ -42,7 +42,10 @@ export class PasswordHasher {
     if (!salt || !stored) return { valid: false, shouldRehash: false };
 
     const expected = Buffer.from(stored, "base64url");
-    const actual = (await scryptAsync(password, salt, expected.length)) as Buffer;
+    if (expected.length !== KEY_LENGTH || expected.toString("base64url") !== stored) {
+      return { valid: false, shouldRehash: false };
+    }
+    const actual = (await scryptAsync(password, salt, KEY_LENGTH)) as Buffer;
     const valid = expected.length === actual.length && timingSafeEqual(expected, actual);
 
     // Scrypt is the current default; no rehash needed.

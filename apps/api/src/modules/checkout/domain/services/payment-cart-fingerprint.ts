@@ -21,6 +21,8 @@ export function paymentCartFingerprint(session: Pick<CheckoutSession, "cart" | "
     version: 1, currency: session.cart.currency,
     commerceCartRef: session.cart.commerceCartRef ?? null, items,
     discountCents: Math.round((session.cart.currentDiscount ?? 0) * 100),
+    ...(Number.isSafeInteger(session.cart.commercialBenefitsVersion) && (session.cart.commercialBenefitsVersion ?? 0) > 0
+      ? { commercialBenefitsVersion: session.cart.commercialBenefitsVersion } : {}),
     shippingCents: requiresPhysicalDelivery(session.cart) ? Math.round((session.shipping?.customerPrice ?? 0) * 100) : 0,
   };
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");

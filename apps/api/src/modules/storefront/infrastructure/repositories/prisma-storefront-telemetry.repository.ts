@@ -11,6 +11,7 @@ import type {
   StorefrontTelemetryPort,
 } from "../../domain/ports/storefront-telemetry.port.js";
 import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
+import { WHATSAPP_RECOVERY_ORIGIN_EVENT } from "../../domain/ports/storefront-telemetry.port.js";
 
 const FUNNEL_EVENTS = new Set([
   "checkout_started",
@@ -50,8 +51,20 @@ export class PrismaStorefrontTelemetryRepository implements StorefrontTelemetryP
     @Inject(STOREFRONT_CART_PORT) private readonly carts: StorefrontCartPort,
   ) {}
 
-  async recordEvent(input: StorefrontTelemetryEvent): Promise<void> {
+  async recordEvent(input: StorefrontTelemetryEvent, verifiedWhatsApp?: { configId: string }): Promise<void> {
     const { merchantId, conversationId, event, metadata } = input;
+    const persistOrigin = async (tx: Prisma.TransactionClient) => {
+      if (!verifiedWhatsApp?.configId) return;
+      await tx.checkoutEvent.createMany({ skipDuplicates: true, data: [{
+        id: `wa_origin:${merchantId.length}:${merchantId}:${conversationId}`,
+        merchantId, sessionId: conversationId, eventName: WHATSAPP_RECOVERY_ORIGIN_EVENT,
+        occurredAt: new Date(), metadata: { configId: verifiedWhatsApp.configId },
+      }] });
+    };
+    if (event === WHATSAPP_RECOVERY_ORIGIN_EVENT) {
+      if (verifiedWhatsApp?.configId) await this.prisma.$transaction(persistOrigin);
+      return;
+    }
     if (FUNNEL_EVENTS.has(event)) {
       const cart = await this.carts.getOrCreate(merchantId, input.cartId ?? conversationId);
       const recoveryCart = {
@@ -85,6 +98,7 @@ export class PrismaStorefrontTelemetryRepository implements StorefrontTelemetryP
             ...(PRESERVES_LAST_ACTIVITY.has(event) ? {} : { updatedAt: now }),
           },
         });
+        await persistOrigin(tx);
         const existing = await tx.checkoutEvent.findFirst({
           where: { merchantId, sessionId: conversationId, eventName: event },
         });

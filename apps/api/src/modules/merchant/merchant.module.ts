@@ -57,6 +57,6 @@ import { ChangeBusinessModeUseCase } from "./application/change-business-mode.us
       inject: [PRISMA_CROSS_MERCHANT_CLIENT],
     }
   ],
-  exports: [MERCHANT_REPOSITORY, MERCHANT_RULES_REPOSITORY, GetMerchantThemeUseCase]
+  exports: [MERCHANT_REPOSITORY, MERCHANT_RULES_REPOSITORY, MERCHANT_STORE_REPOSITORY, GetMerchantThemeUseCase]
 })
 export class MerchantModule {}

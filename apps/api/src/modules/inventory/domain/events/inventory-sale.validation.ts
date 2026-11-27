@@ -5,6 +5,11 @@ export function validateInventorySale(event: SaleCompletedEvent): SaleCompletedE
   if (!event || !validId(event.merchantId) || !validId(event.orderId) || !Array.isArray(event.items) ||
     !event.items.length || event.items.length > 1000 || !Number.isSafeInteger(event.totalCents) || event.totalCents < 0 ||
     typeof event.timestamp !== "string" || !Number.isFinite(Date.parse(event.timestamp))) throw new Error("inventory_sale_invalid");
+  const policy = event.fiscalStockOwnership;
+  if (policy && (policy.version !== 1 || !Array.isArray(policy.sellers) || policy.sellers.length > 1000 || policy.sellers.some(seller =>
+    !validId(seller?.merchantId) || !validId(seller.connectionId) || seller.erpConnectionId !== undefined && !validId(seller.erpConnectionId) ||
+    !["zyon", "provider"].includes(seller.stockOwner) || !["zyon", "provider", "disabled"].includes(seller.emailOwner) ||
+    !["zyon", "provider", "disabled"].includes(seller.whatsappOwner) || !Array.isArray(seller.skus) || seller.skus.length > 1000 || seller.skus.some(sku => !validId(sku))))) throw new Error("inventory_fiscal_policy_invalid");
   const items = new Map<string, SaleCompletedEvent["items"][number]>();
   for (const item of event.items) {
     if (item?.productType !== undefined && !["physical", "food", "service", "digital"].includes(item.productType)) throw new Error("inventory_sale_item_type_invalid");
@@ -16,12 +21,14 @@ export function validateInventorySale(event: SaleCompletedEvent): SaleCompletedE
     items.set(key, { sku: item.sku, quantity, ...(item.productType ? { productType: item.productType } : {}), ...(item.variantId ? { variantId: item.variantId } : {}), ...(item.locationId ? { locationId: item.locationId } : {}) });
   }
   return { merchantId: event.merchantId, orderId: event.orderId, items: [...items.entries()].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([, item]) => item),
+    ...(event.fiscalStockOwnership ? { fiscalStockOwnership: structuredClone(event.fiscalStockOwnership) } : {}),
     totalCents: event.totalCents, timestamp: new Date(event.timestamp).toISOString(),
     ...(event.buyerEmail ? { buyerEmail: event.buyerEmail } : {}), ...(event.buyerName ? { buyerName: event.buyerName } : {}), ...(event.buyerPhone ? { buyerPhone: event.buyerPhone } : {}) };
 }
 export function inventorySaleFingerprint(event: SaleCompletedEvent): string {
   // Buyer profile enrichment and redelivery timestamps must not authorize a second debit.
-  return createHash("sha256").update(JSON.stringify({ merchantId: event.merchantId, orderId: event.orderId, items: event.items, totalCents: event.totalCents })).digest("hex");
+  return createHash("sha256").update(JSON.stringify({ merchantId: event.merchantId, orderId: event.orderId, items: event.items, totalCents: event.totalCents,
+    ...(event.fiscalStockOwnership ? { fiscalStockOwnership: event.fiscalStockOwnership } : {}) })).digest("hex");
 }
 export function inventorySaleId(merchantId: string, orderId: string): string {
   return `inv_sale_${createHash("sha256").update(JSON.stringify([merchantId, orderId])).digest("hex")}`;

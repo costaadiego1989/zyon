@@ -1,0 +1,109 @@
+name: Service business Linux release payload
+on:
+  push:
+    branches: [release/service-business-*]
+  workflow_dispatch:
+    inputs:
+      source_revision:
+        description: Exact reviewed 40-character source commit
+        required: false
+        type: string
+      target:
+        description: Environment whose real public frontend configuration is supplied
+        required: false
+        type: choice
+        default: all
+        options: [all, sandbox, production]
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+concurrency:
+  group: service-business-linux-release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  tested-payload:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(inputs.target == 'sandbox' && '["sandbox"]' || inputs.target == 'production' && '["production"]' || '["sandbox","production"]') }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_revision || github.sha }}
+          persist-credentials: false
+      - name: Admit exact clean source and public configuration
+        env:
+          EXPECTED_REVISION: ${{ inputs.source_revision || github.sha }}
+          PUBLIC_AUTH_JSON: ${{ vars[matrix.target == 'sandbox' && 'SERVICE_RELEASE_SANDBOX_PUBLIC_AUTH_JSON' || 'SERVICE_RELEASE_PRODUCTION_PUBLIC_AUTH_JSON'] }}
+        run: |
+          set -eu
+          test "$(git rev-parse HEAD)" = "$EXPECTED_REVISION"
+          test -z "$(git status --porcelain --untracked-files=no)"
+          test -n "$PUBLIC_AUTH_JSON"
+          mkdir -p .cache
+          printf '%s\n' "$PUBLIC_AUTH_JSON" > .cache/service-release-public-auth.json
+      - name: Enable the isolated runner's containerd image store
+        run: |
+          set -eu
+          sudo systemctl stop docker
+          printf '%s\n' '{"features":{"containerd-snapshotter":true}}' | sudo tee /etc/docker/daemon.json > /dev/null
+          sudo systemctl start docker
+          docker info
+      - name: Resolve and retain immutable Node and static-server images
+        run: |
+          set -eu
+          docker pull --platform linux/amd64 node:22-bookworm-slim
+          NODE_IMAGE=$(docker image inspect node:22-bookworm-slim --format '{{index .RepoDigests 0}}')
+          printf 'SERVICE_RELEASE_NODE_BASE_IMAGE=%s\n' "$NODE_IMAGE" >> "$GITHUB_ENV"
+          docker pull --platform linux/amd64 nginxinc/nginx-unprivileged:1.27-alpine
+          NGINX_IMAGE=$(docker image inspect nginxinc/nginx-unprivileged:1.27-alpine --format '{{index .RepoDigests 0}}')
+          printf 'SERVICE_RELEASE_NGINX_BASE_IMAGE=%s\n' "$NGINX_IMAGE" >> "$GITHUB_ENV"
+          cp "$(command -v docker)" .cache/service-release-docker-client
+          docker build --platform linux/amd64 --build-arg NODE_BASE_IMAGE="$NODE_IMAGE" -f ops/service-release/Dockerfile.linux-validation -t service-release-validator:owned .
+      - name: Build, execute seven canonical release checks, seal and export
+        env:
+          RELEASE_TARGET: ${{ matrix.target }}
+        run: |
+          set -eu
+          docker run --rm --network host -e SERVICE_RELEASE_NODE_BASE_IMAGE="$SERVICE_RELEASE_NODE_BASE_IMAGE" -e SERVICE_RELEASE_NGINX_BASE_IMAGE="$SERVICE_RELEASE_NGINX_BASE_IMAGE" -e SERVICE_RELEASE_TARGET="$RELEASE_TARGET" -v "$PWD:/repo" -v /var/run/docker.sock:/var/run/docker.sock service-release-validator:owned
+      - name: Verify all four opaque prebuilt contexts without recompilation
+        env:
+          SOURCE_REVISION: ${{ inputs.source_revision || github.sha }}
+          RELEASE_TARGET: ${{ matrix.target }}
+        run: |
+          set -eu
+          BUNDLE=".cache/railway-prebuilt-$SOURCE_REVISION"
+          for TARGET in api storefront dashboard widget-v2; do
+            CONTEXT=".cache/service-release-transport-validation-$SOURCE_REVISION-$TARGET"
+            node scripts/service-release-stage-context.mjs "$BUNDLE" "$TARGET" "$CONTEXT" "$SOURCE_REVISION" "$RELEASE_TARGET"
+            case "$TARGET" in
+              api) DOCKERFILE=apps/api/Dockerfile ;;
+              storefront) DOCKERFILE=apps/storefront/Dockerfile ;;
+              dashboard) DOCKERFILE=apps/dashboard/Dockerfile ;;
+              widget-v2) DOCKERFILE=apps/widget_v2/Dockerfile ;;
+            esac
+            docker build --platform linux/amd64 -f "$CONTEXT/$DOCKERFILE" -t "service-release-prebuilt-$TARGET:owned" "$CONTEXT"
+            case "$TARGET" in
+              api|storefront) docker run --rm --network none --entrypoint node "service-release-prebuilt-$TARGET:owned" /repo/scripts/service-release-payload-verify.mjs ;;
+              dashboard|widget-v2) docker run --rm --network none --entrypoint sh "service-release-prebuilt-$TARGET:owned" -c 'cd /usr/share/nginx/html && sha256sum -c /payload/static-files.sha256 && nginx -t' ;;
+            esac
+          done
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: .cache/railway-prebuilt-${{ inputs.source_revision || github.sha }}/*.tar.gz
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: service-release-${{ matrix.target }}-${{ inputs.source_revision || github.sha }}
+          path: |
+            .cache/railway-prebuilt-${{ inputs.source_revision || github.sha }}/
+            .cache/linux-service-release-${{ inputs.source_revision || github.sha }}/
+            .cache/service-release-migration-materialization.json
+            .specs/features/whatsapp-service-booking-business-rag/captures/browser-artifacts/
+            .specs/features/whatsapp-service-booking-business-rag/captures/standalone-widget-release/
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14

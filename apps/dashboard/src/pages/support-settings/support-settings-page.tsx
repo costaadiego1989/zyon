@@ -1,7 +1,8 @@
+import { CircleHelp, Headset, Plus, RefreshCw, Save } from "lucide-react";
 import "./support-settings.css";
 import { PageHeader } from "../../components/PageHeader.js";
 import React, { useMemo, useState } from "react";
-import { Plus, RefreshCw, Save } from "lucide-react";
+
 import { Button } from "../../components/Button.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
 import { TabBar } from "../../components/TabBar.js";
@@ -16,8 +17,8 @@ import { SupportNotificationSettings } from "./support-notification-settings.js"
 type Tab = "faq" | "tickets";
 
 const TABS = [
-  { key: "tickets" as const, label: "Chamados" },
-  { key: "faq" as const, label: "Perguntas frequentes" },
+  { key: "tickets" as const, label: "Chamados", icon: <Headset size={16} /> },
+  { key: "faq" as const, label: "Perguntas frequentes", icon: <CircleHelp size={16} /> },
 ];
 
 export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeProfile | null }) {

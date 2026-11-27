@@ -1,21 +1,21 @@
 const TRIGGER_VARIANTS: Record<string, string[]> = {
   exit_intent_detected: [
-    "Ei, antes de ir — separei uma condição especial pra você fechar hoje. Quer ver?",
-    "Espera! Consigo um desconto pra deixar seu pedido ainda melhor agora. Posso mostrar?",
-    "Vi que você ia sair. Deixa eu garantir o melhor preço antes de você fechar? 😉",
+    "Antes de ir, quer comparar as opções ou conferir as ofertas disponíveis?",
+    "Posso ajudar a encontrar uma opção que combine com o que você precisa e quer gastar.",
+    "Faltou alguma informação para decidir? Posso explicar os detalhes e conferir as condições da loja.",
   ],
   idle_30_seconds: [
-    "Posso te ajudar a escolher? Acho o produto ideal e ainda garanto o melhor preço pra você.",
-    "Tá em dúvida entre alguns? Me diz o que procura que eu encontro e já aplico um desconto.",
-    "Enquanto você olha, posso adiantar: tenho ofertas boas pro que você está buscando. Quer ver?",
+    "Posso ajudar a escolher? Me diga o que você procura e a faixa de preço.",
+    "Tá em dúvida entre alguns? Posso comparar os produtos e conferir quais condições estão disponíveis.",
+    "Quer ajuda para encontrar uma opção que faça sentido para você? Podemos olhar os produtos e as ofertas disponíveis.",
   ],
   shipping_objection_detected: [
-    "O frete te preocupou? Deixa eu ver a melhor opção de entrega pra você agora.",
-    "Posso buscar um frete mais em conta — ou até condição especial. Quer que eu verifique?",
+    "O frete pesou na decisão? Posso conferir as opções disponíveis para o seu CEP.",
+    "Quer comparar as opções de entrega e verificar se alguma condição se aplica ao seu pedido?",
   ],
   coupon_field_clicked: [
-    "Procurando cupom? Já tenho um desconto especial pronto pra você. Quer aplicar?",
-    "Deixa que eu cuido do desconto — aplico a melhor condição no seu pedido agora.",
+    "Procurando um cupom? Posso conferir as condições disponíveis para o seu carrinho.",
+    "Quer verificar se há alguma oferta aplicável antes de decidir?",
   ],
   payment_failed: [
     "O pagamento não passou, mas resolvemos rápido. Quer tentar por outro método?",

@@ -10,7 +10,7 @@ import { metaProductContext } from "./meta-product-navigation.js";
 import { checkoutTone } from "../../../checkout/domain/services/checkout-collection-copy.js";
 import { compactMetaPresentation, metaCatalogCopy, metaAnimationsFirst, metaAnimationMedia } from "./meta-compact-presentation.js";
 import { metaProductCard, metaProductRating, presentMetaCatalogCards } from "./meta-catalog-cards.js";
-import { BUYER_HUB_COMMANDS } from "./buyer-hub.js";
+import { buyerHubCommands } from "./buyer-hub.js";
 
 import { buildServiceBookingControls, isServiceBookingView, presentServiceBookingControls } from "./service-booking-controls.js";
 
@@ -142,7 +142,9 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
         break;
       }
       case "form_field": text.push(`Informe ${value(d.label || d.field)}:`); break;
-      case "address_confirmation": text.push(`*Confira a entrega*\n${value(d.formatted)}\n\n_O endereço está correto?_`); add("Sim", { kind: "message", message: "Sim" }); add("Corrigir endereço", { kind: "message", message: "Não" }); break;
+      case "address_confirmation": text.push(`*Confira a entrega*\n${value(d.formatted)}\n\n_O endereço está correto?_`);
+        add(d.saved === true ? "Entregar aqui" : "Sim", { kind: "message", message: "Sim" });
+        add(d.saved === true ? "Outro endereço" : "Corrigir endereço", { kind: "message", message: "Não" }); break;
       case "payment_method_switch": case "payment_methods":
         items(d.methods).forEach(m => add(value(m.label), d.nativePayment && d.fingerprint
           ? tool("create_payment", { method: m.key, fingerprint: d.fingerprint }) : { kind: "message", message: value(m.label) }, value(m.sub)));
@@ -380,6 +382,12 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
         if (d.progressive) text.push(`🎟️ *Condições de desconto*\n\n• ${value(d.progressive.description)}\n\n_A elegibilidade é conferida no checkout._`); break;
       case "buyer_hub_actions":
         items(d.choices).forEach(choice => add(value(choice.label), tool("buyer_hub", object(choice.args)), value(choice.description) || undefined)); break;
+      case "account_link_actions":
+        items(d.choices).forEach(choice => {
+          const action = object(choice.action);
+          if (action.kind === "message" && /^(confirmar_vinculo|cancelar_vinculo) [A-Za-z0-9_-]{43}$/.test(value(action.message)))
+            add(value(choice.label), { kind: "message", message: value(action.message) });
+        }); break;
       case "quick_replies":
         if (Array.isArray(d.options)) d.options.forEach((label: unknown) => add(value(label), { kind: "message", message: value(label) })); break;
       case "product_content":
@@ -428,7 +436,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
     if (/^adicionar.*carrinho$/i.test(label) && response.blocks.some(b => b.type === "product_card")) return;
     if (/^finalizar compra$/i.test(label) && response.blocks.some(b => b.type === "cart_summary" && !items(object(b.data).items).length)) return;
     if (/^tenho um cupom de desconto$/i.test(label.trim()) && view.choices.some(c => c.label === "Usar cupom")) return;
-    const commandLabel = label === "/atalhos" ? "Menu principal" : label === "/cancelar" ? "Cancelar" : BUYER_HUB_COMMANDS.find(c => c.command === label)?.label;
+    const commandLabel = label === "/atalhos" ? "Menu principal" : label === "/cancelar" ? "Cancelar" : buyerHubCommands(true).find(c => c.command === label)?.label;
     const presentedLabel = commandLabel ?? (/^mover para carrinho$/i.test(label.trim()) && response.blocks.some(block => block.type === "wishlist") ? "Escolher para comprar" : label);
     add(/^tenho um cupom de desconto$/i.test(label.trim()) ? "Usar cupom" : presentedLabel, metaStoreQuickReplyAction(label, { ...response.state, view }) ?? { kind: "message", message: label });
   });
@@ -448,7 +456,7 @@ export function withMetaCartNavigation(view: MetaUiView, hasItems?: boolean): Me
   // Checkout renders only the controls for the current step. The buyer can
   // always explicitly open /atalhos; field entry must not repeat the store hub.
   if (view.stage === "checkout") return view;
-  if (view.blocks.some(block => block.type === "buyer_hub_actions")) return view;
+  if (view.blocks.some(block => ["buyer_hub_actions", "account_link_actions"].includes(block.type))) return view;
   if (view.blocks.some(block => block.type === "cart_summary") && !view.productContext) return view;
   if (isMetaCatalogView(view)) return { ...view, choices: view.choices.filter(catalogProductChoice) };
   const productContext = metaProductContext(view);

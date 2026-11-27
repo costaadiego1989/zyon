@@ -1,5 +1,6 @@
+import { isAuthenticationTemplateType } from "../../domain/catalog/template-types.js";
 import { TEMPLATE_SUBMISSION_PORT, type TemplateSubmissionPort } from "../../domain/ports/template-submission.port.js";
-import { isApprovedSalesTemplate } from "../../domain/services/recovery-whatsapp-policy.js";
+import { isApprovedSalesTemplate, isApprovedSalesTemplateIdentity } from "../../domain/services/recovery-whatsapp-policy.js";
 import { Injectable, Logger, Inject, Optional } from "@nestjs/common";
 import type {
   WhatsAppTemplateSenderPort,
@@ -13,6 +14,7 @@ import {
 import { connectedMetaCloudCredentials } from "../../../whatsapp-channel/domain/services/connected-meta-cloud-credentials.js";
 import { normalizeRecoveryRecipient } from "../../domain/services/recovery-whatsapp-policy.js";
 import { WHATSAPP_TEMPLATE_REPOSITORY, type WhatsAppTemplateRepositoryPort } from "../../domain/ports/whatsapp-template-repository.port.js";
+import {templateDispatchDigest} from '../../domain/services/template-dispatch-binding.js';
 
 import { currentWhatsAppSubmissionScope, startWhatsAppRequest } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
 import { operatorConnection } from "../../../whatsapp-channel/domain/services/whatsapp-operator-connection.js";
@@ -40,26 +42,34 @@ export class WhatsAppTemplateSenderAdapter implements WhatsAppTemplateSenderPort
     if (!input.type) return { messageId: "", status: "skipped", reason: "template_type_required" };
     let serviceProof: ServiceNoticeTransportProof | undefined;
     const strictTemplate = true;
+    // Recovery always checks the exact content against Meta below. An expired
+    // polling timestamp must not prevent that authoritative GET from happening.
+    const approvalPolicy = input.type === "cart_recovery" ? isApprovedSalesTemplateIdentity : isApprovedSalesTemplate;
     const credentials = await this.credentials(input.merchantId);
     if (!credentials) return { messageId: "", status: "skipped", reason: "meta_connection_unavailable" };
+    const expectedConnection=input.expectedConnection;
+    if(expectedConnection&&(credentials.configId!==expectedConnection.configId||credentials.wabaId!==expectedConnection.wabaId||credentials.phoneNumberId!==expectedConnection.phoneNumberId))return{messageId:'',status:'skipped',reason:'meta_connection_changed'};
     if (!input.contentSid.trim()) return { messageId: "", status: "skipped", reason: "template_identifier_missing" };
     if (strictTemplate) {
       const template = await this.templates?.findByMerchantAndType(input.merchantId, input.type!, "whatsapp").catch(() => null);
       if (!(input.type === "order_quota" ? isApprovedMerchantTemplate(template, input.merchantId, input.type, input.contentSid)
-        : isApprovedSalesTemplate(template, input.merchantId, input.type!, credentials.wabaId) && template.twilioContentSid === input.contentSid)) {
+        : approvalPolicy(template, input.merchantId, input.type!, credentials.wabaId) && template.twilioContentSid === input.contentSid)) {
         return { messageId: "", status: "skipped", reason: "approved_template_unavailable" };
       }
       if (input.type !== "order_quota") {
-        if (input.type === "checkout_otp" && template?.metaCategory !== "AUTHENTICATION") return { messageId: "", status: "skipped", reason: "authentication_template_required" };
+        if(input.expectedTemplate&&(!template||template.metaRevision!==input.expectedTemplate.revision||templateDispatchDigest(template)!==input.expectedTemplate.bodyDigest))return{messageId:'',status:'skipped',reason:'template_revision_changed'};
+        if (isAuthenticationTemplateType(input.type) && template?.metaCategory !== "AUTHENTICATION") return { messageId: "", status: "skipped", reason: "authentication_template_required" };
         if (!this.submission || !template?.metaTemplateBody) return { messageId: "", status: "skipped", reason: "template_verification_unavailable" };
-        const current = await this.submission.syncStatus(input.merchantId, input.contentSid, { language: template.metaLanguage ?? "pt_BR", body: template.metaTemplateBody, category: template.metaCategory ?? undefined }).catch(() => null);
-        if (current?.status !== "approved" || current.contentSid !== input.contentSid) return { messageId: "", status: "skipped", reason: "approved_template_unavailable" };
+        const current = await this.submission.syncStatus(input.merchantId, input.contentSid, { language: template.metaLanguage ?? "pt_BR", body: template.metaTemplateBody, category: template.metaCategory ?? undefined, ...(input.type === "buyer_whatsapp_link_otp" ? { authenticationExpirationMinutes: 5 as const } : {}) }).catch(() => null);
+        if (current?.status !== "approved" || current.contentSid !== input.contentSid) return { messageId: "", status: "skipped", reason: current?.rejectionReason && /^[a-z_]+$/.test(current.rejectionReason) ? current.rejectionReason : "approved_template_unavailable" };
         const latest = await this.credentials(input.merchantId);
-        if (!latest || latest.wabaId !== credentials.wabaId || latest.phoneNumberId !== credentials.phoneNumberId) return { messageId: "", status: "skipped", reason: "meta_connection_changed" };
+        if (!latest || latest.configId !== credentials.configId || latest.wabaId !== credentials.wabaId || latest.phoneNumberId !== credentials.phoneNumberId) return { messageId: "", status: "skipped", reason: "meta_connection_changed" };
         const latestTemplate = await this.templates?.findByMerchantAndType(input.merchantId, input.type!, "whatsapp").catch(() => null);
-        if (!isApprovedSalesTemplate(latestTemplate, input.merchantId, input.type!, credentials.wabaId)
+        if (!approvalPolicy(latestTemplate, input.merchantId, input.type!, credentials.wabaId)
           || latestTemplate.twilioContentSid !== input.contentSid || latestTemplate.metaRevision !== template.metaRevision
+          || templateDispatchDigest(latestTemplate) !== templateDispatchDigest(template)
           || (input.language || "pt_BR") !== (template.metaLanguage || "pt_BR")) return { messageId: "", status: "skipped", reason: "template_revision_changed" };
+        if(input.expectedTemplate&&(latestTemplate.metaRevision!==input.expectedTemplate.revision||templateDispatchDigest(latestTemplate)!==input.expectedTemplate.bodyDigest))return{messageId:'',status:'skipped',reason:'template_revision_changed'};
         if (input.type === "service_appointment_notice") {
           if (latestTemplate.metaCategory !== "UTILITY" || !latestTemplate.metaTemplateBody || !latestTemplate.metaVariableMap)
             return { messageId: "", status: "skipped", reason: "service_utility_template_required" };
@@ -81,12 +91,13 @@ export class WhatsAppTemplateSenderAdapter implements WhatsAppTemplateSenderPort
       language: { code: input.language || "pt_BR" },
     };
     if (parameters.length) template.components = [{ type: "body", parameters }];
-    if (input.type === "checkout_otp") {
+    if (isAuthenticationTemplateType(input.type)) {
       if (parameters.length !== 1 || !/^\d{6}$/.test(parameters[0].text)) return { messageId: "", status: "skipped", reason: "authentication_code_invalid" };
       template.components = [{ type: "body", parameters }, { type: "button", sub_type: "url", index: "0", parameters }];
     }
 
     let response: Response;
+    try{await input.assertDispatchAuthorized?.();}catch{return{messageId:'',status:'skipped',reason:'notification_authority_changed'};}
     try {
       const send = () => fetch(`${GRAPH}/${credentials.phoneNumberId}/messages`, {
         method: "POST", redirect: "error", signal: AbortSignal.timeout(15_000),
@@ -104,9 +115,9 @@ export class WhatsAppTemplateSenderAdapter implements WhatsAppTemplateSenderPort
         if (!serviceProof) return { messageId: "", status: "skipped", reason: "service_template_proof_required" };
         response = await withServiceNoticeTransport(serviceProof, () => startWhatsAppRequest(Object.freeze({ ...connection.scope, messageId: input.correlationId }), send));
       } else response = await send();
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      this.logger.error("Meta template transport failed", { merchantId: input.merchantId, reason });
+    } catch {
+      if (input.type === "fiscal_invoice") this.logger.error("operational_whatsapp_acceptance_unknown");
+      else this.logger.error("Meta template transport failed", { merchantId: input.merchantId, reason:'provider_transport_failed' });
       return { messageId: "", status: "uncertain", reason: "provider_acceptance_unknown" };
     }
 
@@ -119,7 +130,10 @@ export class WhatsAppTemplateSenderAdapter implements WhatsAppTemplateSenderPort
     }
     if (response.status >= 400 && response.status < 500 && response.status !== 408) {
       // A completed Graph 4xx rejects before Meta creates a message, so email is safe.
-      return { messageId: "", status: "failed", acceptance: "not_accepted", reason: `meta_http_${response.status}` };
+      const payload = await response.json().catch(() => null) as { error?: { code?: unknown; error_subcode?: unknown } } | null;
+      const code = Number.isSafeInteger(payload?.error?.code) ? `_code_${payload!.error!.code}` : "";
+      const subcode = Number.isSafeInteger(payload?.error?.error_subcode) ? `_subcode_${payload!.error!.error_subcode}` : "";
+      return { messageId: "", status: "failed", acceptance: "not_accepted", reason: `meta_http_${response.status}${code}${subcode}` };
     }
     return { messageId: "", status: "uncertain", reason: "provider_acceptance_unknown" };
   }
@@ -160,7 +174,7 @@ export class WhatsAppTemplateSenderAdapter implements WhatsAppTemplateSenderPort
   }
 
   private async credentials(merchantId: string) {
-    try { return connectedMetaCloudCredentials(await this.configRepo?.findByMerchantId(merchantId), merchantId); }
+    try { const config=await this.configRepo?.findByMerchantId(merchantId),credentials=connectedMetaCloudCredentials(config,merchantId);return credentials&&config?{...credentials,configId:config.id}:null; }
     catch { return null; }
   }
 }

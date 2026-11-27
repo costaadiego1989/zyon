@@ -1,10 +1,11 @@
+import { Building2, Facebook, FileText, Instagram, Linkedin, MapPin, Palette, Save, Search, Settings, Share2, Sparkles, Trash2, Upload, Wallet, Youtube } from "lucide-react";
 import { EmptyState } from "../../components/EmptyState.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
 import "../administration-pages.css";
 import "./store-settings.css";
 import { PageHeader } from "../../components/PageHeader.js";
 import React, { useRef, useState } from "react";
-import { Save, Instagram, Facebook, Linkedin, Youtube, MapPin, Sparkles, Upload, Trash2, Palette, Settings } from "lucide-react";
+
 import { TabBar } from "../../components/TabBar.js";
 import { Button } from "../../components/Button.js";
 import { FormField, FormSelect, FormTextarea } from "../../components/FormField.js";
@@ -44,11 +45,11 @@ export function StoreSettingsPage() {
       {/* Card container */}
       <TabBar
         tabs={[
-          { key: "company", label: "Empresa" },
-          { key: "policies", label: "Políticas" },
-          { key: "social", label: "Redes sociais" },
-          { key: "seo-gtm", label: "Busca e rastreamento" },
-          { key: "budget", label: "Orçamento" },
+          { key: "company", label: "Empresa", icon: <Building2 size={16} /> },
+          { key: "policies", label: "Políticas", icon: <FileText size={16} /> },
+          { key: "social", label: "Redes sociais", icon: <Share2 size={16} /> },
+          { key: "seo-gtm", label: "Busca e rastreamento", icon: <Search size={16} /> },
+          { key: "budget", label: "Orçamento", icon: <Wallet size={16} /> },
         ]}
         activeTab={state.activeTab as string}
         onTabChange={(k) => { if (!busy) setActiveTab(k as typeof state.activeTab); }}

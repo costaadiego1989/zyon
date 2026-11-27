@@ -17,6 +17,8 @@ import { WhatsAppBuyerHubService } from "./application/services/whatsapp-buyer-h
 import { WhatsAppHubAddressesService } from "./application/services/whatsapp-hub-addresses.service.js";
 import { PaymentModule } from "../payment/payment.module.js";
 import { CouponsExecutionModule } from "../coupons/coupons-execution.module.js";
+import { MerchantModule } from "../merchant/merchant.module.js";
+import { WhatsAppCheckoutBenefitsService } from "./application/services/whatsapp-checkout-benefits.service.js";
 import { WHATSAPP_CONVERSATION_PORT } from "./domain/ports/whatsapp-conversation.port.js";
 import { CheckoutWhatsAppConversationAdapter } from "./infrastructure/adapters/checkout-whatsapp-conversation.adapter.js";
 import { Module, forwardRef } from "@nestjs/common";
@@ -62,6 +64,7 @@ import { TwilioOnboardingAdapter } from "./infrastructure/adapters/twilio-onboar
 import { PrismaWhatsAppOnboardingStore } from "./infrastructure/repositories/prisma-whatsapp-onboarding.repository.js";
 import { WHATSAPP_SIGNUP_AUTHORIZATION } from "./domain/ports/whatsapp-signup-authorization.port.js";
 import { MetaSignupAuthorizationAdapter } from "./infrastructure/adapters/meta-signup-authorization.adapter.js";
+import { BuyerAccountModule } from "../buyer-account/buyer-account.module.js";
 import { WhatsAppHandoffModule } from "./whatsapp-handoff.module.js";
 import { SupportModule } from "../support/support.module.js";
 import { WhatsAppHumanIntakeService } from "./application/services/whatsapp-human-intake.service.js";
@@ -98,9 +101,10 @@ import { ServiceBookingService } from "../checkout/application/service-booking.s
 import { ServiceSlotHoldsService } from "../../shared/bookings/service-slot-holds.service.js";
 
 @Module({
-  imports: [WhatsAppHandoffModule, forwardRef(() => SupportModule), forwardRef(() => CheckoutModule), forwardRef(() => StorefrontModule), forwardRef(() => EmbedModule), forwardRef(() => PaymentModule), CouponsExecutionModule, BuyerAccountRepositoryModule, CatalogModule, PersistenceModule, WhatsAppConfigModule, WhatsAppTemplatesModule, AgentRuleReaderModule, forwardRef(() => PostSaleModule)],
+  imports: [WhatsAppHandoffModule, forwardRef(() => SupportModule), forwardRef(() => BuyerAccountModule), forwardRef(() => CheckoutModule), forwardRef(() => StorefrontModule), forwardRef(() => EmbedModule), forwardRef(() => PaymentModule), CouponsExecutionModule, MerchantModule, BuyerAccountRepositoryModule, CatalogModule, PersistenceModule, WhatsAppConfigModule, WhatsAppTemplatesModule, AgentRuleReaderModule, forwardRef(() => PostSaleModule)],
   controllers: [WhatsAppWebhookController, WhatsAppConfigController, WhatsAppDeliveryController, WhatsAppPresentationController],
   providers: [
+    WhatsAppCheckoutBenefitsService,
     GetWhatsAppUsageUseCase,
     WhatsAppDeliveryService,
     WhatsAppSupportOutboxConsumer,
@@ -163,6 +167,6 @@ import { ServiceSlotHoldsService } from "../../shared/bookings/service-slot-hold
     },
     { provide: WHATSAPP_WEBHOOK_INBOX, useClass: PrismaWhatsAppWebhookInbox },
   ],
-  exports: [SendWhatsAppResponseUseCase, WHATSAPP_POST_SALE_CONTEXT_PORT, WhatsAppConfigModule],
+  exports: [SendWhatsAppResponseUseCase, WHATSAPP_POST_SALE_CONTEXT_PORT, WhatsAppConfigModule, MetaCloudSenderAdapter, TwilioSenderAdapter],
 })
 export class WhatsAppChannelModule {}

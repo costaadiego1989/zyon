@@ -1,5 +1,6 @@
+import { Crown, Headset, ListFilter, Mail, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
-import { Users, UserPlus, Trash2, Mail, Crown } from "lucide-react";
+
 import type { MerchantProfile } from "../api-client.js";
 import { PageHeader } from "../components/PageHeader.js";
 import { Button } from "../components/Button.js";
@@ -11,7 +12,14 @@ import { FilterToolbar } from "../components/FilterToolbar.js";
 import { FormField, FormSelect } from "../components/FormField.js";
 import { useTeamPage, ROLE_LABELS, type MemberRole, type TeamMember } from "./useTeamPage.js";
 import { maskPhone } from "../utils/masks.js";
+import { isExistingIsoDate } from "../lib/calendar-date.js";
 import "./administration-pages.css";
+
+export function formatTeamJoinedAt(value: string | null | undefined): string {
+  if (!isExistingIsoDate(value)) return "—";
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toLocaleDateString("pt-BR") : "—";
+}
 
 export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
   const vm = useTeamPage({ me: props.me });
@@ -55,12 +63,12 @@ export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null
 
 
     {vm.loading ? <section className="panel admin-skeleton" aria-label="Carregando equipe" aria-busy="true">{[1,2,3].map(n => <div className="skeleton-cell" key={n} />)}</section> : vm.error ? <section className="panel"><EmptyState icon={Users} title="Equipe indisponível" description="Não foi possível consultar os membros e convites. Tente novamente para ver os acessos atuais." action={<Button variant="outline" onClick={() => void vm.load()}>Tentar novamente</Button>} /></section> : <>
-      <FilterToolbar tabs={[{ key: "all", label: "Todos" }, { key: "OWNER", label: "Proprietários" }, { key: "ADMIN", label: "Administradores" }, { key: "STAFF", label: "Agentes" }]} activeTab={role} onTabChange={setRole} search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por e-mail" />
+      <FilterToolbar tabs={[{ key: "all", label: "Todos", icon: <ListFilter size={16} /> }, { key: "OWNER", label: "Proprietários", icon: <Crown size={16} /> }, { key: "ADMIN", label: "Administradores", icon: <ShieldCheck size={16} /> }, { key: "STAFF", label: "Agentes", icon: <Headset size={16} /> }]} activeTab={role} onTabChange={setRole} search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por e-mail" />
       <DataPanel title="Membros ativos" page={currentPage} pageSize={10} total={filtered.length} onPageChange={setPage} isEmpty={!filtered.length} empty={{ icon: Users, title: vm.members.length ? "Nenhum membro com estes filtros" : "Sua equipe começa aqui", description: vm.members.length ? "Busque outro e-mail ou remova o filtro de função." : "Convide as pessoas que vão atender clientes e administrar sua loja.", action: vm.members.length ? <Button variant="outline" onClick={() => { setSearch(""); setRole("all"); }}>Limpar filtros</Button> : <Button onClick={openInvite}>Convidar membro</Button> }}>
         <div className="table-wrap"><table className="data-table"><thead><tr><th>E-mail</th><th>Função</th><th>Na equipe desde</th><th><span className="sr-only">Ações</span></th></tr></thead><tbody>
           {filtered.slice((currentPage - 1) * 10, currentPage * 10).map(m => <tr key={m.id}>
             <td className="admin-email">{m.email}</td><td>{m.role === "OWNER" ? <span className="badge ok">{ROLE_LABELS[m.role]}</span> : <select className="admin-role-select" aria-label={`Função de ${m.email}`} value={m.role} disabled={busy} onChange={e => void vm.updateRole(m.userId, e.target.value as MemberRole)}><option value="ADMIN">Administrador</option><option value="STAFF">Agente</option></select>}</td>
-            <td className="admin-muted">{new Date(m.joinedAt).toLocaleDateString("pt-BR")}</td><td>{m.role !== "OWNER" && <Button className="admin-icon-action" variant="ghost" disabled={busy} aria-label={`Remover ${m.email}`} onClick={() => { vm.setMessage(null); setRemoval(m); }}><Trash2 size={16} /></Button>}</td>
+            <td className="admin-muted">{formatTeamJoinedAt(m.joinedAt)}</td><td>{m.role !== "OWNER" && <Button className="admin-icon-action" variant="ghost" disabled={busy} aria-label={`Remover ${m.email}`} onClick={() => { vm.setMessage(null); setRemoval(m); }}><Trash2 size={16} /></Button>}</td>
           </tr>)}
         </tbody></table></div>
       </DataPanel>

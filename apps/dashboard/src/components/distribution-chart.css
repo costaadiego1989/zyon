@@ -1,0 +1,18 @@
+.distribution-chart { min-width: 0; margin: 0; font-family: var(--font-sans); }
+.distribution-chart figcaption { margin-bottom: 24px; }
+.distribution-chart h3 { margin: 0; color: var(--color-text); font: 600 16px/1.5 var(--font-sans); letter-spacing: -.02em; }
+.distribution-chart figcaption p, .distribution-chart__empty { margin: 6px 0 0; color: var(--color-text-secondary); font: 13px/1.6 var(--font-sans); max-width: 65ch; }
+.distribution-chart ul { display: flex; flex-direction: column; gap: 12px; list-style: none; margin: 0; padding: 0; }
+.distribution-chart__row { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: baseline; gap: 10px 16px; width: 100%; min-height: 60px; padding: 12px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--color-text); text-align: left; font: inherit; }
+button.distribution-chart__row { cursor: pointer; transition: background 150ms ease-out, border-color 150ms ease-out; }
+button.distribution-chart__row:hover { background: var(--surface-2); }
+.distribution-chart__row[aria-pressed="true"] { border-color: var(--color-brand); background: var(--color-brand-subtle); }
+.distribution-chart__row:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+.distribution-chart__label { overflow-wrap: anywhere; font-size: 13px; }
+.distribution-chart__amount { display: inline-flex; align-items: baseline; gap: 10px; font: 12px/1.5 var(--font-sans); font-variant-numeric: tabular-nums; }
+.distribution-chart__amount strong { color: var(--color-text); font-size: 16px; font-weight: 600; }
+.distribution-chart__amount > span { min-width: 36px; text-align: right; color: var(--color-text-secondary); }
+.distribution-chart__track { grid-column: 1 / -1; height: 7px; border-radius: 3px; overflow: hidden; background: var(--surface-3); }
+.distribution-chart__track > span { display: block; height: 100%; border-radius: inherit; background: var(--color-brand); }
+.distribution-chart__empty { margin-top: 16px; }
+@media (prefers-reduced-motion: reduce) { button.distribution-chart__row { transition: none; } }

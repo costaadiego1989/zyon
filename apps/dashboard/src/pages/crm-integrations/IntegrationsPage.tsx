@@ -1,6 +1,7 @@
+import { AlertCircle, ExternalLink, History, Plug, RefreshCw, Unplug } from "lucide-react";
 ﻿import "../../components/configuration-form.css";
 import React, { useEffect, useState } from "react";
-import { Plug, Unplug, ExternalLink, AlertCircle, RefreshCw } from "lucide-react";
+
 import type { MerchantProfile } from "../../api-client.js";
 import { SetupGuide } from "../../components/SetupGuide.js";
 import { PageHeader } from "../../components/PageHeader.js";
@@ -103,7 +104,7 @@ export function IntegrationsPage(props: IntegrationsPageProps) {
       { title: "Valide a conexão", description: "Informe a chave e os dados da conta. Validamos o acesso antes de salvar." },
       { title: "Confira a sincronização", description: "Veja o resultado de cada envio no histórico. A conexão validada confirma o acesso; o histórico confirma o recebimento dos contatos." },
     ]} />
-    <TabBar tabs={[{ key: "connections", label: "Conexões" }, { key: "leads", label: "Histórico de sincronização" }]} activeTab={activeTab} onTabChange={setActiveTab} />
+    <TabBar tabs={[{ key: "connections", label: "Conexões", icon: <Plug size={16} /> }, { key: "leads", label: "Histórico de sincronização", icon: <History size={16} /> }]} activeTab={activeTab} onTabChange={setActiveTab} />
     {oauthMessage && <p className="crm-connection-instructions" role="status">{oauthMessage}</p>}
     {vm.loading ? <PageLoader variant="section" /> : activeTab === "connections" ? (
       vm.connectionsError ? <EmptyState icon={AlertCircle} title="Conexões indisponíveis" description={vm.connectionsError}

@@ -417,7 +417,13 @@ O Zyon jÃ¡ vende produtos pelo WhatsApp e tem componentes de serviÃ§os, slot
 
 ## Differences from the source
 
-None - the product matches the source.
+| Binding source | Approved difference | Confirmed |
+| --- | --- | --- |
+| All six QA-02 captures | Keep the real chat/dashboard integration, current header, navigation, standard tabs and labels including Suporte. T79 uses the real Agendamentos board and its persistent shell. Preview-only disclosure strips and the local-owned runtime disclosure are test context, not production controls. | y - AD-001 |
+| T45 desktop review and mobile confirmation | Keep the current appointment card inside the chat at its current narrower width, with the existing surrounding chat/menu/composer/cart controls and theme/focus treatment shown to the user. Do not widen it or invent a fullscreen/modal journey. | y - AD-001 |
+| All six QA-02 captures | Synthetic catalog/professional names, dates/times, durations and prices can differ from isolated preview fixtures; current canonical values and payment states still govern. No business value is hard-coded to resemble a preview. | y - AD-001 |
+
+**Approved**: 2026-11-27 - user: "Manter integração e cartão atuais (Recomendado)". Exact same approval event `["request_user_input_async","call_b1ac1c5f336f403eb49da8b27cdd76fe",0]`, preserved authority `C:/tmp/zyon-service-business-20261114/.cache/actual-ui-integration-approval-20261127/actual-user-approval-unicode-preserved.json` (SHA256 `2a1668b6d0c189bee06b665374249af42ae85926fdcca826d738001bbafc690a`). The earlier 68c5 authority is retained as encoding-damaged history, not an additional answer. Clipped/inaccessible controls and technical/security defects are excluded; independent Round1 remains preserved, and Round2 must judge the corrected live states against bindings and these approved refinements.
 
 ## Sources
 

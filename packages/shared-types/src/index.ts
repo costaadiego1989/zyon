@@ -33,7 +33,7 @@ export type CheckoutEventName =
 export interface CartItem {
   /** Server-persisted cross-sell preconditions. Never trust public cart copies. */
   crossSellIntent?: { version: 1; promotionId: string; promotionUpdatedAt: string; acceptedQuantity: number;
-    originalUnitPriceCents: number; maximumUnitPriceCents: number };
+    originalUnitPriceCents: number; maximumUnitPriceCents: number; selectedOptionItemIds?: string[] };
   originalPrice?: number;
   variantLabel?: string;
   fulfillmentStrategy?: import("./order-fulfillment.js").FulfillmentStrategy;
@@ -89,6 +89,10 @@ export interface Cart {
   total: number;
   items: CartItem[];
   currentDiscount?: number;
+  /** Display projection of a server-confirmed cashback reservation; never authorizes a charge. */
+  cashbackCents?: number;
+  /** Authored by the server when persisted coupon/rule composition changes. */
+  commercialBenefitsVersion?: number;
   /** Server-authored original merchandise basis; never trust a submitted copy. */
   discountBudget?: { version: 1; originalSubtotalCents: number; promotionDiscountCents: number };
   /** Presentation only, authored from a verified server-side policy decision. */
@@ -145,8 +149,20 @@ export interface CustomerAddress {
   state?: string;
 }
 
+export interface FiscalRecipientData {
+  name?: string;
+  taxId?: string;
+  email?: string;
+  phone?: string;
+  address?: { street?: string; number?: string; complement?: string; neighborhood?: string; city?: string;
+    state?: string; postalCode?: string; cityCode?: string; countryCode?: string };
+}
+
 export interface CustomerHints {
   deliveryAddressLabel?: string;
+  fiscalRecipientMode?: "buyer" | "other";
+  /** Fiscal company identity is separate from the buyer's personal CPF/payment account. */
+  fiscalRecipient?: FiscalRecipientData;
   externalCustomerId?: string;
   asaasCustomerId?: string;
   email?: string;
@@ -519,6 +535,7 @@ export interface CheckoutTotalsSnapshot {
   subtotal: number;
   shipping: number;
   discount: number;
+  cashback_cents?: number;
   service_fee?: number;
   /** Amount charged to the buyer: order total plus the separately disclosed service fee. */
   total_to_pay?: number;
@@ -526,6 +543,8 @@ export interface CheckoutTotalsSnapshot {
 }
 
 export interface CheckoutExperienceSnapshot {
+  /** Display revision for the authoritative persisted coupon/rule composition. */
+  commercial_benefits_version?: number;
   brand: CheckoutBrandSnapshot;
   stage?: ChatStage;
   rules?: {
@@ -898,6 +917,7 @@ export type RevenueManagerDomainEventType =
   | "revenue_manager.lesson.recorded";
 
 export type DomainEventType =
+  | "platform.support.changed"
   | "support.case.changed"
   | "whatsapp.support.message.requested"
   | "whatsapp.support.resume.requested"
@@ -915,6 +935,7 @@ export type DomainEventType =
   | RevenueManagerDomainEventType;
 
 export type DomainEventProducer =
+  | "platform-support"
   | "support"
   | "checkout"
   | "cross-sell"
@@ -1615,6 +1636,7 @@ export * from "./billing-plans.js";
 export * from "./billing-offers.js";
 export * from "./billing-promotions.js";
 export * from "./platform-support.js";
+export * from "./platform-support-policy.js";
 
 export { NEUMORPHIC_THEME, merchantThemeTokens, type MerchantThemeAppearance } from "./merchant-theme.js";
 
@@ -1629,6 +1651,12 @@ export type { StorefrontReadUiAction, StorefrontQuestionUiAction, StorefrontPubl
 export { normalizeRealtimeSdp, readRealtimeVoiceCall, realtimeVoiceFailureHint, RealtimeServerVoiceTurns, type RealtimeVoiceCall, type RealtimeServerVoiceEvent } from "./realtime-voice-session.js";
 
 export * from "./shopping-agent-appearance.js";
+export * from "./cashback.js";
+export * from "./meta-ads-agent.js";
+export * from "./platform-support.js";
+export * from "./merchant-assistant.js";
+export * from "./platform-prospecting.js";
+export * from "./platform-prospecting-pricing.js";
 export type { ServiceAppointmentAdminState, ServiceAppointmentAdminPayment, ServiceAppointmentAdminItem,
   ServiceAppointmentAdminList, ServiceAppointmentAdminDetail, ServiceAppointmentAdminListQuery } from "./service-appointment-admin.js";
 export type { ServiceMetricsDataStatus, ServiceMetricsAppointmentState, ServiceMetricsMoney,

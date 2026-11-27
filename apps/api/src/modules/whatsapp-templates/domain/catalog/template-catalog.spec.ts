@@ -3,6 +3,19 @@ import assert from "node:assert/strict";
 import { buildCatalog, categoryFor, getTemplateDefinition } from "./template-catalog.js";
 import { WHATSAPP_TEMPLATE_TYPES } from "./template-types.js";
 
+test('ACAP-19 campaign readiness defines a separate administrative template with exact scoped variables',()=>{
+  const def=getTemplateDefinition('campaign_ready','Loja Aurora');assert.ok(WHATSAPP_TEMPLATE_TYPES.includes('campaign_ready'));assert.equal(def.type,'campaign_ready');assert.equal(def.category,'UTILITY');assert.equal(def.language,'pt_BR');assert.equal(def.hasCoupon,false);assert.deepEqual(def.variableMap,{'1':'campaignName','2':'campaignVersion','3':'campaignReviewLink'});assert.match(def.metaBody,/Loja Aurora/);assert.match(def.metaBody,/aprovação administrativa/);assert.doesNotMatch(def.metaBody,/cupom|desconto|pedido/iu);assert.equal(Object.hasOwn(def,'metaStatus'),false);
+});
+test('ACAP-19 campaign readiness examples contain a canonical review link and complete version samples',()=>{
+  const def=getTemplateDefinition('campaign_ready');assert.ok(def.sampleVariables['1'].trim());assert.match(def.sampleVariables['2'],/^[a-f0-9]{12}$/);const url=new URL(def.sampleVariables['3']);assert.equal(url.protocol,'https:');assert.ok(url.hash.startsWith('#meta-ads-agent?'));assert.equal(url.username,'');assert.equal(url.password,'');assert.equal(url.search,'');assert.doesNotMatch(def.sampleVariables['3'],/token|secret/iu);
+});
+test('ACAP-20 the proposed readiness template states that publication still requires approval',async()=>{
+  const {prepareSalesWhatsApp,salesDefaults}=await import('../sales-template-content.js');const defaults=salesDefaults('campaign_ready'),prepared=prepareSalesWhatsApp('campaign_ready',defaults.whatsapp.body);assert.match(defaults.whatsapp.body,/só será publicada após aprovação/);assert.doesNotMatch(prepared.metaBody,/\{\{[A-Za-z]/);assert.ok(Object.values(prepared.sampleVariables).every(value=>value.trim()));assert.equal(prepared.category,'UTILITY');assert.doesNotMatch(prepared.metaBody,/^\s*\{\{\d+\}\}/);assert.doesNotMatch(prepared.metaBody,/\{\{\d+\}\}[^\p{L}\p{N}]*$/u);
+});
+test('ACAP-20 readiness variables cannot expand unrelated order or marketing template scopes',async()=>{
+  const {prepareSalesWhatsApp}=await import('../sales-template-content.js');for(const type of ['order_confirmation','follow_up','cross_sell'])assert.throws(()=>prepareSalesWhatsApp(type,'Aviso {{campaignName}}: {{campaignReviewLink}}.'),/unsupported_template_variable/);const prepared=prepareSalesWhatsApp('campaign_ready','Campanha {{campaignName}}, revisão {{campaignVersion}}, consulte {{campaignReviewLink}}.');assert.deepEqual(Object.values(prepared.variableMap),['campaignName','campaignVersion','campaignReviewLink']);
+});
+
 test("catalog covers every declared type", () => {
   const cat = buildCatalog();
   for (const t of WHATSAPP_TEMPLATE_TYPES) {
@@ -65,10 +78,26 @@ test("checkout OTP template has one code variable", () => {
 test("customer notifications identify their company and retain a literal ending after positional conversion", async () => {
   const { prepareSalesWhatsApp, salesDefaults } = await import("../sales-template-content.js");
   for (const def of Object.values(buildCatalog())) {
-    if (def.type === "checkout_otp") continue;
+    if (def.category === "AUTHENTICATION") continue;
     if (!def.type.startsWith("plan_expiry_") && def.type !== "marketplace_operational_alert") assert.ok(def.freeformBody.includes("{{storeName}}"), def.type);
     const prepared = prepareSalesWhatsApp(def.type, salesDefaults(def.type).whatsapp.body);
     assert.doesNotMatch(prepared.metaBody, /^\s*\{\{\d+\}\}/u, def.type);
     assert.doesNotMatch(prepared.metaBody, /\{\{\d+\}\}[^\p{L}\p{N}]*$/u, def.type);
   }
+});
+
+test("account link is a fixed five-minute authentication purpose, separate from checkout", async () => {
+  const { authenticationExpirationMinutesFor } = await import("./template-types.js");
+  const { validateSalesEdit, salesDefaults } = await import("../sales-template-content.js");
+  const link = getTemplateDefinition("buyer_whatsapp_link_otp", "Loja A");
+  assert.equal(link.category, "AUTHENTICATION");
+  assert.equal(link.freeformBody, "{{otpCode}} é seu código de verificação. Para sua segurança, não compartilhe este código.");
+  assert.deepEqual(link.variableMap, { "1": "otpCode" });
+  assert.equal(link.hasCoupon, false);
+  assert.equal(authenticationExpirationMinutesFor(link.type), 5);
+  assert.equal(authenticationExpirationMinutesFor("checkout_otp"), 10);
+  assert.equal(authenticationExpirationMinutesFor("cart_recovery"), undefined);
+  const input = salesDefaults(link.type);
+  assert.throws(() => validateSalesEdit(link.type, { ...input, whatsapp: { body: "Promoção {{otpCode}}", revision: 1 } }), /authentication_template_fixed/);
+  assert.equal(validateSalesEdit(link.type, { ...input, whatsapp: { body: link.freeformBody, revision: 1 } }).whatsapp.body, link.freeformBody);
 });

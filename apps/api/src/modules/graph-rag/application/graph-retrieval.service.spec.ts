@@ -10,6 +10,44 @@ const hit: GraphCatalogHit = { merchantId: "a", productId: "p", variantId: "v", 
   projectedAt: now, sourceHash: "a".repeat(64), vectorScore: 0.9, score: 0.8 };
 const config = { enabled: true, merchantIds: ["a"], timeoutMs: 100, maxAgeMs: 300_000, threshold: 0.65 };
 
+const guideHit = { merchantId: "a", sourceId: "use", chunkId: "main", sourceType: "merchant_guide", audience: "merchant", context: "cashback",
+  modelId: "model-v1", sourceVersion: now, projectedAt: now, sourceHash: "a".repeat(64), contentHash: "b".repeat(64), vectorScore: 1, score: 1 };
+test("merchant guide retrieval preserves server scope model freshness and typed result", async () => {
+  const reads: GraphReadInput[] = [];
+  const service = new GraphRetrievalService(config, { modelId: "model-v1", dimensions: 384, generate: async () => vector },
+    { read: async input => { reads.push(input); return { status: "ready", kind: "merchant_help", hits: [guideHit], partial: true } as any; } }, () => now);
+  assert.deepEqual(await service.searchMerchantGuides({ merchantId: "a", context: "cashback", query: "uso", limit: 2 }),
+    { status: "ready", hits: [guideHit], partial: true });
+  assert.deepEqual(reads[0], { merchantId: "a", context: "cashback", query: "uso", limit: 2, kind: "merchant_help", embedding: vector,
+    modelId: "model-v1", nowEpochMs: now, maxAgeMs: 300000, threshold: 0.65 });
+});
+test("merchant guide rollout and strict requests prevent inference outside admitted scope", async () => {
+  const embeddings = { modelId: "model-v1", dimensions: 384, generate: async () => { throw Error("must not infer"); } };
+  const graph = { read: async () => { throw Error("must not read"); } };
+  const enabled = new GraphRetrievalService(config, embeddings, graph);
+  assert.deepEqual(await enabled.searchMerchantGuides({ merchantId: "b", context: "cashback", query: "uso" }), { status: "unavailable", reason: "disabled" });
+  assert.deepEqual(await new GraphRetrievalService({ ...config, enabled: false }, embeddings, graph).searchMerchantGuides({ merchantId: "a", context: "cashback", query: "uso" }), { status: "unavailable", reason: "disabled" });
+  for (const patch of [{ context: "meta_ads" }, { audience: "buyer" }, { cypher: "RETURN 1" }])
+    assert.deepEqual(await enabled.searchMerchantGuides({ merchantId: "a", context: "cashback", query: "uso", ...patch } as any), { status: "unavailable", reason: "invalid_input" });
+});
+test("merchant guide timeout and absent real embedding yield identified unavailability", async () => {
+  for (const [generate, reason] of [[async () => null, "embedding_unavailable"], [async () => new Promise<number[]>(() => {}), "timeout"]] as const) {
+    const service = new GraphRetrievalService({ ...config, timeoutMs: 5 }, { modelId: "model-v1", dimensions: 384, generate },
+      { read: async () => { throw Error("must not read"); } });
+    assert.deepEqual(await service.searchMerchantGuides({ merchantId: "a", context: "cashback", query: "uso" }), { status: "unavailable", reason });
+  }
+});
+test("merchant guide retrieval rejects wrong result kind scope version hash and audience", async () => {
+  for (const patch of [{ merchantId: "b" }, { audience: "buyer" }, { context: "meta_ads" }, { projectedAt: now - 300001 }, { sourceHash: "bad" }, { sourceType: "faq" }]) {
+    const service = new GraphRetrievalService(config, { modelId: "model-v1", dimensions: 384, generate: async () => vector },
+      { read: async () => ({ status: "ready", kind: "merchant_help", hits: [{ ...guideHit, ...patch }], partial: true }) as any }, () => now);
+    assert.deepEqual(await service.searchMerchantGuides({ merchantId: "a", context: "cashback", query: "uso" }), { status: "unavailable", reason: "invalid_result" });
+  }
+  const service = new GraphRetrievalService(config, { modelId: "model-v1", dimensions: 384, generate: async () => vector },
+    { read: async () => ({ status: "ready", kind: "knowledge", hits: [], partial: true }) }, () => now);
+  assert.deepEqual(await service.searchMerchantGuides({ merchantId: "a", context: "cashback", query: "uso" }), { status: "unavailable", reason: "invalid_result" });
+});
+
 test("RAG04 scoped vectors", async () => {
   const reads: GraphReadInput[] = [];
   const service = new GraphRetrievalService(config, { modelId: "model-v1", dimensions: 384, generate: async () => vector },

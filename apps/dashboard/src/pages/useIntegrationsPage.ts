@@ -242,7 +242,9 @@ export function useIntegrationsPage(
     }, "Não foi possível cadastrar o webhook. Confira o endereço e tente novamente; os campos foram preservados.");
   const testWebhook = (id: string) =>
     run(async () => {
-      const delivery = await api.testWebhookEndpoint(id);
+      const eventType = webhooks.find(endpoint => endpoint.id === id)?.events[0];
+      if (!eventType) throw new Error("webhook_events_required");
+      const delivery = await api.testWebhookEndpoint(id, eventType);
       setDeliveries((prev) => [delivery, ...prev]);
       setMessage("Teste solicitado. Confira o resultado no histórico de entregas.");
     }, "Não foi possível solicitar o teste. Tente novamente.");

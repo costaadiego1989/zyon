@@ -23,7 +23,7 @@ const base = { merchant_id: "merchant", session_id: "session", destination_zip: 
   packages: [{ weightKg: 0.5, heightCm: 10, widthCm: 15, lengthCm: 20, quantity: 1 }], items: [{ sku: "sku", quantity: 1 }] };
 
 function fixture() {
-  const state = { enabled: true, fail: false, calls: 0, originZip: "01001000", saved: 0,
+  const state = { enabled: true, fail: false, calls: 0, originZip: "01001000" as string | undefined, saved: 0,
     config: { id: "local", merchantId: "merchant", enabled: true, mode: "flat", flatPriceCents: 800,
       freeAboveCents: null, neighborhoods: null, radiusZones: null, estimatedValue: 60, estimatedUnit: "minutes" } as OwnDeliveryConfig };
   const sessions = new InMemoryCheckoutRepository();
@@ -54,6 +54,38 @@ describe("hybrid delivery quotes", () => {
   });
   afterEach(() => { globalThis.fetch = originalFetch; });
 
+  it("same CEP flat delivery survives address outage with configured tariff and free threshold", async t => {
+    let lookups = 0;
+    t.mock.method(globalThis, "fetch", async () => { lookups++; throw Error("owned_address_outage"); });
+    const f = fixture(); f.state.enabled = false; f.state.originZip = "25953001"; f.state.config.flatPriceCents = 750;
+    const quote = await f.service.execute({ ...base, destination_zip: "25953-001" });
+    assert.equal(quote.results.length, 1);
+    assert.equal(quote.results[0].carrier_key, "own_delivery_flat"); assert.equal(quote.results[0].price, 750);
+    assert.equal(quote.results[0].real_cost, 750); assert.equal(quote.results[0].estimated_value, 60); assert.equal(quote.results[0].estimated_unit, "minutes");
+    assert.equal(lookups, 0);
+    f.state.config.freeAboveCents = 5000;
+    const free = await f.service.execute({ ...base, destination_zip: "25953001", cart_total: 50 });
+    assert.equal(free.results.length, 1); assert.equal(free.results[0].price, 0); assert.equal(free.results[0].real_cost, 750); assert.equal(free.results[0].is_free, true);
+  });
+
+  it("same CEP does not infer a missing merchant origin from the caller", async t => {
+    t.mock.method(globalThis, "fetch", async () => { throw Error("owned_address_outage"); });
+    for (const originZip of [undefined, "", "25953002"]) {
+      const f = fixture(); f.state.enabled = false; f.state.originZip = originZip;
+      const quote = await f.service.execute({ ...base, origin_zip: "25953001", destination_zip: "25953001" });
+      assert.deepEqual(quote.results, []);
+    }
+  });
+
+  it("same CEP outage optimization never grants unknown geography or disabled delivery", async t => {
+    t.mock.method(globalThis, "fetch", async () => { throw Error("owned_address_outage"); });
+    for (const [originZip, destinationZip, enabled] of [["25953001", "25953002", true], ["", "25953001", true], ["00000000", "00000000", true], ["25953001", "25953001", false]] as const) {
+      const f = fixture(); f.state.enabled = false; f.state.originZip = originZip; f.state.config.enabled = enabled;
+      const quote = await f.service.execute({ ...base, destination_zip: destinationZip });
+      assert.deepEqual(quote.results, []);
+    }
+  });
+
   it("combines actual carrier results with covered local delivery and preserves minutes", async () => {
     const f = fixture();
     const quote = await f.service.execute(base);
@@ -67,6 +99,10 @@ describe("hybrid delivery quotes", () => {
   it("the Melhor Envio adapter supplies provider price, custom ETA and canonical request dimensions", async () => {
     let payload: any;
     globalThis.fetch = (async (url, init) => {
+      if (String(url).endsWith("/api/v2/me/shipment/services")) {
+        assert.equal(init?.method, "GET");
+        return Response.json([{ id: 1, name: "PAC" }]);
+      }
       assert.ok(String(url).endsWith("/api/v2/me/shipment/calculate"));
       payload = JSON.parse(String(init?.body));
       return Response.json([{ id: 1, name: "PAC", price: "39.19", custom_price: "42.19", currency: "BRL",
@@ -81,6 +117,7 @@ describe("hybrid delivery quotes", () => {
     assert.equal(result.results.length, 1); assert.equal(result.results[0]?.price, 4219); assert.equal(result.results[0]?.eta_days, 4);
     assert.deepEqual(payload.from, { postal_code: "01001000" }); assert.deepEqual(payload.to, { postal_code: "01002000" });
     assert.deepEqual(payload.products, [{ weight: 0.5, width: 15, height: 10, length: 20, quantity: 1 }]);
+    assert.equal(payload.services, "1");
   });
 
   it("does not offer local flat delivery in another city", async () => {

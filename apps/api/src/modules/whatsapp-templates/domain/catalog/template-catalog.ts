@@ -1,3 +1,4 @@
+import { isAuthenticationTemplateType } from "./template-types.js";
 import type {
   WhatsAppTemplateType,
   WhatsAppTemplateCategory,
@@ -29,6 +30,8 @@ export interface WhatsAppTemplateDefinition {
 }
 
 const SAMPLES: Record<string, string> = {
+  campaignName:'Coleção verão',campaignVersion:'b541e8027a19',campaignReviewLink:'https://app.zyon-payments.com.br/#meta-ads-agent?store=loja_exemplo&campaign=campanha_exemplo&proposal=proposta_exemplo',
+  cashbackAmount: "R$ 10,00", cashbackExpiresAt: "21/11/2026",
   appointmentSummary: "Consulta com profissional em 03/01/2030, 10:00, America/Sao_Paulo. Valor R$ 50,00. Pagamento no atendimento: pendente.",
 alertName: "MarketplaceOutboxDeliveryFailures",
 alertStatus: "ativo",
@@ -59,6 +62,8 @@ export function toPositional(named: string, storeName = "sua loja"): {
   sampleVariables: Record<string, string>;
 } {
   const ordered: Array<{ name: string; token: RegExp }> = [
+    ...['campaignName','campaignVersion','campaignReviewLink'].map(name=>({name,token:new RegExp('\\{\\{'+name+'\\}\\}','g')})),
+    ...["cashbackAmount", "cashbackExpiresAt"].map(name => ({ name, token: new RegExp("\\{\\{" + name + "\\}\\}", "g") })),
     ...["alertName", "alertStatus", "alertSeverity", "observedAt"].map(name => ({ name, token: new RegExp("\\{\\{" + name + "\\}\\}", "g") })),
     ...["merchantName", "planName", "expiresAt", "dashboardLink"].map(name => ({ name, token: new RegExp("\\{\\{" + name + "\\}\\}", "g") })),
     { name: "buyerName", token: /\{\{buyerName\}\}/g },
@@ -90,6 +95,10 @@ export function toPositional(named: string, storeName = "sua loja"): {
 
 // Named-placeholder freeform bodies (source of truth for both channels).
 const FREEFORM: Record<WhatsAppTemplateType, string> = {
+  campaign_ready:'A campanha {{campaignName}} da {{storeName}}, revisão {{campaignVersion}}, está pronta para aprovação administrativa. Revise criativos, público, datas e orçamento no painel: {{campaignReviewLink}}.\n\nA campanha só será publicada após aprovação no painel.',
+  fiscal_invoice: "A nota fiscal do pedido {{orderId}} está disponível. Consulte o ambiente e os arquivos na sua conta: {{link}}.\n\n{{storeName}}",
+  cashback_available: "Olá, {{buyerName}}. Você tem {{cashbackAmount}} de cashback disponível na {{storeName}}. Consulte seu saldo e as regras na sua conta da loja. O mesmo crédito pode ser usado no site e no WhatsApp.",
+  cashback_expiring: "Olá, {{buyerName}}. Seu cashback de {{cashbackAmount}} na {{storeName}} vence em {{cashbackExpiresAt}}. Consulte o saldo e as condições na sua conta da loja.",
   support_case_alert: "Novo atendimento humano em {{storeName}}. Abra a conversa no painel: {{dashboardLink}}. Atendimento da empresa.",
   service_appointment_notice: "Ol\u00e1, {{buyerName}}. Confira a atualiza\u00e7\u00e3o do seu atendimento na {{storeName}}.\n\n{{appointmentSummary}}\n\nSe precisar de ajuda, fale com a empresa.",
   shopping_agent_alert: "Olá, {{buyerName}}. Seu agente pessoal encontrou uma atualização para {{productName}}. Revise a tarefa e as condições atuais: {{link}}.\n\nAtenciosamente,\n{{storeName}}",
@@ -126,14 +135,19 @@ Consulte as informações da sua compra. O acesso a produtos digitais é enviado
   exchange_completed: `Olá, {{buyerName}}. A {{storeName}} concluiu a troca dos itens {{productName}} do pedido {{orderId}} e confirmou a entrega. Detalhes: {{decisionReason}}. Consulte a conversa em {{link}}. O histórico continua disponível na sua conta.`,
   return_posting_code: `Olá, {{buyerName}}. A {{storeName}} disponibilizou o código de devolução dos itens {{productName}} do pedido {{orderId}}. Instruções: {{decisionReason}}. Consulte os documentos em {{link}}.`,
   return_declaration_ready: `Olá, {{buyerName}}. A declaração de conteúdo para devolver os itens {{productName}} do pedido {{orderId}} à {{storeName}} está disponível. Instruções: {{decisionReason}}. Imprima o documento na conversa: {{link}}.`,
+  buyer_whatsapp_link_otp: `{{otpCode}} é seu código de verificação. Para sua segurança, não compartilhe este código.`,
   checkout_otp: `{{otpCode}} é seu código de verificação. Para sua segurança, não compartilhe este código.`,
 };
 
 const HAS_COUPON: Record<WhatsAppTemplateType, boolean> = {
+  campaign_ready:false,
+  fiscal_invoice: false,
+  cashback_available: false, cashback_expiring: false,
   support_case_alert: false,
   service_appointment_notice: false,
   shopping_agent_alert: false,
 marketplace_operational_alert: false,
+  buyer_whatsapp_link_otp: false,
   checkout_otp: false,
   plan_expiry_7d: false, plan_expiry_3d: false, plan_expiry_24h: false, plan_expiry_expired: false,
   follow_up: false,
@@ -153,10 +167,14 @@ marketplace_operational_alert: false,
 };
 
 const LABELS: Record<WhatsAppTemplateType, string> = {
+  campaign_ready:'Campanha pronta para aprovação',
+  fiscal_invoice: "Nota fiscal disponível",
+  cashback_available: "Cashback disponível", cashback_expiring: "Cashback próximo do vencimento",
   support_case_alert: "Aviso privado de atendimento humano",
   service_appointment_notice: "Atualiza\u00e7\u00e3o do agendamento",
   shopping_agent_alert: "Aviso do agente pessoal",
 marketplace_operational_alert: "Marketplace: alerta operacional",
+  buyer_whatsapp_link_otp: "Vínculo da conta com o WhatsApp",
   checkout_otp: "Código de confirmação do checkout",
   plan_expiry_7d: "Plano: vencimento em 7 dias", plan_expiry_3d: "Plano: vencimento em 3 dias",
   plan_expiry_24h: "Plano: vencimento em 24 horas", plan_expiry_expired: "Plano: vencido sem renovação",
@@ -184,10 +202,10 @@ marketplace_operational_alert: "Marketplace: alerta operacional",
 
 // Incentives, reactivation and replenishment campaigns are promotional.
 // Template category does not replace recipient consent or current Meta approval.
-const MARKETING = new Set<WhatsAppTemplateType>(["cross_sell", "win_back", "loyalty", "reorder", "cart_recovery", "shopping_agent_alert"]);
+const MARKETING = new Set<WhatsAppTemplateType>(["cross_sell", "win_back", "loyalty", "reorder", "cart_recovery", "shopping_agent_alert", "cashback_available", "cashback_expiring"]);
 
 export function categoryFor(type: WhatsAppTemplateType): WhatsAppTemplateCategory {
-  if (type === "checkout_otp") return "AUTHENTICATION";
+  if (isAuthenticationTemplateType(type)) return "AUTHENTICATION";
   return MARKETING.has(type) ? "MARKETING" : "UTILITY";
 }
 
@@ -203,10 +221,16 @@ export function buildCatalog(storeName = "sua loja"): Record<WhatsAppTemplateTyp
     const source = FREEFORM[type];
     // Meta forbids a variable at the end of a normal template. The company
     // signature must still end in literal text when storeName is positional.
-    const freeformBody = type === "checkout_otp" || platformNotice ? source
+    const freeformBody = isAuthenticationTemplateType(type) || platformNotice ? source
       : /\{\{storeName\}\}\s*$/.test(source) ? `${source}.\nEstamos à disposição.`
         : `${source}\n\nEquipe {{storeName}}. Estamos à disposição.`;
-    const { metaBody, variableMap, sampleVariables } = toPositional(freeformBody, storeName);
+    // Private staff delivery binds exactly these two non-buyer variables.
+    // Keep the existing contract rather than broadening the sender's allowlist.
+    const { metaBody, variableMap, sampleVariables } = type === "support_case_alert"
+      ? { metaBody: freeformBody.replace(/\{\{storeName\}\}/g, "{{1}}").replace(/\{\{dashboardLink\}\}/g, "{{2}}"),
+          variableMap: { "1": "storeName", "2": "dashboardLink" },
+          sampleVariables: { "1": storeName, "2": SAMPLES.dashboardLink ?? "" } }
+      : toPositional(freeformBody, storeName);
     out[type] = {
       type,
       label: LABELS[type],

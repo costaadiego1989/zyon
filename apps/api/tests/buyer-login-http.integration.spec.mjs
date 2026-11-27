@@ -19,7 +19,17 @@ test('Buyer login actual AppModule rejects invalid credentials and grants only t
   const buyer=await prisma.buyerAccount.create({data:{globalUserId:'buyer_'+randomUUID().replaceAll('-',''),email,
    passwordHash:await new PasswordHasher().hash(password),displayName:'Synthetic Service Buyer',phone:'5511999997711',cpf:'12345678909'}});
   const malformed=[];
-  for(const [index,passwordHash]of ['not-a-password-hash','argon2id:salt:hash','scrypt::missing-salt'].entries())
+  const [algorithm,salt,key]=buyer.passwordHash.split(':');
+  const alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  const aliasedLastByte=key.slice(0,-1)+alphabet[alphabet.indexOf(key.at(-1))+1];
+  const malformedHashes=['not-a-password-hash','argon2id:salt:hash','scrypt::missing-salt',
+   'scrypt:synthetic-salt:!',
+   'scrypt:synthetic-salt:'+Buffer.alloc(1).toString('base64url'),
+   'scrypt:synthetic-salt:'+Buffer.alloc(63).toString('base64url'),
+   'scrypt:synthetic-salt:'+Buffer.alloc(65).toString('base64url'),
+   buyer.passwordHash+'=',buyer.passwordHash+'!',buyer.passwordHash+'\n',
+   `${algorithm}:${salt}:${aliasedLastByte}`];
+  for(const [index,passwordHash]of malformedHashes.entries())
    malformed.push(await prisma.buyerAccount.create({data:{globalUserId:'buyer_'+randomUUID().replaceAll('-',''),
     email:'malformed-'+index+'-'+randomUUID()+'@example.test',passwordHash,displayName:'Synthetic Malformed Buyer',phone:'5511999997722'}}));
   const phoneOnly=await prisma.buyerAccount.create({data:{globalUserId:'buyer_'+randomUUID().replaceAll('-',''),

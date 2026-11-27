@@ -1,17 +1,9 @@
+import { Activity, AlertTriangle, BadgePercent, Bell, CheckCircle2, ListChecks, MessageCircle, RotateCcw, Save, Timer, Zap } from "lucide-react";
 import { SetupGuide } from "../../components/SetupGuide.js";
 import { PageHeader } from "../../components/PageHeader.js";
 import React from "react";
 import { useState } from "react";
-import {
-  Save,
-  RotateCcw,
-  Bell,
-  Timer,
-  AlertTriangle,
-  CheckCircle2,
-  Activity,
-  MessageCircle,
-} from "lucide-react";
+
 import type { MerchantProfile as MerchantMeProfile } from "../../api-client.js";
 import { ConfirmDialog } from "../../components/ConfirmDialog.js";
 import { Button } from "../../components/Button.js";
@@ -135,9 +127,9 @@ export function CheckoutSettingsPage(props: {
           {/* Tabs */}
           <TabBar
             tabs={[
-              { key: "triggers", label: "Quando ajudar" },
-              { key: "discounts", label: "Descontos" },
-              { key: "rules", label: "Regras avançadas" },
+              { key: "triggers", label: "Quando ajudar", icon: <Zap size={16} /> },
+              { key: "discounts", label: "Descontos", icon: <BadgePercent size={16} /> },
+              { key: "rules", label: "Regras avançadas", icon: <ListChecks size={16} /> },
             ]}
             activeTab={vm.activeTab}
             onTabChange={(k) => vm.setActiveTab(k as "triggers" | "discounts" | "rules")}

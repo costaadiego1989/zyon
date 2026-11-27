@@ -1,3 +1,5 @@
+import { MARKETING_RELATIONSHIP, type MarketingRelationshipPort, type MarketingInboundDecision } from "../../../../shared/contracts/marketing.js";
+import { conversationHistoryText } from "../../../../shared/privacy/conversation-history-text.js";
 import { MERCHANT_AGENT_RULE_READER, type MerchantAgentRuleReaderPort } from "../../../agent-rules/domain/ports/merchant-agent-rule-reader.port.js";
 /**
  * Send store message use-case.
@@ -6,7 +8,15 @@ import { MERCHANT_AGENT_RULE_READER, type MerchantAgentRuleReaderPort } from "..
  * returns response message + conversation blocks.
  */
 
-import { BadRequestException, Injectable, Inject, NotFoundException, Optional, Logger, ServiceUnavailableException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  Inject,
+  NotFoundException,
+  Optional,
+  Logger,
+  ServiceUnavailableException,
+} from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import { STOREFRONT_CONVERSATION_PORT, type StorefrontConversationPort, type StorefrontDeferredContext } from "../../domain/ports/conversation.port.js";
@@ -50,6 +60,8 @@ export interface SendStoreMessageInput {
   attachment_context?: string;
   device_type?: "mobile" | "tablet" | "desktop";
   one_buy_click?: OneBuyClickConversationContext;
+  message_id?: string;
+  marketing_consent?: "granted" | "declined";
 }
 
 export interface SendStoreMessageOutput {
@@ -59,6 +71,8 @@ export interface SendStoreMessageOutput {
   conversation_id: string;
   suggested_next: string[];
   suggested_actions?: StorefrontSuggestedReadActions;
+  history_saved?: boolean;
+  handoff?: boolean;
 }
 
 @Injectable()
@@ -67,13 +81,20 @@ export class SendStoreMessageUseCase {
 
   constructor(
     @Inject(MERCHANT_REPOSITORY) private readonly merchant: MerchantRepository,
-    @Inject(STOREFRONT_CONVERSATION_PORT) private readonly conversation: StorefrontConversationPort,
+    @Inject(STOREFRONT_CONVERSATION_PORT)
+    private readonly conversation: StorefrontConversationPort,
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
     @Inject(MERCHANT_AGENT_RULE_READER) private readonly agentRules: MerchantAgentRuleReaderPort,
     @Optional() @Inject(BUYER_CONVERSATION_REPOSITORY) private readonly conversationRepo?: BuyerConversationRepository,
     @Optional() @Inject(STOREFRONT_USE_CASE_OBSERVATION) private readonly observation: StorefrontUseCaseObservation = NOOP_STOREFRONT_USE_CASE_OBSERVATION,
-    @Optional() private readonly knowledgeAudit?: KnowledgeResponseAuditService,
-  ) {}
+    @Optional() @Inject(MARKETING_RELATIONSHIP) marketingOrAudit?: MarketingRelationshipPort | KnowledgeResponseAuditService,
+    @Optional() knowledgeAudit?: KnowledgeResponseAuditService,
+  ) {
+    this.marketing = marketingOrAudit && "enabled" in marketingOrAudit ? marketingOrAudit : undefined;
+    this.knowledgeAudit = marketingOrAudit && !("enabled" in marketingOrAudit) ? marketingOrAudit : knowledgeAudit;
+  }
+  private readonly marketing?: MarketingRelationshipPort;
+  private readonly knowledgeAudit?: KnowledgeResponseAuditService;
 
   async execute(input: SendStoreMessageInput, deferredContext?: StorefrontDeferredContext, messageFormat?: "whatsapp", serviceBooking?: StorefrontServiceBookingFactory): Promise<SendStoreMessageOutput> {
     return this.observation.turn(() => this.executeTurn(input, deferredContext, messageFormat, serviceBooking));
@@ -85,18 +106,73 @@ export class SendStoreMessageUseCase {
     input = parsedInput.data;
     const merchant = await this.merchant.getProfile(input.merchant_id);
     if (!merchant) throw new NotFoundException("merchant_not_found");
+    if (
+      input.message_id !== undefined &&
+      !/^[a-zA-Z0-9_-]{1,128}$/.test(input.message_id)
+    )
+      throw new BadRequestException("invalid_message_id");
+    if (
+      input.marketing_consent !== undefined &&
+      !["granted", "declined"].includes(input.marketing_consent)
+    )
+      throw new BadRequestException("invalid_marketing_choice");
+    const messageId = input.message_id ?? randomUUID();
+    let relationship: MarketingInboundDecision | undefined;
+    if (messageFormat !== "whatsapp" && this.marketing && (await this.marketing.enabled(input.merchant_id))) {
+      relationship = await this.marketing.inbound({
+        merchantId: input.merchant_id,
+        channel: "site",
+        conversationKey: input.conversation_id,
+        messageId,
+        text: conversationHistoryText(input.user_message, 4000),
+        receivedAt: new Date().toISOString(),
+        accountId: input.global_user_id,
+        consentChoice: input.marketing_consent,
+      });
+      if (relationship.human)
+        return {
+          message: "",
+          blocks: [],
+          conversation_id: input.conversation_id,
+          suggested_next: [],
+          history_saved: true,
+          handoff: true,
+        };
+    }
 
-    const history = input.history ?? [];
+    let history = input.history ?? [];
+    if (relationship && this.marketing) {
+      const projected = await this.marketing.history(input.merchant_id, "site", input.conversation_id);
+      history = (projected ?? []).filter(m => m.role !== "system" && ["recorded", "accepted", "delivered", "read"].includes(m.status))
+        .filter(m => !(m.role === "buyer" && m.requestId === messageId)).slice(-20)
+        .map(m => ({role: m.role === "buyer" ? "user" as const : "assistant" as const, content: conversationHistoryText(m.content, 8000)}));
+    }
     let storeSettings: Record<string, any> | undefined;
-    try { storeSettings = await this.merchant.getStoreSettings(input.merchant_id) as any; } catch { /* optional */ }
+    try {
+      storeSettings = (await this.merchant.getStoreSettings(
+        input.merchant_id
+      )) as any;
+    } catch {
+      /* optional */
+    }
 
     // Load agent identity from agent_rules (source of truth for agent name/persona/tone/language)
-    let agentIdentity: { agentName?: string; persona?: string; tone?: string; greeting?: string; language?: string } | undefined;
+    let agentIdentity:
+      | {
+          agentName?: string;
+          persona?: string;
+          tone?: string;
+          greeting?: string;
+          language?: string;
+        }
+      | undefined;
     try {
       const agentRule = await this.agentRules.findForMerchant(input.merchant_id);
       const identity = agentRule?.identity as { agentName?: string; persona?: string; tone?: string; greeting?: string; language?: string } | null;
       if (identity) agentIdentity = identity;
-    } catch { /* optional — fallback to no identity */ }
+    } catch {
+      /* optional — fallback to no identity */
+    }
 
     // Load merchant rules (discount/shipping policy limits)
     let merchantPolicy: { maxDiscountPercent?: number; allowFreeShipping?: boolean; allowShippingDiscount?: boolean; allowStackDiscountAndFreeShipping?: boolean; freeShippingMinCartValue?: number; maxPartialShippingDiscount?: number; offerExpirationMinutes?: number } | undefined;
@@ -124,7 +200,9 @@ export class SendStoreMessageUseCase {
           offerExpirationMinutes: merchantRules.offerExpirationMinutes,
         };
       }
-    } catch { /* optional — fallback to no policy */ }
+    } catch {
+      /* optional — fallback to no policy */
+    }
 
     // Load advanced rules from checkout settings
     let advancedRules: string[] = [];
@@ -134,28 +212,63 @@ export class SendStoreMessageUseCase {
         select: { advancedRules: true },
       });
       if (checkoutSetting?.advancedRules) {
-        const rules = checkoutSetting.advancedRules as Array<{ enabled: boolean; priority: number; name: string; conditions: Array<{ field: string; operator: string; value: string | number | boolean }>; action: { type: string; params: Record<string, string | number> } }>;
+        const rules = checkoutSetting.advancedRules as Array<{
+          enabled: boolean;
+          priority: number;
+          name: string;
+          conditions: Array<{
+            field: string;
+            operator: string;
+            value: string | number | boolean;
+          }>;
+          action: { type: string; params: Record<string, string | number> };
+        }>;
         advancedRules = rules
-          .filter(r => r.enabled)
+          .filter((r) => r.enabled)
           .sort((a, b) => a.priority - b.priority)
-          .map(r => {
-            const fieldLabels: Record<string, string> = { cart_total: "valor do carrinho", shipping_cost: "frete", product_in_cart: "produto no carrinho", category_in_cart: "categoria", coupon_applied: "cupom aplicado", buyer_type: "tipo de comprador", payment_method: "forma de pagamento", trigger_fired: "gatilho", cart_item_count: "quantidade de itens" };
-            const conds = r.conditions.map(c => `${fieldLabels[c.field] || c.field} ${c.operator} ${c.value}`).join(" E ");
+          .map((r) => {
+            const fieldLabels: Record<string, string> = {
+              cart_total: "valor do carrinho",
+              shipping_cost: "frete",
+              product_in_cart: "produto no carrinho",
+              category_in_cart: "categoria",
+              coupon_applied: "cupom aplicado",
+              buyer_type: "tipo de comprador",
+              payment_method: "forma de pagamento",
+              trigger_fired: "gatilho",
+              cart_item_count: "quantidade de itens",
+            };
+            const conds = r.conditions
+              .map(
+                (c) =>
+                  `${fieldLabels[c.field] || c.field} ${c.operator} ${c.value}`
+              )
+              .join(" E ");
             // FACTUAL / read-only phrasing: the deterministic cart-rules engine
             // applies these benefits automatically server-side. The LLM only
             // NARRATES what already happened — it never decides or authorizes a
             // discount (invariant: LLM never authorizes offers). So describe the
             // benefit as an automatic fact, not an instruction to "offer" it.
             const benefitLabels: Record<string, string> = {
-              offer_discount: `o sistema aplica automaticamente ${r.action.params.percent || "?"}% de desconto`,
-              offer_free_shipping: "o sistema aplica automaticamente frete grátis",
-              suggest_product: `o produto ${r.action.params.productName || ""} pode ser sugerido`,
+              offer_discount: `o sistema aplica automaticamente ${
+                r.action.params.percent || "?"
+              }% de desconto`,
+              offer_free_shipping:
+                "o sistema aplica automaticamente frete grátis",
+              suggest_product: `o produto ${
+                r.action.params.productName || ""
+              } pode ser sugerido`,
               show_message: `informe: "${r.action.params.message || ""}"`,
-              offer_installments: `${r.action.params.maxInstallments || "?"}x sem juros ficam disponíveis`,
+              offer_installments: `${
+                r.action.params.maxInstallments || "?"
+              }x sem juros ficam disponíveis`,
               do_nothing: "nenhum benefício é aplicado",
-              offer_coupon: `o cupom ${r.action.params.code || ""} fica disponível`,
+              offer_coupon: `o cupom ${
+                r.action.params.code || ""
+              } fica disponível`,
             };
-            const benefit = benefitLabels[r.action.type] || "um benefício pode ser aplicado";
+            const benefit =
+              benefitLabels[r.action.type] || "um benefício pode ser aplicado";
             return `QUANDO ${conds}: ${benefit} (você apenas informa o cliente; nunca prometa desconto por conta própria)`;
           });
       }
@@ -177,7 +290,10 @@ export class SendStoreMessageUseCase {
       if (running && running.variants.length > 0) {
         // Use deterministic assignment based on conversation_id hash for consistency
         const hash = this.hashCode(input.conversation_id);
-        const totalWeight = running.variants.reduce((sum, v) => sum + v.weight, 0);
+        const totalWeight = running.variants.reduce(
+          (sum, v) => sum + v.weight,
+          0
+        );
         let target = (Math.abs(hash) % totalWeight) + 1;
         for (const variant of running.variants) {
           target -= variant.weight;
@@ -194,12 +310,19 @@ export class SendStoreMessageUseCase {
       this.logger.warn("storefront.context.read_failed", { source: "experiment" });
     }
 
-    let buyerContext: { globalUserId: string; name?: string; phone?: string; email?: string } | undefined;
+    let buyerContext:
+      | { globalUserId: string; name?: string; phone?: string; email?: string }
+      | undefined;
     if (input.global_user_id) {
       try {
         const account = await this.prisma.buyerAccount.findUnique({
           where: { globalUserId: input.global_user_id },
-          select: { globalUserId: true, displayName: true, phone: true, email: true },
+          select: {
+            globalUserId: true,
+            displayName: true,
+            phone: true,
+            email: true,
+          },
         });
         if (account) {
           buyerContext = {
@@ -257,6 +380,12 @@ export class SendStoreMessageUseCase {
       });
     });
 
+    if (relationship && this.marketing) {
+      const released = await this.marketing.aiReply(input.merchant_id, relationship.conversationId, relationship.responseKey ?? messageId,
+        conversationHistoryText(result.message, 8000), async () => ({status: "accepted"}));
+      if (!released) return {message: "", blocks: [], conversation_id: input.conversation_id, suggested_next: [], history_saved: true, handoff: true};
+      await this.marketing.commerce(input.merchant_id, input.conversation_id);
+    }
     const suggestedActions = projectStorefrontSuggestedReadActions(result.blocks, input.merchant_id);
 
     // Persist conversation history sequentially and awaited, but best-effort.
@@ -299,6 +428,7 @@ export class SendStoreMessageUseCase {
 
     const response = await this.validate("response", () => sendStoreMessageOutputSchema.safeParse({
       message: result.message,
+      ...(relationship ? {history_saved: true} : {}),
       blocks: result.blocks,
       cart_id: result.cartId,
       conversation_id: input.conversation_id,
@@ -329,7 +459,7 @@ export class SendStoreMessageUseCase {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
+      hash = (hash << 5) - hash + char;
       hash |= 0; // Convert to 32bit integer
     }
     return hash;

@@ -1,3 +1,4 @@
+import { blingTokenGrantMetadata } from "../../../../shared/integrations/bling-credentials.js";
 import { Controller, Get, Param, Query, Req, Res, Inject, Logger, UseGuards } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import type { PrismaClient } from "@prisma/client";
@@ -6,7 +7,6 @@ import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { encryptErpSecret } from "../../infrastructure/adapters/erp-secret-cipher.js";
 import { fetchBlingCompanyId } from "../../infrastructure/adapters/bling-company-identity.js";
-import { blingClientFingerprint } from "../../infrastructure/adapters/bling-token-identity.js";
 import { exchangeShopeeCode, shopeeAuthorizationUrl, shopeeShopId } from "../../infrastructure/adapters/shopee-api.js";
 import { ShopeeMarketplaceAdapter } from "../../infrastructure/adapters/shopee-marketplace.adapter.js";
 import { isMarketplaceProvider } from "../../infrastructure/adapters/marketplace-adapter.factory.js";
@@ -225,7 +225,7 @@ export class ErpOAuthController {
           refreshTokenCipher,
           tokenExpiresAt: expiresAt,
           lastErrorCode: null,
-          ...(blingCompanyId ? { config: { ...(previousBling?.config as object ?? {}), blingCompanyId, blingClientFingerprint: blingClientFingerprint() } } : {}),
+          ...(blingCompanyId ? { config: { ...(previousBling?.config as object ?? {}), blingCompanyId, ...blingTokenGrantMetadata(tokenData) } } : {}),
           ...(providerConfig ? { config: providerConfig } : {}),
         },
         create: {
@@ -236,7 +236,7 @@ export class ErpOAuthController {
           accessTokenCipher,
           refreshTokenCipher,
           tokenExpiresAt: expiresAt,
-          ...(blingCompanyId ? { config: { blingCompanyId, blingClientFingerprint: blingClientFingerprint() } } : {}),
+          ...(blingCompanyId ? { config: { blingCompanyId, ...blingTokenGrantMetadata(tokenData) } } : {}),
           ...(providerConfig ? { config: providerConfig } : {}),
         },
       });

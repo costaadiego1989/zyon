@@ -29,6 +29,7 @@ import { createShoppingRecommendationReader } from "./shopping-recommendation.ha
 import type { ServiceBookingHandlers } from "../../domain/ports/service-booking-tools.port.js";
 
 export interface AllHandlerDeps {
+  fiscal?: OrderHandlerDeps["fiscal"];
   productRepo: ProductRepositoryPort;
   stockRepo: StockRepositoryPort;
   cartRepo: StorefrontCartPort;
@@ -94,6 +95,7 @@ export function composeStoreToolHandlers(deps: AllHandlerDeps, ctx: ToolRequestC
 
   const orderDeps: OrderHandlerDeps = {
     prisma: deps.prisma,
+    fiscal: deps.fiscal,
   };
 
   const supportDeps: SupportHandlerDeps = {

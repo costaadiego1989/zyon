@@ -7,7 +7,12 @@ import {
   type ShippingQuoteResult,
   type ShippingQuoteSnapshot
 } from "../../domain/entities/shipping-quote.entity.js";
-import type { ShippingQuoteRepository } from "../../domain/ports/shipping-quote-repository.port.js";
+import type { ShippingCheckoutQuoteRepository, ShippingCheckoutTransaction } from "../../application/ports/shipping-checkout-transaction.port.js";
+import { PrismaCheckoutRepository } from "../../../checkout/infrastructure/prisma/prisma-checkout.repository.js";
+import { PrismaMerchantRepository } from "../../../merchant/infrastructure/prisma-merchant.repository.js";
+import { PrismaOwnDeliveryConfigRepository } from "./prisma-own-delivery-config.repository.js";
+import { CheckoutCommercialBenefitsService } from "../../../cashback/application/checkout-commercial-benefits.service.js";
+import { lockExecutionMerchant } from "../../../revenue-manager/infrastructure/strategy-execution-ledger.js";
 
 interface ShippingQuoteRow {
   id: string;
@@ -22,13 +27,30 @@ interface ShippingQuoteRow {
 }
 
 @Injectable()
-export class PrismaShippingQuoteRepository implements ShippingQuoteRepository {
-  constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
+export class PrismaShippingQuoteRepository implements ShippingCheckoutQuoteRepository {
+  constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
+    private readonly benefits?: CheckoutCommercialBenefitsService,
+    private readonly inTransaction = false) {}
+
+  async withCheckoutTransaction<T>(scope: { merchantId: string; sessionId: string }, work: (context: ShippingCheckoutTransaction) => Promise<T>): Promise<T> {
+    const run = async (tx: Prisma.TransactionClient) => {
+      await this.benefits?.lockInTransaction(tx, scope.merchantId);
+      await lockExecutionMerchant(tx, scope.merchantId);
+      await tx.$queryRaw`SELECT merchant_id FROM merchant_rules WHERE merchant_id=${scope.merchantId} FOR SHARE`;
+      await tx.$queryRaw`SELECT merchant_id FROM own_delivery_configs WHERE merchant_id=${scope.merchantId} FOR SHARE`;
+      await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id=${scope.merchantId} AND session_id=${scope.sessionId} FOR UPDATE`;
+      const client = tx as PrismaClient;
+      return work({ prisma: client, sessions: new PrismaCheckoutRepository(tx, true, undefined, this.benefits),
+        quotes: new PrismaShippingQuoteRepository(client, this.benefits, true),
+        merchantRules: new PrismaMerchantRepository(client), ownDeliveryConfig: new PrismaOwnDeliveryConfigRepository(client) });
+    };
+    return this.inTransaction ? run(this.prisma) : this.prisma.$transaction(run);
+  }
 
   async saveWithEvents(quote: ShippingQuoteEntity): Promise<void> {
     const snapshot = quote.snapshot();
     const events = quote.pullEvents();
-    await this.prisma.$transaction(async (tx) => {
+    const save = async (tx: Prisma.TransactionClient) => {
       await tx.shippingQuote.upsert({
         where: { id: snapshot.id },
         create: this.toCreate(snapshot),
@@ -45,7 +67,9 @@ export class PrismaShippingQuoteRepository implements ShippingQuoteRepository {
           update: {}
         });
       }
-    });
+    };
+    if (this.inTransaction) await save(this.prisma);
+    else await this.prisma.$transaction(save);
   }
 
   async findById(id: string, merchantId: string): Promise<ShippingQuoteEntity | null> {

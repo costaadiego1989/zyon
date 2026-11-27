@@ -5,6 +5,8 @@ import { AGENT_CONTEXT_PORT, type AgentContextPort } from "../../domain/ports/ag
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
 import { buildExperienceFromSession } from "../services/checkout-experience.service.js";
+import { CashbackService } from "../../../cashback/application/cashback.service.js";
+import { CheckoutCommercialBenefitsService } from "../../../cashback/application/checkout-commercial-benefits.service.js";
 import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../domain/checkout-experience.config.js";
 import { DEFAULT_PLATFORM_FEE_BRL } from "../../../../shared/config/platform-fee.config.js";
 
@@ -39,6 +41,8 @@ export class UpdateCartUseCase {
     @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: DEFAULT_PLATFORM_FEE_BRL },
     @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: Partial<Pick<PrismaClient, "couponRedemption" | "productVariant">>,
     @Optional() @Inject(NORMAL_CHECKOUT_CROSS_SELL) private readonly normalCrossSell?: Pick<NormalCheckoutCrossSellPort,"updateCart">,
+    @Optional() private readonly cashback?: CashbackService,
+    @Optional() private readonly commercialBenefits?: CheckoutCommercialBenefitsService,
   ) {}
 
   async execute(input: UpdateCartRequest): Promise<UpdateCartResponse> {
@@ -63,6 +67,8 @@ export class UpdateCartUseCase {
       const next=await this.normalCrossSell.updateCart({merchantId,sessionId},{expectedVersion:session.persistenceVersion,items});
       return this.render(next);
     }
+
+    await this.commercialBenefits?.assertMutable(session);
 
     // Server is the price authority: requests only carry sku + quantity, never price.
     const bySku = new Map<string, CartItem>();
@@ -125,6 +131,7 @@ export class UpdateCartUseCase {
     return {
       session_id: sessionId,
       experience: buildExperienceFromSession(nextSession, {
+        cashbackCents: await this.cashback?.checkoutCashbackCents(nextSession),
         merchantName: merchant?.name,
         theme: merchant?.theme,
         agent,

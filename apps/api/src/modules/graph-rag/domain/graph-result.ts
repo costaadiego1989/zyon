@@ -8,12 +8,14 @@ const common = { merchantId: identity, sourceVersion: z.number().int().safe().no
 const catalogHit = z.strictObject({ ...common, productId: identity, variantId: identity });
 const knowledgeHit = z.strictObject({ ...common, sourceType: z.enum(["faq", "policy"]), sourceId: identity,
   chunkId: identity, contentHash: hash });
+const merchantGuideHit = z.strictObject({ ...common, sourceType: z.literal("merchant_guide"), audience: z.literal("merchant"),
+  context: z.literal("cashback"), sourceId: identity, chunkId: identity, contentHash: hash });
 export class GraphResultError extends Error {}
 export function admitGraphRows(value: GraphReadInput, rows: unknown[], clock: () => number = Date.now): GraphReadResult {
   const input = graphReadSchema.parse(value);
   if (rows.length > input.limit) throw new GraphResultError();
   const hits = rows.map(row => {
-    const parsed = (input.kind === "catalog" ? catalogHit : knowledgeHit).safeParse(row);
+    const parsed = (input.kind === "catalog" ? catalogHit : input.kind === "merchant_help" ? merchantGuideHit : knowledgeHit).safeParse(row);
     if (!parsed.success) throw new GraphResultError();
     const hit = parsed.data;
     if (hit.merchantId !== input.merchantId || hit.modelId !== input.modelId

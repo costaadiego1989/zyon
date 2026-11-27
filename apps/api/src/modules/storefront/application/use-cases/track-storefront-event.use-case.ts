@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import {
   STOREFRONT_TELEMETRY_PORT,
+  WHATSAPP_RECOVERY_ORIGIN_EVENT,
   type StorefrontTelemetryEvent,
   type StorefrontTelemetryPort,
 } from "../../domain/ports/storefront-telemetry.port.js";
@@ -10,7 +11,7 @@ export class TrackStorefrontEventUseCase {
   constructor(@Inject(STOREFRONT_TELEMETRY_PORT) private readonly telemetry: StorefrontTelemetryPort) {}
 
   async execute(event: StorefrontTelemetryEvent): Promise<void> {
-    if (event.event === "purchase_completed" || event.event === "order_completed") {
+    if (event.event === "purchase_completed" || event.event === "order_completed" || event.event === WHATSAPP_RECOVERY_ORIGIN_EVENT) {
       throw new BadRequestException("storefront_event_server_only");
     }
     try {

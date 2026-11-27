@@ -66,6 +66,8 @@ export function toProblemDetails(
       ? "validation_failed"
       : readCode(response.code, detail, status);
     const chatRequest = readChatRequestReceipt(response.chat_request, code);
+    const fiscalFields = code === "fiscal_customer_data_required" && Array.isArray(response.fields) ? response.fields.filter((field): field is string => typeof field === "string" && ["name", "taxId", "email", "phone", "address.street", "address.number", "address.complement", "address.neighborhood", "address.city", "address.state", "address.postalCode", "address.cityCode", "address.countryCode"].includes(field)).slice(0, 13) : undefined;
+    const pending = code === "fiscal_connection_not_ready" && Array.isArray(response.pending) ? response.pending.filter((field): field is string => typeof field === "string" && ["authentication", "issuer", "certificate", "permissions", "environment", "stock_policy", "email_policy", "whatsapp_policy"].includes(field)).slice(0, 8) : undefined;
 
     return {
       type: problemType(code),
@@ -74,6 +76,8 @@ export function toProblemDetails(
       code,
       ...(detail ? { detail } : {}),
       ...(fields ? { fields } : {}),
+      ...(fiscalFields ? { fields: fiscalFields as NonNullable<ProblemDetails["fields"]> } : {}),
+      ...(pending ? { pending: pending as NonNullable<ProblemDetails["pending"]> } : {}),
       ...(status === 429 && Number.isSafeInteger(response.retry_after_seconds ?? response.retryAfterSeconds) && Number(response.retry_after_seconds ?? response.retryAfterSeconds) > 0 ? { retry_after_seconds: Number(response.retry_after_seconds ?? response.retryAfterSeconds) } : {}),
       ...(chatRequest ? { chat_request: chatRequest } : {}),
       ...(status === 409 && code === "service_hold_required" && response.next_action === "review_checkout"

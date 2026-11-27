@@ -1,0 +1,175 @@
+generator client {
+  provider = "prisma-client-js"
+  output = "../node_modules/.prisma/company-directory"
+}
+
+datasource db {
+  provider = "postgresql"
+  url = env("PROSPECTING_DIRECTORY_DATABASE_URL")
+  schemas = ["company_directory"]
+}
+
+model CompanySnapshot {
+  id String @id @default(cuid())
+  competence String @db.VarChar(7)
+  manifestHash String @map("manifest_hash")
+  manifest Json
+  state String @default("discovered")
+  sourceUrl String @map("source_url")
+  parserVersion String @map("parser_version")
+  counts Json @default("{}")
+  availableFilters String[] @default([]) @map("available_filters")
+  rejectedCount Int @default(0) @map("rejected_count")
+  errorCode String? @map("error_code")
+  publishedAt DateTime? @map("published_at")
+  storageSnapshotId String? @map("storage_snapshot_id")
+  storageMaxCnpj String? @db.VarChar(14) @map("storage_max_cnpj")
+  storageSnapshot CompanySnapshot? @relation("ProgressiveStorage", fields: [storageSnapshotId], references: [id], onDelete: Restrict)
+  readViews CompanySnapshot[] @relation("ProgressiveStorage")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  files CompanySourceFile[]
+  entities CompanyEntity[]
+  establishments CompanyEstablishment[]
+  domains SourceDomain[]
+  activePointer CompanyDirectoryActiveSnapshot?
+  @@unique([competence, manifestHash])
+  @@index([state, createdAt])
+  @@map("company_snapshots")
+  @@schema("company_directory")
+}
+
+model CompanyDirectoryActiveSnapshot {
+  id String @id @default("national")
+  snapshotId String @unique @map("snapshot_id")
+  version Int @default(1)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  snapshot CompanySnapshot @relation(fields: [snapshotId], references: [id], onDelete: Restrict)
+  @@map("active_snapshot")
+  @@schema("company_directory")
+}
+
+model CompanySourceFile {
+  id String @id @default(cuid())
+  snapshotId String @map("snapshot_id")
+  resourceId String @map("resource_id")
+  family String
+  url String
+  etag String?
+  lastModified String? @map("last_modified")
+  computedHash String? @map("computed_hash")
+  compressedBytes BigInt? @map("compressed_bytes")
+  expandedBytes BigInt? @map("expanded_bytes")
+  encoding String
+  state String @default("pending")
+  committedCount BigInt @default(0) @map("committed_count")
+  rejectedCount BigInt @default(0) @map("rejected_count")
+  errorCode String? @map("error_code")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  snapshot CompanySnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  checkpoints CompanyImportCheckpoint[]
+  @@unique([snapshotId, resourceId])
+  @@unique([snapshotId, resourceId, computedHash])
+  @@map("company_source_files")
+  @@schema("company_directory")
+}
+
+model CompanyImportCheckpoint {
+  fileId String @map("file_id")
+  batchIndex Int @map("batch_index")
+  fileHash String @map("file_hash")
+  rowOffset BigInt @map("row_offset")
+  byteOffset BigInt @map("byte_offset")
+  committedCount Int @map("committed_count")
+  batchHash String @map("batch_hash")
+  committedAt DateTime @default(now()) @map("committed_at")
+  file CompanySourceFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  @@id([fileId, batchIndex])
+  @@map("company_import_checkpoints")
+  @@schema("company_directory")
+}
+
+model CompanyEntity {
+  snapshotId String @map("snapshot_id")
+  baseCnpj String @db.VarChar(8) @map("base_cnpj")
+  legalName String @map("legal_name")
+  normalizedLegalName String @map("normalized_legal_name")
+  legalNature String? @map("legal_nature")
+  size String?
+  capitalCents Decimal? @db.Decimal(24,0) @map("capital_cents")
+  simples Boolean?
+  mei Boolean?
+  snapshot CompanySnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  establishments CompanyEstablishment[]
+  @@id([snapshotId, baseCnpj])
+  @@index([snapshotId, normalizedLegalName, baseCnpj])
+  @@index([snapshotId, legalNature, size])
+  @@map("company_entities")
+  @@schema("company_directory")
+}
+
+model CompanyEstablishment {
+  snapshotId String @map("snapshot_id")
+  cnpj String @db.VarChar(14)
+  baseCnpj String @db.VarChar(8) @map("base_cnpj")
+  tradeName String? @map("trade_name")
+  normalizedTradeName String? @map("normalized_trade_name")
+  mainCnae String? @map("main_cnae")
+  cityCode String? @map("city_code")
+  uf String? @db.VarChar(2)
+  district String?
+  normalizedDistrict String? @map("normalized_district")
+  openingDate DateTime? @db.Date @map("opening_date")
+  status String?
+  matrixBranch String? @map("matrix_branch")
+  snapshot CompanySnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  entity CompanyEntity @relation(fields: [snapshotId, baseCnpj], references: [snapshotId, baseCnpj], onDelete: Cascade)
+  secondaryCnaes EstablishmentSecondaryCnae[]
+  contacts CompanyPublicContact[]
+  @@id([snapshotId, cnpj])
+  @@index([snapshotId, status, uf, cityCode, cnpj])
+  @@index([snapshotId, cityCode, uf, cnpj], map: "company_establishments_snapshot_city_uf_cnpj_idx")
+  @@index([snapshotId, mainCnae, cnpj])
+  @@index([snapshotId, normalizedTradeName, cnpj])
+  @@index([snapshotId, normalizedDistrict, cnpj])
+  @@index([snapshotId, baseCnpj])
+  @@map("company_establishments")
+  @@schema("company_directory")
+}
+
+model EstablishmentSecondaryCnae {
+  snapshotId String @map("snapshot_id")
+  cnpj String @db.VarChar(14)
+  cnae String
+  establishment CompanyEstablishment @relation(fields: [snapshotId, cnpj], references: [snapshotId, cnpj], onDelete: Cascade)
+  @@id([snapshotId, cnpj, cnae])
+  @@index([snapshotId, cnae, cnpj])
+  @@map("establishment_secondary_cnaes")
+  @@schema("company_directory")
+}
+
+model CompanyPublicContact {
+  id String @id @default(cuid())
+  snapshotId String @map("snapshot_id")
+  cnpj String @db.VarChar(14)
+  channel String
+  originalValue String @map("original_value")
+  normalizedValue String? @map("normalized_value")
+  validationState String @default("unknown") @map("validation_state")
+  establishment CompanyEstablishment @relation(fields: [snapshotId, cnpj], references: [snapshotId, cnpj], onDelete: Cascade)
+  @@unique([snapshotId, cnpj, channel, originalValue])
+  @@index([snapshotId, channel, normalizedValue])
+  @@map("company_public_contacts")
+  @@schema("company_directory")
+}
+
+model SourceDomain {
+  snapshotId String @map("snapshot_id")
+  kind String
+  code String
+  label String
+  snapshot CompanySnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  @@id([snapshotId, kind, code])
+  @@map("source_domains")
+  @@schema("company_directory")
+}

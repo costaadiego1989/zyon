@@ -393,7 +393,7 @@ test("normal mutation stale-version, unknown line and CAS failures never persist
 });
 function sourceFixture(){const result=fixture();Reflect.set(result.state.session.cart,"source","storefront");Reflect.set(result.state.session.cart,"cart_ref","actual-cart");
   result.state.source={id:"source-row",merchantId:"merchant",sessionId:"actual-cart",items:[{variantId:"trigger",productId:"p-trigger",sku:"TRIGGER",name:"Trigger",quantity:1,unitPriceCents:2000}],
-    total:2000,discount:0,couponCode:null,freeShipping:false,createdAt:now,updatedAt:now,expiresAt:new Date("2026-10-22T12:00:00.000Z")};return result;}
+    total:2000,discount:0,couponCode:null,freeShipping:false,createdAt:now,updatedAt:now,expiresAt:new Date("2100-10-22T12:00:00.000Z")};return result;}
 
 test("plain legacy accepted zero-benefit suggestion without NORMAL intent/durables does not become a NORMAL owner",async()=>{
   const f=sourceFixture();f.state.suggestion.status="accepted";f.state.suggestion.resolvedAt=now;

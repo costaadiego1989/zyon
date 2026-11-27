@@ -3,13 +3,13 @@
  *
  * Key behavior:
  * - WhatsApp phone = buyer identity (auto-register if new)
- * - Phone verified by default (it's WhatsApp — no OTP needed)
+ * - Phone verified by default (it's WhatsApp â€” no OTP needed)
  * - Returning buyers get pre-filled data (skip already-known fields)
  * - Creates checkout session if none active
  * - 24h inactivity = session expired
  */
 
-import { Injectable, Inject, Logger } from "@nestjs/common";
+import { Injectable, Inject, Logger, Optional, ServiceUnavailableException } from "@nestjs/common";
 import {
   WHATSAPP_SESSION_REPOSITORY,
   type WhatsAppSessionRepository,
@@ -20,6 +20,7 @@ import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { createWhatsAppRoutingCheckoutWithin } from "../../infrastructure/repositories/whatsapp-routing-checkout.js";
 import { createHash } from "node:crypto";
+import { BuyerChannelIdentityService } from "../../../buyer-account/application/services/buyer-channel-identity.service.js";
 import { currentWhatsAppExecution, withWhatsAppEffectTransaction, WhatsAppAiSuppressedError } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
 
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -50,14 +51,19 @@ export class RouteToSessionUseCase {
     private readonly sessionRepo: WhatsAppSessionRepository,
     @Inject(PRISMA_CLIENT)
     private readonly prisma: PrismaClient,
+    @Optional() private readonly channelIdentities?: BuyerChannelIdentityService,
   ) {}
 
   async execute(input: SessionRoutingInput): Promise<RouteResult> {
-    const phone = this.normalizePhone(input.fromNumber);
-    const globalUserId = this.phoneToGlobalUserId(phone);
+    const phone = this.normalizePhone(input.fromNumber, input.deviceId.startsWith("META_CLOUD:"));
+    // Account phone verification supports Brazil; foreign numbers must not be
+    // reinterpreted as local numbers by that legacy account lookup.
+    const canonicalAccount = /^55[1-9]\d{9,10}$/.test(phone)
+      ? await this.channelIdentities?.verifiedAccount(phone) : null;
+    const globalUserId = canonicalAccount ?? this.phoneToGlobalUserId(phone);
 
     // 1. Auto-register buyer if not exists
-    const buyerData = await this.ensureBuyerExists(input.merchantId, phone, globalUserId, input.fromAlias, input.deviceId.startsWith("META_CLOUD:"));
+    const buyerData = await this.ensureBuyerExists(input.merchantId, phone, globalUserId, input.fromAlias, input.deviceId.startsWith("META_CLOUD:"), Boolean(canonicalAccount));
 
     const route = (repository: WhatsAppSessionRepository, checkout?: WhatsAppRoutingCheckoutWriter) => this.routeBuyer(input, phone, buyerData, repository, checkout);
     return this.sessionRepo.withRoutingLock
@@ -79,6 +85,14 @@ export class RouteToSessionUseCase {
 
     // 3. Check expiry (24h)
     if (waSession && this.isExpired(waSession)) {
+      if (input.deviceId.startsWith("META_CLOUD:")) {
+        if (waSession.merchantId !== input.merchantId || waSession.buyerPhone !== phone || waSession.deviceId !== input.deviceId) {
+          throw new ServiceUnavailableException("whatsapp_recovery_scope_unavailable");
+        }
+        const renewed = await repository.renewExpiredNative(waSession);
+        return { whatsappSession: renewed.session, checkoutSessionId: renewed.session.checkoutSessionId,
+          isNew: renewed.renewed, buyerData };
+      }
       await repository.expire(waSession.id);
       waSession = null;
     }
@@ -104,7 +118,7 @@ export class RouteToSessionUseCase {
 
       this.logger.log(`whatsapp_session_created merchant=${input.merchantId}`);
 
-      return { whatsappSession: waSession, checkoutSessionId, isNew: true, buyerData };
+      return { whatsappSession: waSession, checkoutSessionId: waSession.checkoutSessionId, isNew: true, buyerData };
     }
 
     // 5. Update activity
@@ -129,6 +143,7 @@ export class RouteToSessionUseCase {
     globalUserId: string,
     alias?: string,
     meta = false,
+    hasVerifiedAccount = false,
   ): Promise<RouteResult["buyerData"]> {
     // Check if buyer identity exists for this phone
     const identityKey = `phone:${phone}`;
@@ -137,9 +152,9 @@ export class RouteToSessionUseCase {
     });
 
     if (existingIdentity) {
-      // Returning buyer — hydrate from last checkout session
+      // Returning buyer â€” hydrate from last checkout session
       const lastSession = await this.prisma.checkoutSession.findFirst({
-        where: { merchantId, globalUserId: existingIdentity.globalUserId },
+        where: { merchantId, globalUserId: hasVerifiedAccount ? globalUserId : existingIdentity.globalUserId },
         orderBy: { updatedAt: "desc" },
       });
 
@@ -147,7 +162,7 @@ export class RouteToSessionUseCase {
 
       this.logger.debug(`whatsapp_buyer_found merchant=${merchantId}`);
       return {
-        globalUserId: existingIdentity.globalUserId,
+        globalUserId: hasVerifiedAccount ? globalUserId : existingIdentity.globalUserId,
         phone,
         phoneVerified: true,
         // Meta checkout hydrates account fields only after its email challenge.
@@ -158,7 +173,7 @@ export class RouteToSessionUseCase {
       };
     }
 
-    // New buyer — create BuyerIdentity with phone as key
+    // New buyer â€” create BuyerIdentity with phone as key
     const newIdentity = await withWhatsAppEffectTransaction(this.prisma, merchantId, tx => tx.buyerIdentity.upsert({
       where: { merchantId_identityKey: { merchantId, identityKey } },
       update: {},
@@ -210,9 +225,10 @@ export class RouteToSessionUseCase {
     return sessionId;
   }
 
-  private normalizePhone(phone: string): string {
+  private normalizePhone(phone: string, verifiedInternational = false): string {
     // Remove non-digits, ensure country code
     const digits = phone.replace(/\D/g, "");
+    if (verifiedInternational || phone.trim().startsWith("+")) return digits;
     if (digits.startsWith("55") && digits.length >= 12) return digits;
     if (digits.length === 10 || digits.length === 11) return `55${digits}`;
     return digits;

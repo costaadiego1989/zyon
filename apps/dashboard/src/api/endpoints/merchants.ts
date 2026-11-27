@@ -10,6 +10,10 @@ export interface SeoGtmConfig {
   lastUpdatedAt: string | null;
 }
 
+type DashboardTeamMember = { id: string; userId: string; email: string; role: "OWNER" | "ADMIN" | "STAFF"; joinedAt: string | null };
+type TeamMemberWire = DashboardTeamMember | { member_id: string; user_id: string; email: string; role: DashboardTeamMember["role"]; joined_at?: string | null };
+type TeamInvite = { id: string; email: string; role: DashboardTeamMember["role"]; status: "PENDING" | "ACCEPTED" | "EXPIRED"; createdAt: string; expiresAt: string };
+
 export interface UpdateSeoInput {
   seo?: Partial<SeoSettings>;
   gtm?: Partial<GtmSettings>;
@@ -58,7 +62,11 @@ export interface SubmitPlatformFeedbackOutput {
 export function merchantEndpoints(base: string, f: typeof fetch) {
   return {
     merchantProfile(): Promise<MerchantProfile> {
-      return dashboardJson<MerchantProfile | { data: MerchantProfile }>(
+      type ProfileResponse = Omit<MerchantProfile, "user_id"> & {
+        userId?: string;
+        user_id?: string;
+      };
+      return dashboardJson<ProfileResponse | { data: ProfileResponse }>(
         base,
         "/merchants/me",
         { method: "GET" },
@@ -185,8 +193,14 @@ export function merchantEndpoints(base: string, f: typeof fetch) {
       return dashboardJson(base, "/intent-memory/records", { method: "GET" }, f);
     },
 
-    listTeam(merchantId: string): Promise<{ members: Array<{ id: string; userId: string; email: string; role: "OWNER" | "ADMIN" | "STAFF"; joinedAt: string }>; invites: Array<{ id: string; email: string; role: "OWNER" | "ADMIN" | "STAFF"; status: "PENDING" | "ACCEPTED" | "EXPIRED"; createdAt: string; expiresAt: string }> }> {
-      return dashboardJson(base, `/merchants/${merchantId}/team`, { method: "GET" }, f);
+    async listTeam(merchantId: string): Promise<{ members: DashboardTeamMember[]; invites: TeamInvite[] }> {
+      const result = await dashboardJson<{ members: TeamMemberWire[]; invites?: TeamInvite[] }>(base, `/merchants/${merchantId}/team`, { method: "GET" }, f);
+      return {
+        members: (result.members ?? []).map(member => "member_id" in member ? {
+          id: member.member_id, userId: member.user_id, email: member.email, role: member.role, joinedAt: member.joined_at ?? null,
+        } : { ...member, joinedAt: member.joinedAt ?? null }),
+        invites: result.invites ?? [],
+      };
     },
 
     inviteTeamMember(merchantId: string, payload: { name: string; email: string; phone?: string; role: "OWNER" | "ADMIN" | "STAFF" }): Promise<{ id: string }> {

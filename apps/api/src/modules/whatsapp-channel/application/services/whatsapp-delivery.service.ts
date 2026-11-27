@@ -16,12 +16,23 @@ export class WhatsAppDeliveryUncertainError extends Error {
 
 @Injectable()
 export class WhatsAppDeliveryService {
-  private readonly context = new AsyncLocalStorage<{ claim: WhatsAppInboxClaim; captured: boolean; withoutReply?: boolean }>();
+  private readonly context = new AsyncLocalStorage<{ claim: WhatsAppInboxClaim; captured: boolean; suppressed?: boolean; withoutReply?: boolean }>();
   constructor(
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
     @Inject(WHATSAPP_SENDER_PORT) private readonly sender: WhatsAppSenderPort,
     @Optional() private readonly aiFence?: WhatsAppAiDispatchFence,
   ) {}
+
+  /** A human owns this turn; persist that no automated response is due. */
+  async suppress(): Promise<void> {
+    const context = this.context.getStore();
+    if (!context) return;
+    if (context.captured) throw new Error("whatsapp_response_scope_mismatch");
+    const updated = await this.prisma.whatsAppDelivery.updateMany({where:{id:context.claim.id, merchantId:context.claim.merchantId,
+      state:"processing", processingToken:context.claim.leaseToken},data:{state:"suppressed"}});
+    if (updated.count !== 1) throw new WhatsAppDeliveryUncertainError();
+    context.captured=true; context.suppressed=true;
+  }
 
   /** Internal authenticated inbox context for legacy providers. */
   currentClaim(): WhatsAppInboxClaim | undefined { return this.context.getStore()?.claim; }
@@ -69,7 +80,7 @@ export class WhatsAppDeliveryService {
         if ((error as { code?: string }).code !== "P2002") throw error;
         throw new WhatsAppDeliveryUncertainError();
       }
-      const context: { claim: WhatsAppInboxClaim; captured: boolean; withoutReply?: boolean } = { claim, captured: false };
+      const context: { claim: WhatsAppInboxClaim; captured: boolean; withoutReply?: boolean; suppressed?: boolean } = { claim, captured: false };
       try {
         if (!await ownsLease()) throw new WhatsAppDeliveryUncertainError();
         await this.context.run(context, run);
@@ -86,7 +97,7 @@ export class WhatsAppDeliveryService {
           }
         }
         if (!context.captured) throw new Error("whatsapp_response_missing");
-        if (context.withoutReply) return;
+        if (context.suppressed || context.withoutReply) return;
         const updated = await this.prisma.whatsAppDelivery.updateMany({
           where: { id: claim.id, state: "processing", processingToken: claim.leaseToken }, data: { state: "ready" },
         });
@@ -156,13 +167,13 @@ export class WhatsAppDeliveryService {
     if (!input.id || !["sent", "delivered", "read"].includes(input.status ?? "")) return;
     const correlationId = input.biz_opaque_callback_data;
     // Order notifications have their own row-locked receipt state machine.
-    if (typeof correlationId === "string" && (correlationId.startsWith("order_notification:") || correlationId.startsWith("support_message:") || correlationId.startsWith("service_notification:"))) return;
+    if (typeof correlationId === "string" && (correlationId.startsWith("order_notification:") || correlationId.startsWith("campaign_ready:") || correlationId.startsWith("support_message:") || correlationId.startsWith("service_notification:"))) return;
     await this.prisma.$transaction(async tx => {
       const row = await tx.whatsAppDelivery.findFirst({ where: {
         merchantId, configId,
         ...(correlationId ? { id: correlationId } : { providerMessageId: input.id }),
       } });
-      if (row && (row.id.startsWith("order_notification:") || row.id.startsWith("support_message:") || row.id.startsWith("service_notification:"))) return;
+      if (row && (row.id.startsWith("order_notification:") || row.id.startsWith("campaign_ready:") || row.id.startsWith("support_message:") || row.id.startsWith("service_notification:"))) return;
       if (!row || !["sending", "submission_unknown", "sent"].includes(row.state)) return;
       if (row.providerMessageId && row.providerMessageId !== input.id) return;
       await tx.whatsAppDelivery.update({ where: { id: row.id }, data: { state: "sent", providerMessageId: input.id } });

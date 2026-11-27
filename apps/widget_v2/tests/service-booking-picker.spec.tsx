@@ -39,10 +39,10 @@ async function choose() { await choosePublic(); await click("Continuar agendamen
 describe("T45 actual service booking controls and authenticated transport", () => {
   it("browses professionals, dates and slots as guest and asks identity only on the explicit continue gesture", async () => {
     const login = vi.fn(); const view = await render(<ServiceBookingPicker data={data} access={null} readAccess={access} onAuthenticate={login} initialFromDate="2026-12-01" />);
-    await choosePublic(); expect(login).toHaveBeenCalledTimes(0); expect(calls).toHaveLength(3); expect(calls.every(c => c.body === undefined)).toBe(true);
-    expect(contains("30 minutos")).toBe(true); await click("Continuar agendamento"); expect(login).toHaveBeenCalledTimes(1); expect(calls).toHaveLength(3);
+    await choosePublic(); expect(login).toHaveBeenCalledTimes(0); expect(calls).toHaveLength(4); expect(calls.every(c => c.body === undefined)).toBe(true);
+    expect(contains("30 minutos")).toBe(true); await click("Continuar agendamento"); expect(login).toHaveBeenCalledTimes(1); expect(calls).toHaveLength(4);
     await view.rerender(<ServiceBookingPicker data={{ kind: "professionals", professionals: [] }} access={access} readAccess={access} />);
-    expect(calls).toHaveLength(3); expect(contains(/Selecione o serviço novamente/)).toBe(true);
+    expect(calls).toHaveLength(4); expect(contains(/Selecione o serviço novamente/)).toBe(true);
   });
   it("uses distinct select, review and confirm gestures, leaves local payment pending, and keeps private data off screen", async () => {
     await render(<ServiceBookingPicker data={data} access={access} initialFromDate="2026-12-01" />); await choose();
@@ -95,7 +95,7 @@ describe("T45 actual service booking controls and authenticated transport", () =
     await view.rerender(<ServiceBookingPicker data={data} access={access} readAccess={access} cartRef="cart-a" onAuthenticate={login} />);
     await view.rerender(<ServiceBookingPicker data={data} access={access} readAccess={access} cartRef="cart-a" onAuthenticate={login} />);
     button("Revisar agendamento"); expect(contains("30 minutos")).toBe(true);
-    expect(calls.filter(c => c.url.includes("/professionals"))).toHaveLength(2); expect(calls.filter(c => c.url.includes("/dates"))).toHaveLength(2); expect(calls.filter(c => c.url.includes("/slots"))).toHaveLength(2);
+    expect(calls.filter(c => c.url.includes("/professionals"))).toHaveLength(2); expect(calls.filter(c => c.url.includes("/dates"))).toHaveLength(2); expect(calls.filter(c => c.url.includes("/slots"))).toHaveLength(3);
     expect(calls.filter(c => c.url.endsWith("/select"))).toHaveLength(1); expect(calls.some(c => /\/(prepare|confirm)$/.test(c.url))).toBe(false); expect(login).toHaveBeenCalledTimes(1);
   });
   it("cancelled identity cannot later replay a pending public choice", async () => {
@@ -135,7 +135,7 @@ describe("T45 actual service booking controls and authenticated transport", () =
     expect(contains("30 minutos")).toBe(true);
     expect(Array.from(document.querySelectorAll("button")).some(node => node.textContent === "Continuar agendamento")).toBe(false);
     expect(contains("Para confirmar o agendamento, volte à loja e continue sua compra." )).toBe(true);
-    expect(calls).toHaveLength(3); expect(calls.some(call => call.body !== undefined)).toBe(false);
+    expect(calls).toHaveLength(4); expect(calls.some(call => call.body !== undefined)).toBe(false);
   });
 
   it("starts all independent auth-resume reads together and waits for every result before selecting once", async () => {
@@ -168,4 +168,55 @@ describe("T45 actual service booking controls and authenticated transport", () =
     }
   });
 
+});
+
+
+describe("AGENDA-04 canonical public slot review", () => {
+  it("revalidates the unchanged public slot and renders its canonical summary without identification", async () => {
+    const login = vi.fn();
+    await render(<ServiceBookingPicker data={data} access={null} readAccess={access} onAuthenticate={login} initialFromDate="2026-12-01" />);
+    await click("Dra. Ana"); await click(/3 de dezembro/i);
+    const before = calls.length;
+    await click(/10:00/);
+    expect(calls.length).toBe(before + 1);
+    expect(calls.filter(call => call.url.includes("/slots"))).toHaveLength(2);
+    const summary = document.querySelector(".zyon-booking__summary")?.textContent ?? "";
+    expect(summary).toContain("Consulta"); expect(summary).toContain("Dra. Ana");
+    expect(summary).toMatch(/3 de dezembro/); expect(summary).toContain("10:00");
+    expect(summary).toContain("30 minutos"); expect(summary).toMatch(/R\$\s*50,00/);
+    expect(login).toHaveBeenCalledTimes(0);
+    expect(calls.every(call => call.body === undefined)).toBe(true);
+    expect(calls.every(call => call.headers.get("x-buyer-access-token") === null)).toBe(true);
+    expect(calls.some(call => /\/(select|prepare|confirm)$/.test(call.url))).toBe(false);
+  });
+
+  it.each([
+    { name: "price changed", change: { priceInCents: 5279 } },
+    { name: "professional and policy versions changed", change: { professionalVersion: 4, policyVersion: 5 } },
+    { name: "slot vanished", change: null },
+  ])("revalidates a changed public slot ($name) and clears the stale summary without identification", async ({ change }) => {
+    const login = vi.fn(), ordinary = globalThis.fetch;
+    const original = { ...tuple, priceInCents: 4873 };
+    let canonical: Array<typeof tuple> = [original];
+    globalThis.fetch = async (input, init) => {
+      const response = await ordinary(input, init);
+      return String(input).includes("/slots") ? Response.json({ selections: canonical }) : response;
+    };
+    await render(<ServiceBookingPicker data={data} access={null} readAccess={access} onAuthenticate={login} initialFromDate="2026-12-01" />);
+    await click("Dra. Ana"); await click(/3 de dezembro/i);
+    expect(button(/10:00/).textContent).toMatch(/R\$\s*48,73/);
+    canonical = change ? [{ ...original, ...change }] : [];
+    const before = calls.length;
+    await click(/10:00/);
+    expect(calls.length).toBe(before + 1);
+    expect(calls.filter(call => call.url.includes("/slots"))).toHaveLength(2);
+    expect(contains(/Este horário ou as condições mudaram/)).toBe(true);
+    expect(document.querySelector(".zyon-booking__summary")).toBeNull();
+    expect(Array.from(document.querySelectorAll("button")).some(node => node.textContent === "Continuar agendamento")).toBe(false);
+    button("Atualizar disponibilidade");
+    expect(login).toHaveBeenCalledTimes(0);
+    expect(calls.every(call => call.body === undefined)).toBe(true);
+    expect(calls.every(call => call.headers.get("x-buyer-access-token") === null)).toBe(true);
+    expect(calls.some(call => /\/(select|prepare|confirm)$/.test(call.url))).toBe(false);
+  });
 });

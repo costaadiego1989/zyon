@@ -1,3 +1,4 @@
+import { RecoveryResumeOriginService } from "./application/services/recovery-resume-origin.service.js";
 import { EmbedModule } from "../embed/embed.module.js";
 import { GenerateRecoveryLinkUseCase } from "./application/use-cases/generate-recovery-link.use-case.js";
 import { ResumeRecoveryCheckoutUseCase } from "./application/use-cases/resume-recovery-checkout.use-case.js";
@@ -7,6 +8,7 @@ import { Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { TRACK_RECOVERY_OUTCOME_USE_CASE, ATTEMPT_CART_RECOVERY_USE_CASE } from "./cart-recovery.tokens.js";
 import { RecoveryScannerJob } from "./infrastructure/jobs/recovery-scanner.job.js";
+import { RecoveryFollowUpJob } from "./infrastructure/jobs/recovery-follow-up.job.js";
 import { CartRecoveryOnOrderCompletedHandler } from "./infrastructure/event-handlers/on-order-completed.handler.js";
 import { AttemptCartRecoveryUseCase } from "./application/use-cases/attempt-cart-recovery.use-case.js";
 import { TrackRecoveryOutcomeUseCase } from "./application/use-cases/track-recovery-outcome.use-case.js";
@@ -16,6 +18,7 @@ import { UpdateStrategyPreferencesUseCase } from "./application/use-cases/update
 import { GetStrategyConfigUseCase } from "./application/use-cases/get-strategy-config.use-case.js";
 import { UpdateStrategyConfigUseCase } from "./application/use-cases/update-strategy-config.use-case.js";
 import { ListRecoveryAttemptsUseCase } from "./application/use-cases/list-recovery-attempts.use-case.js";
+import { RecoveryAttemptDetailsService } from "./application/recovery-attempt-details.service.js";
 import { RECOVERY_ATTEMPT_REPOSITORY, type RecoveryAttemptRepositoryPort } from "./domain/ports/recovery-attempt-repository.port.js";
 import { STRATEGY_PREFERENCES_REPOSITORY } from "./domain/ports/strategy-preferences-repository.port.js";
 import { PrismaRecoveryAttemptRepository } from "./infrastructure/repositories/prisma-recovery-attempt.repository.js";
@@ -66,7 +69,9 @@ export const UPDATE_STRATEGY_CONFIG_USE_CASE = Symbol("UPDATE_STRATEGY_CONFIG_US
   ],
   controllers: [RecoveryCheckoutController, CartRecoveryController, CartRecoveryDashboardController, RecoveryTemplatesController],
   providers: [
+    RecoveryAttemptDetailsService,
     { provide: RecoveryLinkTokenService, useFactory: () => new RecoveryLinkTokenService() },
+    RecoveryResumeOriginService,
     GenerateRecoveryLinkUseCase,
     ResumeRecoveryCheckoutUseCase,
     GenerateRecoveryTemplatesUseCase,
@@ -90,6 +95,7 @@ export const UPDATE_STRATEGY_CONFIG_USE_CASE = Symbol("UPDATE_STRATEGY_CONFIG_US
       inject: [PRISMA_CLIENT],
     },
     RecoveryScannerJob,
+    RecoveryFollowUpJob,
     CartRecoveryOnOrderCompletedHandler,
     {
       provide: ATTEMPT_CART_RECOVERY_USE_CASE,

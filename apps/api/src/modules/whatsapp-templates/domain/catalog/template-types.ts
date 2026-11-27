@@ -4,6 +4,7 @@
  * one Meta-approved template.
  */
 export const WHATSAPP_TEMPLATE_TYPES = [
+  'campaign_ready',
   "support_case_alert",
   "marketplace_operational_alert",
   // Merchant subscription notices
@@ -17,12 +18,15 @@ export const WHATSAPP_TEMPLATE_TYPES = [
   "loyalty",
   "reorder",
   "shopping_agent_alert",
+  "cashback_available",
+  "cashback_expiring",
   // Cart recovery
   "cart_recovery",
   // Canonical booked service and local receipt, never an order identity.
   "service_appointment_notice",
   // Transactional order notifications
   "order_confirmation",
+  "fiscal_invoice",
   "order_nonphysical_confirmation",
   "digital_delivery",
   "order_shipped",
@@ -31,6 +35,7 @@ export const WHATSAPP_TEMPLATE_TYPES = [
   "return_authorized", "return_approved", "return_rejected", "return_refunded", "exchange_completed", "return_posting_code", "return_declaration_ready",
   // Transactional identity verification for the checkout email fallback.
   "checkout_otp",
+  "buyer_whatsapp_link_otp",
 ] as const;
 
 export type WhatsAppTemplateType = (typeof WHATSAPP_TEMPLATE_TYPES)[number];
@@ -42,4 +47,12 @@ export type WhatsAppTemplateChannel = (typeof WHATSAPP_TEMPLATE_CHANNELS)[number
 
 export function isWhatsAppTemplateType(v: string): v is WhatsAppTemplateType {
   return (WHATSAPP_TEMPLATE_TYPES as readonly string[]).includes(v);
+}
+
+/** Distinct authentication purposes retain their existing validity periods. */
+export function authenticationExpirationMinutesFor(type: string): 5 | 10 | undefined {
+  return type === "buyer_whatsapp_link_otp" ? 5 : type === "checkout_otp" ? 10 : undefined;
+}
+export function isAuthenticationTemplateType(type: string): boolean {
+  return authenticationExpirationMinutesFor(type) !== undefined;
 }

@@ -9,6 +9,22 @@ import { buildConversationBlocks } from "../../infrastructure/agents/conversatio
 
 const product = { id: "book", name: "Livro", price: 1500, priceFormatted: "R$ 15,00", inStock: true };
 const card = { type: "product_card", data: product };
+const greetingContext = { userMessage: "Ver produtos", merchantId: "merchant", sessionId: "conversation", history: [], storeCategory: "others" };
+test("empty-cart greeting preserves empty and maximum supported values", () => {
+  for (const emptyCartGreeting of ["", "x".repeat(500)]) {
+    const parsed = storefrontConversationInputSchema.parse({ ...greetingContext, agentIdentity: { emptyCartGreeting } });
+    assert.equal((parsed.agentIdentity as { emptyCartGreeting?: string })?.emptyCartGreeting, emptyCartGreeting);
+  }
+  assert.equal(storefrontConversationInputSchema.safeParse({ ...greetingContext, agentIdentity: {} }).success, true);
+});
+test("empty-cart greeting rejects invalid types and oversized values", () => {
+  for (const emptyCartGreeting of ["x".repeat(501), 12, null, {}])
+    assert.equal(storefrontConversationInputSchema.safeParse({ ...greetingContext, agentIdentity: { emptyCartGreeting } }).success, false);
+});
+test("empty-cart greeting retains strict unknown-field rejection", () => {
+  assert.equal(storefrontConversationInputSchema.safeParse({ ...greetingContext,
+    agentIdentity: { emptyCartGreeting: "Olá", authorizeDiscount: true } }).success, false);
+});
 for (const displayMode of ["inline", "modal", "banner", "interstitial"]) {
   test(`schema: cross-sell accepts known display mode ${displayMode} without changing JSON`, () => {
     const block = { type: "cross_sell", data: { trigger: "similar", displayMode, products: [product] } };

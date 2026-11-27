@@ -1,5 +1,6 @@
+import { AlertCircle, CircleCheck, CircleX, Clock, ListFilter, RefreshCw, Scale, ShieldAlert } from "lucide-react";
 import React, { useState } from "react";
-import { AlertCircle, RefreshCw, ShieldAlert } from "lucide-react";
+
 import type { MerchantProfile } from "../../api-client.js";
 import { PageHeader } from "../../components/PageHeader.js";
 import { Button } from "../../components/Button.js";
@@ -82,11 +83,11 @@ export function OwnChargebacksPage(props: { apiBaseUrl: string; me: MerchantProf
         <>
           <FilterToolbar
             tabs={[
-              { key: "all", label: "Todas" },
-              { key: "pending", label: "Em análise" },
-              { key: "disputed", label: "Em contestação" },
-              { key: "won", label: "A favor" },
-              { key: "lost", label: "Contra" },
+              { key: "all", label: "Todas", icon: <ListFilter size={16} /> },
+              { key: "pending", label: "Em análise", icon: <Clock size={16} /> },
+              { key: "disputed", label: "Em contestação", icon: <Scale size={16} /> },
+              { key: "won", label: "A favor", icon: <CircleCheck size={16} /> },
+              { key: "lost", label: "Contra", icon: <CircleX size={16} /> },
             ]}
             activeTab={status}
             onTabChange={(value) => {

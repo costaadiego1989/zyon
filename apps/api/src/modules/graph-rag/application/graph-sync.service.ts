@@ -3,7 +3,16 @@ import { Logger, type OnModuleInit, type BeforeApplicationShutdown } from "@nest
 import type { GraphCatalogSourcesPort, GraphKnowledgeSourcesPort } from "../domain/public-graph-sources.port.js";
 import type { DomainEventBus } from "../../../shared/events/domain-event-bus.port.js";
 import type { TenantContextService } from "../../../shared/tenant/tenant-context.service.js";
-import type { GraphRagRuntime } from "../graph-rag.module.js";
+import type { MerchantGuideSourcesPort } from "../domain/merchant-guide-sources.port.js";
+import type { GraphConnectionSettings } from "../domain/graph-rag.port.js";
+import type { GraphProjectionService } from "./graph-projection.service.js";
+
+/** The synchronizer needs readiness and projection, never module construction. */
+export interface GraphSynchronizationRuntime {
+  readonly settings: Pick<GraphConnectionSettings, "enabled" | "merchantIds">;
+  readyFor(merchantId: string): boolean;
+  readonly projection: Pick<GraphProjectionService, "projectCatalog" | "projectDocument" | "projectMerchantGuide" | "retireMissingCatalog">;
+}
 import type { PublicBusinessIndexWorker, PublicIndexPreparedIdentity } from "./public-business-index.worker.js";
 
 export class GraphRagSynchronization implements OnModuleInit, BeforeApplicationShutdown {
@@ -13,11 +22,17 @@ export class GraphRagSynchronization implements OnModuleInit, BeforeApplicationS
   private publicRunning?: Promise<void>;
   private stopping = false;
   private readonly logger = new Logger(GraphRagSynchronization.name);
-  constructor(private readonly runtime: GraphRagRuntime, private readonly catalog: GraphCatalogSourcesPort,
+  constructor(private readonly runtime: GraphSynchronizationRuntime, private readonly catalog: GraphCatalogSourcesPort,
     private readonly knowledge: GraphKnowledgeSourcesPort, private readonly events: DomainEventBus,
     private readonly tenant: TenantContextService,
-    private readonly publicBusiness?: Pick<PublicBusinessReconciler, "reconcile">,
-    private readonly publicIndexer?: Pick<PublicBusinessIndexWorker<PublicIndexPreparedIdentity>, "runMerchant" | "stop">) {}
+    publicBusinessOrGuides?: Pick<PublicBusinessReconciler, "reconcile"> | MerchantGuideSourcesPort,
+    private readonly publicIndexer?: Pick<PublicBusinessIndexWorker<PublicIndexPreparedIdentity>, "runMerchant" | "stop">,
+    guides?: MerchantGuideSourcesPort) {
+    this.publicBusiness = publicBusinessOrGuides && "reconcile" in publicBusinessOrGuides ? publicBusinessOrGuides : undefined;
+    this.guides = publicBusinessOrGuides && !("reconcile" in publicBusinessOrGuides) ? publicBusinessOrGuides : guides;
+  }
+  private readonly publicBusiness?: Pick<PublicBusinessReconciler, "reconcile">;
+  private readonly guides?: MerchantGuideSourcesPort;
   onModuleInit() {
     if (this.stopping || !this.runtime.settings.enabled) return;
     for (const eventType of ["product.upserted", "product.deleted", "product.content.updated", "support.faq_updated", "merchant.config_updated", "knowledge.policy_updated"]) {
@@ -90,6 +105,13 @@ export class GraphRagSynchronization implements OnModuleInit, BeforeApplicationS
           if (this.stopping) return;
           if (source.merchantId !== merchantId) throw Error("graph_source_scope_mismatch");
           const outcome = await this.runtime.projection.projectDocument(source);
+          if (outcome.status === "unavailable") throw Error("graph_projection_incomplete");
+        }
+        if (this.stopping) return;
+        for (const source of await this.guides?.listMerchantGuides(merchantId) ?? []) {
+          if (this.stopping) return;
+          if (source.merchantId !== merchantId) throw Error("graph_source_scope_mismatch");
+          const outcome = await this.runtime.projection.projectMerchantGuide(source);
           if (outcome.status === "unavailable") throw Error("graph_projection_incomplete");
         }
       } catch { this.logger.warn("GraphRAG synchronization incomplete; canonical revalidation and freshness limits remain enforced"); }

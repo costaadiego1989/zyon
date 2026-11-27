@@ -1,4 +1,4 @@
-import type { StorefrontReadUiAction, StorefrontReadUiActionCapability, StorefrontReadUiActionRequest } from "@zyon/shared-types";
+import type { StorefrontPublicUiAction as StorefrontReadUiAction, StorefrontReadUiActionCapability, StorefrontReadUiActionRequest } from "@zyon/shared-types";
 
 type CapabilityScope = { merchantId: string; capability: StorefrontReadUiActionCapability };
 // Protocol hints only, scoped to this tab and conversation. Signed access and
@@ -12,6 +12,11 @@ const identifier = (value: unknown): value is string => typeof value === "string
 export function isStorefrontReadUiAction(value: unknown): value is StorefrontReadUiAction {
   if (!record(value) || !keys(value, ["tool", "args"]) || !record(value.args)) return false;
   const args = value.args;
+  if (value.tool === "ask_product_question") return keys(args, ["productId"]) && identifier(args.productId);
+  if (value.tool === "create_question") return keys(args, ["productId", "question"]) && identifier(args.productId)
+    && typeof args.question === "string" && args.question.trim().length > 0 && args.question.length <= 2000;
+  if (value.tool === "get_product_questions") return keys(args, ["productId", "filter"]) && identifier(args.productId)
+    && (args.filter === undefined || ["answered", "unanswered", "mine"].includes(String(args.filter)));
   if (value.tool === "get_product_details") return keys(args, ["productId"]) && identifier(args.productId);
   return value.tool === "search_products" && keys(args, ["query", "categoryId", "cursor"])
     && args.query === "*" && identifier(args.categoryId)
@@ -25,6 +30,10 @@ export function assertStorefrontReadUiAction(value: unknown): asserts value is S
 /** Snapshot intent before an asynchronous access renewal can yield control. */
 export function cloneStorefrontReadUiAction(value: unknown): StorefrontReadUiAction {
   assertStorefrontReadUiAction(value);
+  if (value.tool === "ask_product_question") return { tool: value.tool, args: { productId: value.args.productId } };
+  if (value.tool === "create_question") return { tool: value.tool, args: { productId: value.args.productId, question: value.args.question } };
+  if (value.tool === "get_product_questions") return { tool: value.tool, args: { productId: value.args.productId,
+    ...(value.args.filter === undefined ? {} : { filter: value.args.filter }) } };
   if (value.tool === "get_product_details") {
     return { tool: "get_product_details", args: { productId: value.args.productId } };
   }
@@ -35,7 +44,7 @@ export function cloneStorefrontReadUiAction(value: unknown): StorefrontReadUiAct
 function parseCapability(value: unknown): StorefrontReadUiActionCapability | null {
   if (!record(value) || !keys(value, ["version", "tools"]) || value.version !== 1 || !Array.isArray(value.tools)) return null;
   if (!value.tools.length || value.tools.length > 5 || new Set(value.tools).size !== value.tools.length
-    || !value.tools.every(tool => tool === "search_products" || tool === "get_product_details" || tool === "get_product_questions" || tool === "ask_product_question" || tool === "create_question")) return null;
+    || !value.tools.every(tool => ["search_products", "get_product_details", "get_product_questions", "ask_product_question", "create_question"].includes(tool))) return null;
   return { version: 1, tools: [...value.tools] };
 }
 
@@ -53,6 +62,9 @@ export function rememberStorefrontReadUiActionCapability(conversationId: string,
 export function storefrontReadUiActionRequest(conversationId: string, merchantId: string | undefined, action: unknown): StorefrontReadUiActionRequest | undefined {
   assertStorefrontReadUiAction(action);
   const scope = capabilities.get(conversationId);
+  if (action.tool === "create_question" && (!scope || scope.merchantId !== merchantId || !scope.capability.tools.includes(action.tool))) {
+    throw new Error("question_submission_unavailable");
+  }
   if (!scope || scope.merchantId !== merchantId || !scope.capability.tools.includes(action.tool)) return undefined;
   return { ui_action_version: 1, ui_action: action };
 }

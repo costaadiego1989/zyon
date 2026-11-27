@@ -3,7 +3,7 @@ import { narrateStorefrontBlock, trackFunnelEvent } from "@/lib/services/convers
 import { checkoutApi } from "@/lib/api/api-client";
 import { getValidBuyer } from "@/lib/buyer-auth";
 import { ConversationSessionExpiredError, ensureConversationAccess } from "@/lib/conversation-access";
-import type { StorefrontReadUiAction } from "@zyon/shared-types";
+import type { StorefrontPublicUiAction as StorefrontReadUiAction } from "@zyon/shared-types";
 import { cloneStorefrontReadUiAction } from "@/lib/storefront-read-ui-action";
 import { parseSuggestedReadActions } from "@/lib/storefront-suggested-read-actions";
 import type { CartLineSelection } from "@/lib/cart-line-selection";
@@ -14,6 +14,8 @@ export interface SendMessageParams {
   attachment?: ConversationAttachment;
   uiAction?: StorefrontReadUiAction;
   voiceTurnToken?: string;
+  marketingConsent?:"granted"|"declined";
+  onHandoff?:(value:boolean)=>void;
   conversationId: string | null;
   setConversationId: (id: string) => void;
   clearCart: () => void;
@@ -92,8 +94,9 @@ export async function handleSendMessage(params: SendMessageParams): Promise<Comm
     await ensureConversationAccess(convId);
     if (!isCurrent()) return null;
     noteActivity(merchantId);
+    const requestId=typeof crypto.randomUUID === "function" ? crypto.randomUUID() : Array.from(crypto.getRandomValues(new Uint8Array(16)),v=>v.toString(16).padStart(2,"0")).join("");
     const userMsg: Message = {
-      id: `u-${Date.now()}`,
+      id: `request:${requestId}:user`,
       role: "user",
       text: trimmed,
       attachment: attachment ? { kind: attachment.kind, name: attachment.name } : undefined,
@@ -112,6 +115,7 @@ export async function handleSendMessage(params: SendMessageParams): Promise<Comm
         attachment,
         uiAction,
         voiceTurnToken: params.voiceTurnToken,
+        messageId:requestId,marketingConsent:params.marketingConsent,
         token: getValidBuyer()?.token,
       };
       // Expiry/uncertainty never creates another identity or resends a possibly
@@ -120,6 +124,8 @@ export async function handleSendMessage(params: SendMessageParams): Promise<Comm
       if (!isCurrent()) return null;
 
       if (data) {
+        params.onHandoff?.(data.handoff === true);
+        if (data.handoff) {setIsLoading(false);return null;}
         if (data.conversation_id !== undefined && data.conversation_id !== convId) {
           throw new Error("conversation_response_mismatch");
         }
@@ -194,7 +200,7 @@ export async function handleSendMessage(params: SendMessageParams): Promise<Comm
           agentText = narrateStorefrontBlock(firstVisual?.type);
         }
         const agentMsg: Message = {
-          id: `a-${Date.now()}`,
+          id: `request:${requestId}:assistant`,
           role: "agent",
           text: agentText,
           blocks,

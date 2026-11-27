@@ -1,15 +1,16 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../../buyer-account/domain/ports/buyer-account-repository.port.js";
 import { WhatsAppCheckoutIdentityService, brazilianPhoneForms } from "./whatsapp-checkout-identity.service.js";
 import { WhatsAppHubAddressesService, hubAddressBasis, hubAddressField, type HubAddress } from "./whatsapp-hub-addresses.service.js";
-import { BUYER_HUB_COMMANDS, buyerHubCommand, buyerHubRoute, HUB_ADDRESS_FIELDS, type HubAddressField } from "../../domain/ui/buyer-hub.js";
+import { buyerHubCommands, buyerHubCommand, buyerHubRoute, HUB_ADDRESS_FIELDS, type HubAddressField } from "../../domain/ui/buyer-hub.js";
 import type { WhatsAppConversationPort } from "../../domain/ports/whatsapp-conversation.port.js";
 import type { WhatsAppStructuredResponse, WhatsAppConversationState, StoreUiAction } from "../../domain/ui/meta-ui.types.js";
 import { MAX_ADDRESSES_PER_BUYER } from "../../../buyer-account/domain/ports/buyer-address.port.js";
+import { CashbackService } from "../../../cashback/application/cashback.service.js";
 
 type HubInput = Parameters<NonNullable<WhatsAppConversationPort["respondStore"]>>[0];
-type HubResult = { kind: "reply"; response: WhatsAppStructuredResponse } | { kind: "route"; message: string; action?: StoreUiAction;
+type HubResult = { kind: "reply"; response: WhatsAppStructuredResponse; buyer?: HubInput["buyer"] } | { kind: "route"; message: string; action?: StoreUiAction;
   buyer?: HubInput["buyer"]; state?: WhatsAppConversationState };
 const safe = (text: string) => text.replace(/[*_~`\u0000-\u001f\u007f]/g, " ").trim().slice(0, 180);
 const addressLine = (row: HubAddress) => `📍 *${safe(row.label || "Endereço")}${row.isDefault ? " · padrão" : ""}*\n${safe(row.street)}, ${safe(row.number)}${row.complement ? ` · ${safe(row.complement)}` : ""}\n${safe(row.neighborhood)} · ${safe(row.city)}/${safe(row.state)} · CEP ${row.zip.slice(0, 5)}-${row.zip.slice(5)}`;
@@ -23,9 +24,10 @@ const fieldPrompt = (field: HubAddressField) => `🤖 📝 *${fieldLabels[field]
 export class WhatsAppBuyerHubService {
   constructor(private readonly identity: WhatsAppCheckoutIdentityService,
     @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly accounts: BuyerAccountRepository,
-    private readonly addresses: WhatsAppHubAddressesService) {}
+    private readonly addresses: WhatsAppHubAddressesService,
+    @Optional() private readonly cashback?: CashbackService) {}
 
-  async handle(input: HubInput, merchantName: string): Promise<HubResult | undefined> {
+  async handle(input: HubInput, merchantName: string, cashbackEnabled = false): Promise<HubResult | undefined> {
     const action = input.action?.kind === "tool" && input.action.tool === "buyer_hub" ? input.action.args : undefined;
     const collecting = input.state.buyerHub && ["add", "edit", "delete"].includes(input.state.buyerHub.mode);
     const detectedCommand = buyerHubCommand(input.message);
@@ -36,7 +38,8 @@ export class WhatsAppBuyerHubService {
     if (!command && !emailAnswer && !action && !collecting && !/^\/[a-zá-ú]+(?:\s|$)/i.test(input.message.trim())) return;
     const state: WhatsAppConversationState = { ...input.state, buyerHub: input.state.buyerHub
       ? { ...input.state.buyerHub, draft: input.state.buyerHub.draft ? { ...input.state.buyerHub.draft } : undefined } : undefined };
-    const reply = (message: string, quickReplies: string[] = ["/atalhos"], blocks: WhatsAppStructuredResponse["blocks"] = [{ type: "buyer_hub_actions", data: { choices: [] } }]): HubResult => ({ kind: "reply",
+    let resolvedBuyer: HubInput["buyer"] | undefined;
+    const reply = (message: string, quickReplies: string[] = ["/atalhos"], blocks: WhatsAppStructuredResponse["blocks"] = [{ type: "buyer_hub_actions", data: { choices: [] } }]): HubResult => ({ kind: "reply", ...(resolvedBuyer ? { buyer: resolvedBuyer } : {}),
       response: { agentMessage: message, quickReplies, blocks, merchantName,
         state: { ...state, history: [...state.history, { role: "user" as const, content: input.message }, { role: "assistant" as const, content: message }].slice(-40) } } });
     if (command === "/cancelar") {
@@ -50,10 +53,10 @@ export class WhatsAppBuyerHubService {
     if (effective === "/atalhos") {
       if (state.buyerHub || state.buyerHubIdentity) state.expectsFreeInput = false;
       state.buyerHub = undefined; state.buyerHubIdentity = undefined;
-      return reply("🤖 📋 *Menu principal*\n\nEscolha o que deseja fazer no menu abaixo ou continue conversando comigo.", BUYER_HUB_COMMANDS.map(entry => entry.label),
+      return reply("🤖 📋 *Menu principal*\n\nEscolha o que deseja fazer no menu abaixo ou continue conversando comigo.", buyerHubCommands(cashbackEnabled).map(entry => entry.label),
         [{ type: "buyer_hub_actions", data: { scope: "main_menu", choices: [] } }]);
     }
-    const entry = BUYER_HUB_COMMANDS.find(entry => entry.command === effective);
+    const entry = buyerHubCommands(true).find(entry => entry.command === effective);
     if (!entry) return reply("🤖 Não reconheci esse atalho. Abra */atalhos* para continuar.");
     if (!("protected" in entry) || !entry.protected) {
       const route = buyerHubRoute(effective);
@@ -87,7 +90,19 @@ export class WhatsAppBuyerHubService {
       || recognized.status === "recognized" && (recognized.buyer.merchantId !== input.merchantId || recognized.buyer.conversationId !== state.conversationId))
       return reply("🤖 👤 *Cadastro não localizado*\n\nVocê pode continuar comprando. Vou solicitar apenas os dados necessários durante a finalização.");
     state.buyerHubIdentity = undefined;
+    resolvedBuyer = { globalUserId: account.globalUserId, phone: owner.phone, fullName: account.displayName, email: account.email };
     if (identityPending) state.expectsFreeInput = false;
+    if (effective === "/cashback") {
+      state.buyerHub = undefined;
+      try {
+        const wallet = await this.cashback?.wallet(input.merchantId, account.globalUserId);
+        if (!wallet || wallet.merchantId !== input.merchantId || wallet.buyerId !== account.globalUserId) throw new Error("cashback_wallet_scope_changed");
+        const money = (cents: number) => (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+        return reply(`Seu saldo disponível de cashback nesta loja é ${money(wallet.balance.availableCents)}.\n\nA liberar: ${money(wallet.balance.pendingCents)}. Reservado em pedidos: ${money(wallet.balance.reservedCents)}.`);
+      } catch {
+        return reply("Não consegui consultar seu saldo de cashback agora. Tente novamente ou peça ajuda à loja.");
+      }
+    }
     const route = buyerHubRoute(effective);
     if (command && effective !== "/enderecos") {
       if (state.buyerHub) state.expectsFreeInput = false;

@@ -170,7 +170,7 @@
   .page-header__copy { flex-basis: 100%; }
   .page-header__actions { width: 100%; }
   .ui-section-header { flex-wrap: wrap; gap: 12px; }
-  .dashboard-ui .zyn-btn--sm, .dashboard-ui .tab-bar__tab { min-height: 44px; }
+  .dashboard-ui .zyn-btn--sm, .dashboard-ui .tab-bar__tab, .dashboard-ui .filter-toolbar .tab-bar__tab { min-height: 44px; }
   .ui-dialog-backdrop--floating-panel, .ui-dialog-backdrop--center { padding: 12px; }
   .ui-dialog--floating-panel, .ui-dialog--center { max-height: calc(100dvh - 24px); border-radius: 12px; }
   .ui-dialog__header, .ui-dialog__body { padding: 20px 16px; }

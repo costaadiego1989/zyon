@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Conversa · Control local</title>
+  <link rel="stylesheet" href="/src/styles.css">
+</head>
+<body>
+  <main id="chat-preview" style="max-width:64rem;margin:0 auto;padding:clamp(1rem,3vw,2.5rem)"></main>
+  <script type="module">
+    import { mountChat } from "./prospecting-browser-chat.tsx";
+    const host=document.getElementById("chat-preview");
+    try { await mountChat(host,new URL(location.href).searchParams.get("conversationId")); }
+    catch { host.textContent="Entre no Control para abrir uma conversa disponível. ";const login=document.createElement("a");login.href="/";login.textContent="Abrir Control";host.append(login); }
+  </script>
+</body>
+</html>

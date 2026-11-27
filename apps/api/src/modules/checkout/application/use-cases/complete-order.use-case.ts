@@ -1,6 +1,8 @@
+import type { PrismaClient } from "@prisma/client";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { withoutWhatsAppExecutionForVerifiedOperation } from "../../../../shared/whatsapp/whatsapp-automation-context.js";
 import { snapshotOrderLines } from "../../../operations/domain/order-fulfillment.js";
-import { BadRequestException, Inject, Injectable, Logger, NotFoundException, Optional } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException, Optional, ServiceUnavailableException } from "@nestjs/common";
 import type { CheckoutSession, CompleteOrderRequest, CompleteOrderResponse } from "@zyon/shared-types";
 import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../../buyer-account/domain/ports/buyer-account-repository.port.js";
 import { CompletedOrderEntity } from "../../domain/entities/completed-order.entity.js";
@@ -29,12 +31,18 @@ import { PAYMENT_APPROVAL_READER, type PaymentApprovalReader, type PersistedPaym
 import { assertPaymentAmount, orderTotalCents } from "../../../payment/domain/payment-amount.js";
 import { paymentCartFingerprint } from "../../domain/services/payment-cart-fingerprint.js";
 import { OrderQuotaService } from "../../../payment/application/services/order-quota.service.js";
-import { parseCheckoutCouponOrderAuthority, parseCheckoutCouponPaymentAuthority, type CheckoutCouponOrderAuthority } from "../../domain/services/checkout-coupon-binding.js";
+import { checkoutCouponCombinedDiscountCents, parseCheckoutCouponOrderAuthority, parseCheckoutCouponPaymentAuthority, type CheckoutCouponOrderAuthority } from "../../domain/services/checkout-coupon-binding.js";
 import { isDeepStrictEqual } from "node:util";
 import { parseWidgetCheckoutPaymentAuthority, type WidgetCheckoutPaymentAuthority } from "../../../payment/domain/widget-checkout-payment-authority.schemas.js";
 import { parseNormalCheckoutPaymentAuthority, type NormalCheckoutPaymentAuthority } from "../../../payment/domain/normal-checkout-payment-authority.schemas.js";
+import { CashbackService } from "../../../cashback/application/cashback.service.js";
+import type { FiscalOrderCommitInput, FiscalOrderPolicy } from "../../../fiscal/domain/fiscal-order-commit.port.js";
+import { FISCAL_BEFORE_PAYMENT, type FiscalBeforePaymentPort } from "../../../fiscal/domain/fiscal-checkout.port.js";
+
+import { requiresPhysicalDelivery } from "../../domain/services/cart-fulfillment.js";
 
 interface OrderCommitRepository {
+  recordFiscalSale?(input: FiscalOrderCommitInput): Promise<FiscalOrderPolicy | undefined>;
   lockServiceOrderCompletion?(merchantId: string): Promise<void> | void;
   assertNormalCrossSellPaymentOrderAuthority?(merchantId:string,sessionId:string,authority:NormalCheckoutPaymentAuthority,
     paymentIntentId:string,providerPaymentId:string):Promise<void>|void;
@@ -73,6 +81,9 @@ export class CompleteOrderUseCase {
     @Optional() private readonly revenueLiftRepo?: RevenueLiftRepository,
     @Optional() @Inject(PAYMENT_APPROVAL_READER) private readonly paymentApprovals?: PaymentApprovalReader,
     private readonly orderQuota?: OrderQuotaService,
+    @Optional() private readonly cashback?: CashbackService,
+    @Optional() @Inject(FISCAL_BEFORE_PAYMENT) private readonly fiscal?: FiscalBeforePaymentPort,
+    @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
   ) { }
 
   private readonly logger = new Logger(CompleteOrderUseCase.name);
@@ -110,7 +121,7 @@ export class CompleteOrderUseCase {
     if ("couponAuthority" in approval) {
       const identity = parseCheckoutCouponPaymentAuthority(approval.couponAuthority);
       if (identity.merchantId !== approval.merchantId || identity.checkoutSessionId !== approval.sessionId
-        || approval.amountBreakdown && identity.discountCents !== approval.amountBreakdown.discountCents) {
+        || approval.amountBreakdown && checkoutCouponCombinedDiscountCents(identity) !== approval.amountBreakdown.discountCents) {
         throw new Error("checkout_coupon_binding_conflict");
       }
       couponAuthority = parseCheckoutCouponOrderAuthority({ ...identity, orderId: input.external_order_id });
@@ -119,17 +130,17 @@ export class CompleteOrderUseCase {
     let normalAuthority:NormalCheckoutPaymentAuthority|undefined;
     if("normalCrossSellAuthority"in approval){
       normalAuthority=parseNormalCheckoutPaymentAuthority(approval.normalCrossSellAuthority);
+      const advanced=normalAuthority.discountOwner?.kind==="cashback_combination"?normalAuthority.discountOwner.advanced:normalAuthority.discountOwner;
       if(widgetAuthority||!this.txRunner?.transaction||normalAuthority.paymentId!==approval.id||normalAuthority.merchantId!==approval.merchantId
         ||normalAuthority.checkoutSessionId!==approval.sessionId||normalAuthority.amountCents!==approval.amountCents||normalAuthority.currency!==approval.currency
-        ||(normalAuthority.discountOwner?.kind==="accepted_offer"?approval.acceptedOfferId!==null&&approval.acceptedOfferId!==normalAuthority.discountOwner.authorizedOfferId:approval.acceptedOfferId!==null)
+        ||(advanced?.kind==="accepted_offer"?approval.acceptedOfferId!==null&&approval.acceptedOfferId!==advanced.authorizedOfferId:approval.acceptedOfferId!==null)
         ||!isDeepStrictEqual(normalAuthority.amountBreakdown,approval.amountBreakdown))
         throw new Error("payment_normal_cross_sell_authority_conflict");
     }
-    const historicalInput=normalAuthority?.discountOwner?.kind==="accepted_offer"
-      ?{...input,accepted_offer_id:normalAuthority.discountOwner.authorizedOfferId}:input;
-    // The canonical persisted approval and its scope/amount/authority were
-    // verified above. Operational reconciliation and its event handlers remain
-    // authorized even when invoked from an obsolete AI continuation.
+    const advanced=normalAuthority?.discountOwner?.kind==="cashback_combination"?normalAuthority.discountOwner.advanced:normalAuthority?.discountOwner;
+    const historicalInput=advanced?.kind==="accepted_offer"
+      ?{...input,accepted_offer_id:advanced.authorizedOfferId}:input;
+    // Reconcile an already verified payment outside an obsolete AI continuation.
     return withoutWhatsAppExecutionForVerifiedOperation(() => this.complete(historicalInput, approval, couponAuthority, widgetAuthority,normalAuthority));
   }
 
@@ -138,16 +149,21 @@ export class CompleteOrderUseCase {
     // An approved immutable widget journal is historical order data, not a raw
     // BASE checkout projection. Do not invoke the generic receipt mapper even
     // for retries. Actual approved persistence is rechecked in commit below.
-    const session = widgetAuthority ? frozenAdmittedOrderSession(widgetAuthority)
+    const loadedSession = widgetAuthority ? frozenAdmittedOrderSession(widgetAuthority)
       : normalAuthority ? frozenAdmittedOrderSession(normalAuthority)
       : await this.sessions.getSession(input.merchant_id, input.session_id);
-    if (!session) throw new NotFoundException("checkout_session_not_found");
-    const existingOrder = approval
-      ? await this.orders.getCompletedOrder(input.merchant_id, input.session_id, input.external_order_id)
-      : undefined;
+    if (!loadedSession) throw new NotFoundException("checkout_session_not_found");
+    const session = requiresPhysicalDelivery(loadedSession.cart) ? loadedSession : { ...loadedSession, shipping: undefined };
+    const existingOrder = await this.orders.getCompletedOrder(input.merchant_id, input.session_id, input.external_order_id);
     if (couponAuthority && (couponAuthority.buyerId !== session.globalUserId || !existingOrder && (
-      session.cart.cart_ref !== couponAuthority.cartId || toCents(session.cart.currentDiscount ?? 0) !== couponAuthority.discountCents
+      session.cart.cart_ref !== couponAuthority.cartId || toCents(session.cart.currentDiscount ?? 0) !== checkoutCouponCombinedDiscountCents(couponAuthority)
+      || (couponAuthority.version === 2 && session.cart.commercialBenefitsVersion !== couponAuthority.commercialBenefitsVersion)
     ))) throw new Error("checkout_coupon_binding_conflict");
+    if (!existingOrder) {
+      await this.fiscal?.assertBeforePayment(session);
+      if (this.fiscal?.requirements && (await this.fiscal.requirements(session)).length && !session.customer?.email_verified)
+        throw new BadRequestException({ code: "fiscal_customer_data_required", message: "fiscal_customer_data_required", fields: ["email"] });
+    }
 
     // A retry of an already committed payment must not depend on a later cart edit.
     // The order repository still rejects conflicting persisted money/currency/offer.
@@ -206,6 +222,9 @@ export class CompleteOrderUseCase {
       : undefined;
 
     const order = CompletedOrderEntity.complete(input, new Date(), { lineItems, shippingCents }).snapshot();
+    const normalCouponComponent = normalAuthority?.discountOwner?.kind === "cashback_combination"
+      ? normalAuthority.discountOwner.coupon : normalAuthority?.discountOwner;
+    const normalCouponOwner = normalCouponComponent?.kind === "checkout_coupon" ? normalCouponComponent : undefined;
     const whatsappMessage =
       session.customer?.phone && order.trackingCode
         ? `Olá ${session.customer.fullName || "Cliente"}! Seu pagamento foi confirmado com sucesso. Seu pedido foi processado e o código de rastreio é: ${order.trackingCode}. Obrigado por comprar conosco!`
@@ -231,6 +250,9 @@ export class CompleteOrderUseCase {
         if(couponAuthority||!normalAuthority)await repo.assertCouponOrderAuthority?.(input.merchant_id, input.session_id, couponAuthority, approval.id);
       }
       const saved = await repo.saveCompletedOrder(order);
+      // A trusted delayed approval may follow public completion. Fiscal work
+      // participates even when commercial completion is already idempotent.
+      const fiscalPolicy = await repo.recordFiscalSale?.({ order: saved.order, session, paymentIntentId: approval?.id });
       if (saved.idempotent) return true;
       await repo.recordCompletedOrderQuota?.(order);
       await repo.recordEvent(input.merchant_id, input.session_id, "order_completed");
@@ -244,14 +266,17 @@ export class CompleteOrderUseCase {
             external_order_id: input.external_order_id,
             order_total: input.order_total,
             currency: input.currency,
+            purchased_at: order.completedAt,
             accepted_offer_id: input.accepted_offer_id,
             tracking_code: order.trackingCode ?? null,
+            ...(fiscalPolicy ? { fiscal_stock_ownership: fiscalPolicy } : {}),
             confirmation_touchpoints,
             fulfillment_snapshot: { version: 2, lines: lineItems },
             carrier_key: session.shipping?.carrier ?? null,
             ...(approval ? { payment_intent_id: approval.id, payment_amount_breakdown: approval.amountBreakdown } : {}),
             ...(couponAuthority ? { coupon_authority: couponAuthority } : {}),
-            ...(normalAuthority?.discountOwner?.kind==="checkout_coupon"?{normal_coupon_owner:normalAuthority.discountOwner}:{}),
+            ...(normalCouponOwner ? { normal_coupon_owner: normalCouponOwner } : {}),
+            ...(session.globalUserId ? { buyer_global_user_id: session.globalUserId } : {}),
             inventory_sale: {
               version: 1,
               stocked_items_only: true,
@@ -345,6 +370,17 @@ export class CompleteOrderUseCase {
       ? await this.txRunner.transaction(commit)
       : await commit(fallbackRepo);
 
+    // Financial side effects are retryable from the committed order/outbox.
+    // Apply them on idempotent retries too: an earlier attempt may have saved
+    // the order and failed before the cashback receipt was committed.
+    if (approval && ((approval.amountBreakdown?.cashbackCents ?? 0) > 0 || approval.amountBreakdown?.cashbackEarningQuoteId)) {
+      if (!this.cashback) throw new ServiceUnavailableException("cashback_payment_binding_unavailable");
+      await this.cashback.confirmedPayment({
+        merchantId: input.merchant_id, paymentIntentId: approval.id, session,
+        orderId: input.external_order_id, orderTotalCents: toCents(input.order_total),
+      });
+    }
+
     if (!idempotent) {
       this.metrics?.orderCompleted.inc({ merchant_id: input.merchant_id });
 
@@ -374,6 +410,16 @@ export class CompleteOrderUseCase {
     }
 
     // Marketplace settlements are persisted by the durable order.completed subscriber.
+    // A public completion can precede canonical OTP identity. Recover only the same
+    // original paid sale after the server has linked a verified buyer; no other effects replay.
+    if (idempotent && approval && existingOrder && session.globalUserId && session.customer?.email_verified && this.prisma && this.purchaseHistory) {
+      const original = await this.prisma.completedOrder.findFirst({ where: { merchantId: input.merchant_id, sessionId: input.session_id, externalOrderId: input.external_order_id }, select: { lineItemsJson: true, fiscalSaleSnapshots: { select: { buyerGlobalUserId: true } } } });
+      const owners = new Set(original?.fiscalSaleSnapshots.map(s => s.buyerGlobalUserId).filter(Boolean));
+      if (original && (!owners.size || owners.size === 1 && owners.has(session.globalUserId))) {
+        const lines = original.lineItemsJson as Array<{ sku: string; name: string; quantity: number; unitPriceCents: number; discountCents?: number }> | null;
+        if (lines?.length) await this.purchaseHistory.recordCheckoutPurchase({ merchantId: existingOrder.merchantId, sessionId: existingOrder.sessionId, globalUserId: session.globalUserId, orderId: existingOrder.externalOrderId, currency: existingOrder.currency, totalAmount: existingOrder.orderTotal, discountAmount: lines.reduce((n, l) => n + (l.discountCents ?? 0), 0) / 100, completedAt: existingOrder.completedAt, items: lines.map(l => ({ sku: l.sku, title: l.name, quantity: l.quantity, unitPrice: l.unitPriceCents / 100, discountAmount: (l.discountCents ?? 0) / 100 })) });
+      }
+    }
 
     if (this.recordIntentIfConsented && !idempotent) {
       void this.intentTrackingEnabled(input.merchant_id).then(async (enabled) => {

@@ -1,3 +1,4 @@
+import { isAuthenticationTemplateType } from "../../domain/catalog/template-types.js";
 import { prepareSalesWhatsApp, salesDefaults, salesTemplateType, validateSalesEdit } from "../../domain/sales-template-content.js";
 import { BadRequestException, ConflictException, Inject, Injectable } from "@nestjs/common";
 import { createHash } from "node:crypto";
@@ -60,11 +61,11 @@ export class RecoveryTemplateLifecycleUseCase implements RecoveryTemplateInitial
     if (current.metaRevision !== expectedRevision || current.metaStatus === "submitting" || current.metaClaimToken) throw new ConflictException("template_revision_conflict");
     const version = current.metaApprovedVersions?.find(v => v.revision === revision);
     if (!version || !this.repo.restore) throw new BadRequestException("approved_version_not_found");
-    if (type === "checkout_otp" && version.metaCategory !== "AUTHENTICATION") throw new BadRequestException("authentication_template_required");
+    if (isAuthenticationTemplateType(type) && version.metaCategory !== "AUTHENTICATION") throw new BadRequestException("authentication_template_required");
     const config = await this.configs.findByMerchantId(merchantId);
     const connection = connectedMetaCloudRecoveryCredentials(config, merchantId);
     if (!connection || connection.wabaId !== version.wabaId) throw new BadRequestException("template_account_mismatch");
-    const status = await this.submission.syncStatus(merchantId, version.contentSid, { language: version.metaLanguage, body: version.metaTemplateBody, category: version.metaCategory });
+    const status = await this.submission.syncStatus(merchantId, version.contentSid, { language: version.metaLanguage, body: version.metaTemplateBody, category: version.metaCategory, ...(type === "buyer_whatsapp_link_otp" ? { authenticationExpirationMinutes: 5 as const } : {}) });
     if (status.status !== "approved" || status.contentSid !== version.contentSid) throw new BadRequestException("previous_template_not_approved");
     const latest = connectedMetaCloudRecoveryCredentials(await this.configs.findByMerchantId(merchantId), merchantId);
     if (!latest || latest.wabaId !== connection.wabaId) throw new ConflictException("template_connection_changed");
@@ -114,6 +115,7 @@ export class RecoveryTemplateLifecycleUseCase implements RecoveryTemplateInitial
           const identity = createHash("sha256").update(row.merchantId).digest("hex").slice(0, 20);
           const result = await this.submission.createAndSubmit({
             merchantId: row.merchantId, friendlyName: `${row.type}_${identity}_v${row.metaRevision}`,
+            ...(row.type === "buyer_whatsapp_link_otp" ? { authenticationExpirationMinutes: 5 as const } : {}),
             language: "pt_BR", category: prepared.category, metaBody: prepared.metaBody, sampleVariables: prepared.sampleVariables,
           });
           const uncertain = result.status === "unknown" || result.status === "submission_unknown";
@@ -124,7 +126,7 @@ export class RecoveryTemplateLifecycleUseCase implements RecoveryTemplateInitial
             nextCheckAt: uncertain && !result.contentSid ? null : new Date(clock().getTime() + (result.retryAfterMs ?? 60_000)),
           }, true);
         } else if (row.twilioContentSid) {
-          const result = await this.submission.syncStatus(row.merchantId, row.twilioContentSid, { language: row.metaLanguage ?? "pt_BR", body: row.metaTemplateBody ?? "", category: row.metaCategory ?? undefined });
+          const result = await this.submission.syncStatus(row.merchantId, row.twilioContentSid, { language: row.metaLanguage ?? "pt_BR", body: row.metaTemplateBody ?? "", category: row.metaCategory ?? undefined, ...(row.type === "buyer_whatsapp_link_otp" ? { authenticationExpirationMinutes: 5 as const } : {}) });
           const known = ["approved", "submitted", "rejected", "paused", "disabled"].includes(result.status);
           // Never apply a response for another content revision.
           const valid = known && result.contentSid === row.twilioContentSid;

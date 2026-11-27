@@ -1,3 +1,5 @@
+import {AdOriginDetail} from './orders-shipments/components/AdOriginDetail.js';
+import {metaAdsAgentEndpoints} from '../api/endpoints/meta-ads-agent.js';
 import { Modal } from "../components/Modal.js";
 import { FormField, FormTextarea } from "../components/FormField.js";
 import { SearchInput } from "../components/SearchInput.js";
@@ -56,11 +58,13 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
       <PageHeader title="Pedidos e envios" description="Login necessário" />
     );
   }
-  return <OrdersShipmentsView me={props.me} />;
+  return <OrdersShipmentsView me={props.me} apiBaseUrl={props.apiBaseUrl} />;
 }
 
-function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
+function OrdersShipmentsView({ me,apiBaseUrl }: { me: MerchantProfile;apiBaseUrl:string }) {
   const vm = useOrdersShipmentsPage({ me });
+  const deepOrderHandled=useRef(false);
+  useEffect(()=>{if(deepOrderHandled.current||!vm.hasLoaded)return;const params=new URLSearchParams(window.location.search),id=params.get('adOrder');deepOrderHandled.current=true;if(!id||params.get('adStore')!==me.id)return;const order=vm.orders.find(o=>o.id===id||o.external_order_id===id);if(order)vm.openOrderDetails(order.id);},[me.id,vm.hasLoaded,vm.orders,vm.openOrderDetails]);
   const [draggedOrder, setDraggedOrder] = useState<BoardEntry | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [view, setView] = useState<OrderView>("all");
@@ -221,7 +225,7 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
       )}
 
       {/* Side Panel */}
-      {vm.expandedOrderId && <OrderSidePanel vm={vm} merchantId={me.id} />}
+      {vm.expandedOrderId && <OrderSidePanel vm={vm} merchantId={me.id} apiBaseUrl={apiBaseUrl}/>}
     </div>
   );
 }
@@ -298,7 +302,8 @@ function KanbanCard({ order, unit, onDragStart, onDragEnd, onClick, isDragging, 
 
 // ── Side Panel ──────────────────────────────────────────────────────────────
 
-function OrderSidePanel({ vm, merchantId }: { vm: ReturnType<typeof useOrdersShipmentsPage>; merchantId: string }) {
+function OrderSidePanel({ vm, merchantId,apiBaseUrl }: { vm: ReturnType<typeof useOrdersShipmentsPage>; merchantId: string;apiBaseUrl:string }) {
+  const adsApi=useMemo(()=>metaAdsAgentEndpoints(apiBaseUrl),[apiBaseUrl]);
   const order = vm.orders.find((o) => o.id === vm.expandedOrderId);
   if (!order) return null;
 
@@ -334,6 +339,7 @@ function OrderSidePanel({ vm, merchantId }: { vm: ReturnType<typeof useOrdersShi
       <div className="order-detail configuration-form">
         {vm.message && <div className="panel-error" role="alert">{vm.message}</div>}
         {order.payment_method === "qa_fixture" && <p className="order-detail__hint" role="note">Pedido de demonstração. O pagamento e os contatos são de teste. Nenhuma cobrança ou mensagem é enviada por este pedido.</p>}
+        <AdOriginDetail merchantId={merchantId} orderId={order.id} api={adsApi}/>
         {/* Status + Total */}
         <div style={{ ...sectionStyle, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>

@@ -1,5 +1,6 @@
 import { startWhatsAppPaymentRequest } from "../../../shared/whatsapp/whatsapp-automation-context.js";
 import { assertStandardCancellationInput, type PendingPaymentCancellationInput, type PendingPaymentCancellationResult } from "../domain/pending-payment-cancellation.js";
+import type { ReadPaymentReceiptInput, AuthoritativePaymentReceipt } from "../domain/ports/payment-provider.port.js";
 import { Injectable } from "@nestjs/common";
 import Stripe from "stripe";
 import { createHash } from "node:crypto";
@@ -188,6 +189,26 @@ export class StripePaymentAdapter implements PaymentProviderPort {
         stripeAccountId: input.stripeChargeMode === "direct_v2" ? input.stripeConnectAccountId : undefined,
       }
     };
+  }
+
+  async readPaymentReceipt(input: ReadPaymentReceiptInput): Promise<AuthoritativePaymentReceipt> {
+    const original = input.original;
+    if (input.marketplaceAccount) await this.assertMarketplaceStatusInput(input);
+    else if (original.provider !== "stripe" || original.providerAccountFingerprint !== this.creationAccountFingerprint()) throw new Error("payment_receipt_account_mismatch");
+    const payment = await this.requireStripe().paymentIntents.retrieve(input.providerPaymentId, { expand: ["latest_charge"] });
+    if (input.marketplaceAccount) this.assertMarketplacePayment(input, payment);
+    const charge = typeof payment.latest_charge === "object" ? payment.latest_charge : null;
+    const live = this.secretKey?.startsWith("sk_live_") === true;
+    if (payment.id !== input.providerPaymentId || payment.livemode !== live || payment.amount !== original.amountCents || payment.currency.toUpperCase() !== original.currency || payment.metadata.merchant_id !== original.merchantId || payment.metadata.session_id !== original.sessionId || payment.metadata.intent_id !== original.intentId || payment.status !== "succeeded" || payment.amount_received !== original.amountCents || !charge || charge.payment_intent !== payment.id || charge.livemode !== live || !charge.paid || !charge.captured || charge.status !== "succeeded" || charge.amount !== original.amountCents || charge.amount_captured !== original.amountCents || charge.currency.toUpperCase() !== original.currency || charge.refunded || charge.amount_refunded || charge.disputed || charge.payment_method_details?.type !== "card") throw new Error("payment_receipt_identity_mismatch");
+    const destination = typeof payment.transfer_data?.destination === "string" ? payment.transfer_data.destination : payment.transfer_data?.destination?.id;
+    if (!input.marketplaceAccount && (destination ?? undefined) !== original.stripeConnectAccountId) throw new Error("payment_receipt_destination_mismatch");
+    const card = charge.payment_method_details.card;
+    if (!card || !["credit", "debit"].includes(card.funding ?? "")) throw new Error("payment_receipt_card_funding_unavailable");
+    // Current Stripe documents nullable authorization_code. Network transaction ID/receipt number are not substitutes.
+    const authorization = (card as unknown as { authorization_code?: string | null }).authorization_code;
+    if (!authorization?.trim()) throw new Error("payment_receipt_card_authorization_unavailable");
+    return { provider: "stripe", accountFingerprint: input.providerAccountFingerprint!, environment: live ? "live" : "test", operationId: payment.id, amountCents: charge.amount_captured, currency: charge.currency.toUpperCase(), captured: true,
+      instrument: card.funding as "credit" | "debit", paidAt: new Date(charge.created * 1000).toISOString(), authorizationCode: authorization, authorizationKind: "card_authorization", brand: card.brand ?? undefined, evidenceReference: "stripe:charge:" + charge.id };
   }
 
   async fetchPaymentStatus(input: FetchPaymentStatusInput): Promise<FetchPaymentStatusOutput> {

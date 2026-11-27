@@ -3,6 +3,7 @@ export type CheckoutTotalsInput = {
   shipping?: number;
   discount?: number;
   serviceFee?: number;
+  cashbackCents?: number;
 };
 
 type ServiceFeeCopy = {
@@ -22,12 +23,13 @@ export function buyerServiceFeeFrom(value: unknown): number {
   return isNonNegativeFinite(value) ? value : 0;
 }
 
-export function checkoutTotalWithServiceFee({ subtotal, shipping = 0, discount = 0, serviceFee = 0 }: CheckoutTotalsInput): number {
+export function checkoutTotalWithServiceFee({ subtotal, shipping = 0, discount = 0, serviceFee = 0, cashbackCents = 0 }: CheckoutTotalsInput): number {
   const total =
     (isNonNegativeFinite(subtotal) ? subtotal : 0) +
     (isNonNegativeFinite(shipping) ? shipping : 0) -
     (isNonNegativeFinite(discount) ? discount : 0) +
-    buyerServiceFeeFrom(serviceFee);
+    buyerServiceFeeFrom(serviceFee) -
+    (Number.isSafeInteger(cashbackCents) && cashbackCents >= 0 ? cashbackCents / 100 : 0);
   return Math.max(0, Math.round((total + Number.EPSILON) * 100) / 100);
 }
 

@@ -1,0 +1,282 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import type { AssistantModelInput, AssistantModelPort, AssistantModelResult } from '../domain/model.port.js';
+import { AssistantError } from '../domain/assistant.port.js';
+import { AssistantKnowledgeRetriever } from '../infrastructure/assistant-knowledge.retriever.js';
+import { META_ADS_MERCHANT_KNOWLEDGE } from '../infrastructure/knowledge/meta-ads.pt-BR.js';
+import { assistantScope, metaAssistantFixture } from '../../meta-ads-agent/application/__tests__/assistant-fixture.js';
+import { AssistantService } from './assistant.service.js';
+
+const answer = (reply: string, referenceIds: string[] = []): AssistantModelResult => ({ reply, referenceIds, toolCalls: [], providerRequestId: 'req-a', costMicros: 20n });
+const tools = (name: string, args: Record<string, unknown>): AssistantModelResult => ({ ...answer(''), reply: null, toolCalls: [{ id: 'call-a', name, args }] });
+
+test('ACJ-06 a sourced explanation may summarize confirmed choices while asking just one new question',async()=>{
+ const text='Guardei o produto, o destino WhatsApp e o objetivo de compras na região escolhida. O orçamento da campanha é o limite de gasto. Quer entender a diferença entre orçamento e saldo?';
+ const f=await fixture(input=>answer(text,input.knowledge.slice(0,1).map(item=>item.reference.id)));
+ try{await f.call('merchant_ads_save_draft',{variantIds:['variant-a'],destination:'whatsapp',priority:'paid_sales',country:'BR'});await f.message('E qual a diferença de orçamento e saldo?');const response=await f.process();assert.equal(response.reply,text);assert.equal(response.references.length,1);assert.equal((await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress!.campaignId,null);
+ }finally{await f.close();}
+});
+
+test('ACJ-06 a contextual follow-up retrieves the preceding payment topic and preserves a sourced explanation',async()=>{
+ const f=await fixture(input=>{const payment=input.knowledge.find(item=>/fundos|cobrança/i.test(item.content));assert.ok(payment);return answer('O investimento dos anúncios é pago diretamente à Meta. Posso explicar o próximo passo?',[payment.reference.id]);});
+ try{f.conversations.turns=async()=>({turns:[{...f.turn,id:'previous',ordinal:0,message:'Como colocar saldo na Meta?',reply:'Os fundos dos anúncios são pagos na Meta. Você encontrou a opção de adicionar fundos?',status:'completed' as const}],nextCursor:null});await f.message('E como isso funciona?');const response=await f.process();assert.equal(response.reply,'O investimento dos anúncios é pago diretamente à Meta. Posso explicar o próximo passo?');assert.equal(response.references.length,1);assert.deepEqual((await f.repo.read('store-a')).campaigns,{});
+ }finally{await f.close();}
+});
+
+test('ACJ-01 the amount question cannot imply a daily budget before the merchant chooses its cadence',async()=>{
+ const f=await fixture(input=>answer('Quanto você quer investir por dia nessa campanha?',input.knowledge.slice(0,1).map(item=>item.reference.id)));
+ try{await f.call('merchant_ads_save_draft',{variantIds:['variant-a'],destination:'whatsapp',priority:'paid_sales',briefing:{selectionKind:'product'}});await f.message('Meu objetivo é conseguir mais compras pagas');const response=await f.process();assert.equal(response.reply,'Quanto você quer investir no anúncio?');const p=(await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress!;assert.equal(p.briefing!.budget?.cadence,undefined);assert.equal(p.campaignId,null);
+ }finally{await f.close();}
+});
+
+test('ACJ-01 an uncited acknowledgement cannot strand a preserved briefing or introduce unsupported payment claims',async()=>{
+ const f=await fixture((_input,call)=>call===1?tools('merchant_ads_save_draft',{briefing:{budget:{startsAt:'2026-11-20T12:00:00.000Z'}}}):answer('Faça Pix de R$ 237 para continuar. Início entendido.'));
+ try{f.documents.splice(0);await f.call('merchant_ads_save_draft',{variantIds:['variant-a'],destination:'whatsapp',priority:'paid_sales',briefing:{budget:{amountCents:12000,cadence:'lifetime'}}});await f.message('Pode começar dia 20');const response=await f.process();
+ assert.equal(response.reply,'Até que dia a campanha deve ficar no ar?');assert.doesNotMatch(response.reply,/Pix|237/);assert.equal((await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress!.draft.destination,'whatsapp');assert.deepEqual((await f.repo.read('store-a')).campaigns,{});
+ }finally{await f.close();}
+});
+
+test('ACJ-06 a conversational budget correction with a question mark is interpreted by the model',async()=>{
+ const f=await fixture((_input,call)=>call===1?tools('merchant_ads_save_draft',{briefing:{budget:{amountCents:8000,cadence:'daily'}}}):answer('Em que dia você quer começar?'));
+ try{await f.call('merchant_ads_save_draft',{destination:'store',briefing:{budget:{amountCents:12000,cadence:'lifetime'}}});await f.message('Dá pra baixar o orçamento pra oitenta reais por dia?');await f.process();
+ const p=(await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress!;assert.equal(p.briefing!.budget!.amountCents,8000);assert.equal(p.briefing!.budget!.cadence,'daily');assert.equal(p.draft.destination,'store');assert.equal(p.campaignId,null);assert.deepEqual((await f.repo.read('store-a')).campaigns,{});
+ }finally{await f.close();}
+});
+test('ACJ-01 a common campaign typo still starts with one destination question and no inventory',async()=>{const f=await fixture(()=>answer('Quais produtos, objetivo e orçamento?'));try{await f.message('quero criar uma camapnha');const response=await f.process();assert.match(response.reply,/loja.*WhatsApp/);assert.equal((response.reply.match(/\?/g)??[]).length,1);assert.deepEqual(f.catalogReads,[]);assert.deepEqual((await f.repo.read('store-a')).campaigns,{});}finally{await f.close();}});
+
+test('ACF-05 a known malformed reply after a captured destination continues safely without replaying the model',async()=>{const f=await fixture(()=>{throw new AssistantError('assistant_model_response_invalid',502);});try{
+  f.conversations.turns=async()=>({turns:[{...f.turn,id:'start',ordinal:0,message:'quero criar uma campanha',reply:'Prefere loja ou WhatsApp?',status:'completed' as const}],nextCursor:null});
+  await f.message('Na loja');const response=await f.process();assert.match(response.reply,/produto específico.*categoria/);assert.equal((response.reply.match(/\?/g)??[]).length,1);assert.equal((await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress?.draft.destination,'store');assert.equal(f.inputs.length,1);assert.deepEqual(f.catalogReads,[]);assert.deepEqual((await f.repo.read('store-a')).campaigns,{});
+  const unknown=new AssistantService({repo:f.conversations,context:f.adapter,knowledge:f.knowledge,model:{complete:async()=>{throw new AssistantError('assistant_outcome_unknown',409);}},clock:f.clock});await assert.rejects(unknown.respond(f.input),{code:'assistant_outcome_unknown'});
+}finally{await f.close();}});
+test('ACF-05 a known malformed category reply asks only its name and preserves the destination without inventing inventory',async()=>{const f=await fixture(()=>{throw new AssistantError('assistant_model_response_invalid',502);});try{await f.call('merchant_ads_save_draft',{destination:'store'});await f.message('Prefiro escolher uma categoria');const response=await f.process();assert.equal(response.reply,'Qual é o nome da categoria que você quer divulgar?');const progress=(await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress!;assert.equal(progress.draft.destination,'store');assert.equal(progress.briefing?.selectionKind,'category');assert.equal(progress.draft.variantIds,undefined);assert.equal(f.inputs.length,1);assert.deepEqual(f.catalogReads,[]);assert.deepEqual((await f.repo.read('store-a')).campaigns,{});}finally{await f.close();}});
+
+test('ACF-05 checklist persists short answers before a tool-free LLM and survives help new turns and reload',async()=>{
+  const f=await fixture(input=>answer(input.messages.at(-1)?.content.includes('Pixel')?'O Pixel ajuda a medir ações na sua loja. Você já tem um Pixel?':'Qual será o próximo detalhe da campanha?',input.knowledge.slice(0,1).map(item=>item.reference.id)));
+  try{
+    await f.message('quero criar uma campanha');let input={...f.input},response=await f.service.respond(input);
+    const complete=()=>f.conversations.atomic(assistantScope,f.thread.id,async tx=>{await tx.update(input.turnId,{status:'completed',reply:response.reply,leaseToken:null,leaseUntil:null});});
+    await complete();
+    const next=async(message:string,reset=false)=>{const thread=await f.conversations.readThread(assistantScope,f.thread.id);const {turn}=await f.admission.submit(assistantScope,f.thread.id,{message,expectedRevision:thread.revision,idempotencyKey:'step-'+thread.revision});input={...f.input,turnId:turn.id,leaseToken:'lease-'+turn.id};await f.conversations.atomic(assistantScope,f.thread.id,async tx=>{await tx.update(turn.id,{status:'running',leaseToken:input.leaseToken,leaseUntil:'2026-11-18T12:02:00Z'});});if(reset)await f.adapter.execute({...input,name:'merchant_ads_new_campaign',args:{}});response=await f.service.respond(input);await complete();return(await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress!;};
+    const destination=await next('Na loja');assert.equal(destination.draft.destination,'store');
+    assert.equal((f.inputs.at(-1)!.state!.checklist as any).items.find((item:any)=>item.key==='destination').value,'store');
+    // Seed only the independently selected product and goal, then collect one budget choice per turn.
+    await f.conversations.atomic(assistantScope,f.thread.id,async tx=>{await tx.setProgress({...destination,draft:{...destination.draft,variantIds:['variant-a'],priority:'paid_sales'}});});
+    await next('R$ 120');await next('No total');const before=await next('Dia 20');
+    const help=await next('O que é Pixel?');assert.deepEqual(help,before);assert.match(response.reply,/Pixel ajuda/);
+    const after=await next('Dia 27');assert.deepEqual(after.briefing!.budget,{amountCents:12000,cadence:'lifetime',startText:'Dia 20',endText:'Dia 27'});
+    assert.equal(after.draft.budget,undefined);assert.deepEqual((f.inputs.at(-1)!.state!.checklist as any).needsInterpretation,['start','end']);
+    assert.deepEqual(f.catalogReads,[]);assert.deepEqual((await f.repo.read('store-a')).campaigns,{});assert.deepEqual((await f.repo.read('store-a')).executions,{});
+    await next('Quero criar outra campanha',true);
+    const reset=await next('No WhatsApp');assert.equal(reset.draft.destination,'whatsapp');assert.equal(reset.draft.priority,undefined);assert.equal(reset.briefing?.budget?.amountCents,undefined);assert.equal(reset.briefing?.selectionQuery,undefined);
+  }finally{await f.close();}
+});
+test('ACF-05 help cannot silently reset the planning even if the model calls a mutation',async()=>{const f=await fixture((input,call)=>call===1?tools('merchant_ads_new_campaign',{}):call===2?tools('merchant_ads_save_draft',{destination:'whatsapp'}):answer('O catálogo reúne os produtos da loja. Você quer entender como escolher uma categoria?',input.knowledge.slice(0,1).map(item=>item.reference.id)));try{await f.call('merchant_ads_save_draft',{destination:'store',briefing:{budget:{amountCents:12000}}});await f.message('Como funciona o catálogo?');const before=(await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress;const response=await f.process();assert.deepEqual((await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress,before);assert.match(response.reply,/catálogo reúne/);assert.deepEqual((await f.repo.read('store-a')).campaigns,{});}finally{await f.close();}});
+test('ACF-02 generic creation asks one destination question without catalog work or campaign writes',async()=>{const f=await fixture(input=>answer('Camisa: R$ 99. Qual produto e qual orçamento?',[input.knowledge[0].reference.id]));try{await f.message('quero criar uma campanha');const response=await f.process();assert.match(response.reply,/loja.*WhatsApp/);assert.equal((response.reply.match(/\?/g)??[]).length,1);assert.doesNotMatch(response.reply,/Camisa|99|estoque|orçamento/);assert.equal(f.inputs.length,1);assert.deepEqual(f.catalogReads,[]);assert.deepEqual(response.artifacts,[]);assert.deepEqual((await f.repo.read('store-a')).campaigns,{});}finally{await f.close();}});
+test('ACF-03 invented model queries and selections cannot turn a generic request into inventory reads or a saved product',async()=>{for(const message of ['quero criar uma campanha','Quero anunciar meus produtos','Crie um anúncio para mim dos meus produtos']){const f=await fixture((_input,call)=>call===1?tools('merchant_ads_catalog',{query:'Camisa'}):call===2?tools('merchant_ads_save_draft',{variantIds:['variant-a'],destination:'store'}):answer('Produto salvo. Qual orçamento?'));try{await f.message(message);const before=(await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress;const response=await f.process();assert.match(response.reply,/loja.*WhatsApp/);assert.deepEqual(f.catalogReads,[]);assert.deepEqual((await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress,before);assert.deepEqual((await f.repo.read('store-a')).campaigns,{});assert.deepEqual(response.artifacts,[]);assert.equal(f.inputs.length,3);}finally{await f.close();}}});
+test('ACF-04 a catalog help interruption preserves its sourced explanation and saved destination',async()=>{const text='O catálogo reúne os produtos da sua loja. Você quer ajuda para escolher uma categoria?';const f=await fixture(input=>answer(text,[input.knowledge[0].reference.id]));try{await f.call('merchant_ads_save_draft',{destination:'store'});await f.message('Como funciona o catálogo?');const before=(await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress;const response=await f.process();assert.equal(response.reply,text);assert.equal(response.references.length,1);assert.deepEqual((await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress,before);assert.deepEqual(f.catalogReads,[]);}finally{await f.close();}});
+test('ACF-04 source-free category discovery returns only bounded real names without choosing products',async()=>{const f=await fixture((_input,call)=>call===1?tools('merchant_ads_catalog',{kind:'categories'}):answer('Todos os produtos: inventado. Escolha várias coisas.'));try{const scopes:string[]=[];f.commerce.categories=async merchantId=>{scopes.push(merchantId);return{categories:Array.from({length:100},(_,i)=>({id:'c'+i,name:'Categoria '+i,productCount:10})),hasMore:true};};await f.message('Quero escolher por categoria');const response=await f.process();assert.equal(response.reply.split('\n').filter(line=>line.startsWith('•')).length,5);assert.match(response.reply,/Categoria 0/);assert.doesNotMatch(response.reply,/Categoria 5\b|inventado|R\$/);assert.match(response.reply,/mais opções/);assert.equal((response.reply.match(/\?/g)??[]).length,1);assert.deepEqual(scopes,['store-a']);assert.deepEqual(f.catalogReads,[]);assert.deepEqual((await f.repo.read('store-a')).campaigns,{});}finally{await f.close();}});
+test('ACF-04 guided budget answers survive two help interruptions while tool cycles keep the message bound',async()=>{const f=await fixture((input,call)=>{assert.ok(input.messages.length<=40);assert.ok(input.messages.some(message=>message.role==='user'&&message.content==='Até dia 27'));if(call===1){for(const value of ['R$ 120','No total','Começar dia 20','Como funciona o orçamento?','O que é o Pixel?'])assert.ok(input.messages.some(message=>message.content===value));}return{...answer(''),reply:null,toolCalls:Array.from({length:5},(_,i)=>({id:`call-${call}-${i}`,name:'merchant_ads_catalog',args:{query:'Camisa'}}))};});try{const messages=['Na loja','Camisa','Mais vendas','R$ 120','No total','Como funciona o orçamento?','O que é o Pixel?','Começar dia 20'];f.conversations.turns=async()=>({turns:messages.map((message,i)=>({...f.turn,id:'old-'+i,ordinal:i-10,message,reply:'Uma escolha por vez.',status:'completed' as const})),nextCursor:null});await f.message('Até dia 27');await assert.rejects(f.process(),{code:'assistant_tool_round_limit'});assert.equal(f.inputs.length,6);assert.deepEqual((await f.repo.read('store-a')).campaigns,{});}finally{await f.close();}});
+test('AGW-01 cited imperative questionnaire without punctuation still asks one absent decision',async()=>{
+ const f=await fixture(input=>answer('Para preparar seu anúncio, informe produto, objetivo, destino, orçamento, datas e região.',[input.knowledge[0].reference.id]));try{
+ await f.message('Crie um anúncio dos meus produtos');const response=await f.process();assert.equal((response.reply.match(/\?/g)??[]).length,1);assert.match(response.reply,/loja.*WhatsApp/i);assert.doesNotMatch(response.reply,/orçamento|datas|região/);
+ }finally{await f.close();}
+});
+test('AGW-10 invalid format after a catalog read recovers canonical products without replaying the tool',async()=>{
+ const f=await fixture((_input,call)=>{if(call===1)return tools('merchant_ads_catalog',{query:'Camisa'});throw new AssistantError('assistant_model_response_invalid',502);});try{
+ await f.message('Crie um anúncio de Camisa e informe o preço');const response=await f.process();assert.match(response.reply,/Camisa/);assert.match(response.reply,/99,00/);assert.equal((response.reply.match(/\?/g)??[]).length,1);assert.deepEqual(f.catalogReads,['store-a']);assert.deepEqual((await f.repo.read('store-a')).campaigns,{});assert.equal(f.inputs.length,2);
+ }finally{await f.close();}
+});
+test('AGW-10 invalid creation and funding replies recover a safe next question without invented claims',async()=>{
+ for(const message of ['Crie um anúncio dos meus produtos','Como adicionar fundos para os anúncios?']){const f=await fixture(()=>{throw new AssistantError('assistant_model_response_invalid',502);});try{
+ await f.message(message);const response=await f.process();assert.equal((response.reply.match(/\?/g)??[]).length,1);assert.match(response.reply,message.startsWith('Crie')?/loja.*WhatsApp/i:/conectou.*Meta|conta de anúncios/i);assert.doesNotMatch(response.reply,/Pix|R\$|confirmamos|saldo disponível|publicad/i);assert.deepEqual(f.catalogReads,[]);assert.deepEqual((await f.repo.read('store-a')).executions,{});assert.equal(f.inputs.length,1);
+ }finally{await f.close();}}
+});
+test('AGW-10 unknown provider outcome is not hidden by conversational recovery',async()=>{
+ const f=await fixture(()=>{throw new AssistantError('assistant_outcome_unknown',409);});try{await f.message('Crie um anúncio');await assert.rejects(f.process(),{code:'assistant_outcome_unknown'});assert.deepEqual(f.catalogReads,[]);}finally{await f.close();}
+});
+test('AGW-01 imperative clarification preserves supplied products destination and country',async()=>{
+ const f=await fixture(input=>answer('Informe produtos, objetivo, destino, orçamento, datas e região.',[input.knowledge[0].reference.id]));try{
+ await f.call('merchant_ads_save_draft',{variantIds:['variant-a'],priority:'paid_sales',destination:'whatsapp',country:'PT'});await f.message('Me ajude a criar a campanha');const before=(await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress;const response=await f.process();assert.equal((response.reply.match(/\?/g)??[]).length,1);assert.match(response.reply,/orçamento/i);assert.doesNotMatch(response.reply,/Qual produto|qual país/i);assert.deepEqual((await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress,before);
+ }finally{await f.close();}
+});
+test('AGW-10 recovery rechecks revoked access and refuses evidence from business actions',async()=>{
+ const f=await fixture(()=>{f.adapter.authorizeInvocation=async()=>{throw new AssistantError('assistant_forbidden',403);};throw new AssistantError('assistant_model_response_invalid',502);});try{
+ await f.message('Crie um anúncio');await assert.rejects(f.process(),{code:'assistant_forbidden'});
+ assert.equal(f.adapter.recoveredResponse({message:'Crie um anúncio',suggestedReply:'',campaign:null,evidence:[{name:'merchant_ads_execute',result:{data:{},artifacts:[]}}]}),null);
+ }finally{await f.close();}
+});
+
+test('AGW-01 cited campaign questionnaire becomes one simple product decision', async () => {
+  const f = await fixture(input => answer('Antes preciso de dados. Qual prioridade: ROAS ou contribuição? Quais produtos? Loja ou WhatsApp? Qual orçamento? Quais datas? Qual região?', [input.knowledge[0].reference.id]));
+  try {
+    await f.message('Crie um anúncio para mim dos meus produtos');
+    const response = await f.process();
+    assert.equal((response.reply.match(/\?/g) ?? []).length, 1);
+    assert.match(response.reply, /loja.*WhatsApp/i);
+    assert.doesNotMatch(response.reply, /ROAS|contribuição|orçamento|datas|região/);
+    assert.deepEqual((await f.repo.read('store-a')).campaigns, {});
+  } finally { await f.close(); }
+});
+
+test('AGW-01 guided creation preserves supplied products and focuses on the next absent field', async () => {
+  const f = await fixture(input => answer('Qual objetivo? Quais produtos? Qual orçamento e datas? Qual região?', [input.knowledge[0].reference.id]));
+  try {
+    await f.call('merchant_ads_save_draft', {variantIds:['variant-a'],destination:'store',country:'BR'});
+    await f.message('Quero criar essa campanha, me ajude a escolher o resultado');
+    const before = (await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress;
+    const response = await f.process();
+    assert.equal((response.reply.match(/\?/g) ?? []).length,1);
+    assert.match(response.reply,/resultado/i);
+    assert.doesNotMatch(response.reply,/Qual produto|Quais produtos|orçamento|datas|região|ROAS/);
+    assert.deepEqual((await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress,before);
+  } finally { await f.close(); }
+});
+
+test('AGW-01 setup questions do not become campaign planning or lose grounded instructions', async () => {
+  const expected='O Pixel ajuda a medir ações na loja. O catálogo reúne produtos. Você já criou o Pixel? Precisa de ajuda para abrir o catálogo?';
+  const f = await fixture(input => answer(expected,[input.knowledge[0].reference.id]));
+  try { await f.message('O que é Pixel e para que serve o catálogo?');const response=await f.process();assert.equal(response.reply,expected);assert.equal((await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress,null); }
+  finally { await f.close(); }
+});
+test('AGW-01 a novice goal question uses everyday outcomes instead of unexplained acronyms',async()=>{
+ const f=await fixture(input=>answer('Qual prioridade: ROAS ou contribuição após mídia?',[input.knowledge[0].reference.id]));try{
+ await f.call('merchant_ads_save_draft',{variantIds:['variant-a'],destination:'store',country:'BR'});await f.message('Me ajude a escolher o objetivo');const response=await f.process();
+ assert.equal((response.reply.match(/\?/g)??[]).length,1);assert.match(response.reply,/mais vendas/);assert.match(response.reply,/gastar menos por compra/);assert.doesNotMatch(response.reply,/ROAS|contribuição|CPA/);
+ }finally{await f.close();}
+});
+async function fixture(run: (input: AssistantModelInput, call: number) => AssistantModelResult | Promise<AssistantModelResult>) {
+  const f = await metaAssistantFixture(); f.setNow('2026-11-18T12:00:00Z');
+  await f.conversations.atomic(assistantScope, f.thread.id, async tx => { await tx.update(f.turn.id, { leaseUntil: '2026-11-18T12:02:00Z' }); });
+  const inputs: AssistantModelInput[] = []; const documents = structuredClone(META_ADS_MERCHANT_KNOWLEDGE);
+  const knowledge = new AssistantKnowledgeRetriever(() => documents, f.clock);
+  const model: AssistantModelPort = { complete: async input => { inputs.push(structuredClone(input)); return run(input, inputs.length); } };
+  const service = new AssistantService({ repo: f.conversations, context: f.adapter, knowledge, model, clock: f.clock });
+  const message = async (value: string) => f.sql.query('UPDATE merchant_assistant_turns SET message=$1 WHERE id=$2', [value, f.turn.id]);
+  await message('Ajude com meus anúncios');
+  return { ...f, inputs, knowledge, documents, service, message, process: () => service.respond(f.input) };
+}
+test('ADAS-16 actual retrieval precedes model and only validated current references leave the service', async () => {
+  const f = await fixture(input => {
+    assert.ok(input.knowledge.some(k => k.reference.id.startsWith('verba-e-pagamentos:')));
+    const payment=input.knowledge.find(k=>k.reference.id==='verba-e-pagamentos:tipo')!;
+    assert.equal(payment.reference.version,'2026-11-18.1');
+    return answer('O investimento em anúncios é pago diretamente à Meta.', [payment.reference.id]);
+  }); try {
+    await f.message('Como adicionar fundos para os anúncios?'); const response = await f.process();
+    assert.equal(response.reply, 'O investimento em anúncios é pago diretamente à Meta.');
+    assert.equal(response.references.length, 1); assert.equal(response.references[0].reviewedAt, '2026-11-18');
+    assert.match(response.references[0].url, /^\/\?tab=meta-ads-agent&help=/);
+    assert.equal(f.inputs.length, 1);
+  } finally { await f.close(); }
+});
+test('ADAS-18 empty retrieval cannot pass invented payment procedure or value into the response', async () => {
+  const f = await fixture(() => answer('Faça Pix de R$ 149 para a Zyon que creditaremos na Meta.')); try {
+    f.documents.splice(0); await f.message('Adicionar fundos'); const response = await f.process();
+    assert.match(response.reply, /não (encontrei|tenho)|indisponível/i); assert.deepEqual(response.references, []);
+    assert.ok(!response.reply.includes('Pix')); assert.ok(!response.reply.includes('149'));
+  } finally { await f.close(); }
+});
+test('ADAS-18 forged and revoked references replace the unsupported answer with a clear limitation', async () => {
+  for (const revoke of [false, true]) {
+    const f = await fixture(input => {
+      const id = input.knowledge[0]?.reference.id;
+      if (revoke) f.documents.splice(0);
+      return answer('Saldo comprovado de 1000 reais.', [revoke ? id : 'inventado:saldo']);
+    }); try {
+      await f.message('Qual o saldo para anunciar?'); const response = await f.process();
+      assert.deepEqual(response.references, []); assert.match(response.reply, /não (encontrei|tenho)|indisponível/i);
+      assert.ok(!response.reply.includes('1000'));
+    } finally { await f.close(); }
+  }
+});
+test('ADAS-23 model receives missing campaign fields and asks only the remaining goals', async () => {
+  const f = await fixture((input, call) => call === 1 ? tools('merchant_ads_save_draft', { priority: 'roas', variantIds: ['variant-a'], destination: 'store' }) : (() => {
+    assert.equal(input.state?.campaign?.draft.priority, 'roas');
+    assert.deepEqual(input.state?.campaign?.draft.variantIds, ['variant-a']);
+    assert.ok(!input.state?.campaign?.awaitingFields.includes('priority'));
+    return answer('Qual orçamento, período e região deseja?');
+  })()); try {
+    const response = await f.process(); assert.match(response.reply, /orçamento/);
+    const progress = (await f.conversations.readThread(assistantScope, f.thread.id)).campaignProgress!;
+    assert.deepEqual(progress.awaitingFields, ['budget', 'country']);
+    assert.equal(response.artifacts[0].type, 'campaign_progress'); assert.equal(f.inputs.length, 2);
+    assert.ok(f.inputs[1].messages.some(m => m.role === 'tool' && m.tool_call_id === 'call-a'));
+  } finally { await f.close(); }
+});
+test('ADAS-25 ambiguous amount is clarified without inventing cadence dates or automatic approval', async () => {
+  const f = await fixture(() => answer('Os R$ 100 são por dia ou para todo o período? Quais datas deseja?')); try {
+    await f.message('Quero anunciar meu produto com 100'); const response = await f.process();
+    assert.match(response.reply, /por dia ou para todo/);
+    assert.equal((await f.conversations.readThread(assistantScope, f.thread.id)).campaignProgress, null);
+    assert.deepEqual((await f.repo.read('store-a')).campaigns, {});
+  } finally { await f.close(); }
+});
+test('ADAS-27 a funding question preserves the partial draft and next correction updates that same draft', async () => {
+  const f = await fixture(input => answer('A verba é paga à Meta.', [input.knowledge[0].reference.id])); try {
+    await f.call('merchant_ads_save_draft', { variantIds: ['variant-a'], priority: 'roas' });
+    const before = (await f.conversations.readThread(assistantScope, f.thread.id)).campaignProgress;
+    await f.message('Preciso adicionar fundos?'); await f.process();
+    assert.deepEqual((await f.conversations.readThread(assistantScope, f.thread.id)).campaignProgress, before);
+    await f.call('merchant_ads_save_draft', { priority: 'cost_per_purchase' });
+    const after = (await f.conversations.readThread(assistantScope, f.thread.id)).campaignProgress!;
+    assert.equal(after.draft.priority, 'cost_per_purchase'); assert.deepEqual(after.draft.variantIds, ['variant-a']);
+  } finally { await f.close(); }
+});
+test('ADAS-51 completed history is supplied with current progress after reconstructing the service', async () => {
+  const f = await fixture(input => {
+    assert.ok(input.messages.some(m => m.role === 'assistant' && m.content === 'Prefere loja ou WhatsApp?'));
+    assert.equal(input.messages.at(-1)?.content, 'Loja'); return answer('Qual será o orçamento?');
+  }); try {
+    await f.conversations.atomic(assistantScope, f.thread.id, async tx => {
+      await tx.update(f.turn.id, { status: 'completed', reply: 'Prefere loja ou WhatsApp?', budgetState: 'settled', usageCostMicros: 0n });
+    });
+    const next = await f.admission.submit(assistantScope, f.thread.id, { message: 'Loja', expectedRevision: 1, idempotencyKey: 'next-turn' });
+    await f.conversations.atomic(assistantScope, f.thread.id, async tx => { await tx.update(next.turn.id, { status: 'running', leaseToken: 'lease-b', leaseUntil: '2026-11-18T12:02:00Z' }); });
+    const response = await f.service.respond({ ...f.input, turnId: next.turn.id, leaseToken: 'lease-b' });
+    assert.equal(response.reply, 'Qual será o orçamento?');
+  } finally { await f.close(); }
+});
+test('ADAS-53 provider payload and internal errors never become model tool output or merchant text', async () => {
+  const f = await fixture((_input, call) => call === 1 ? tools('merchant_ads_catalog', { query: 'camisa' }) : answer('A consulta está indisponível.')); try {
+    f.commerce.products = async () => { throw Error('Authorization: secret-token, customer-card-number'); };
+    const response = await f.process(); assert.ok(!JSON.stringify(response).includes('secret-token'));
+    assert.ok(!JSON.stringify(f.inputs).includes('secret-token'));
+    assert.ok(f.inputs[1].messages.some(m => m.content.includes('assistant_tool_failed')));
+  } finally { await f.close(); }
+});
+test('ADAS-48 role revocation after first model response denies tools before any catalog access', async () => {
+  const f = await fixture(() => tools('merchant_ads_catalog', {})); try {
+    f.adapter.authorizeInvocation = async () => { if (f.inputs.length) throw new AssistantError('assistant_forbidden', 403); };
+    await assert.rejects(f.process(), /assistant_forbidden/); assert.deepEqual(f.catalogReads, []);
+  } finally { await f.close(); }
+});
+test('ADAS-49 repeated tool cycle is bounded and cannot endlessly consume model calls', async () => {
+  const f = await fixture(() => tools('merchant_ads_catalog', {query:'Camisa'})); try {
+    await assert.rejects(f.process(), /assistant_tool_round_limit/);
+    assert.equal(f.inputs.length, 6); assert.equal(f.catalogReads.length, 5);
+  } finally { await f.close(); }
+});
+test('ADAS-21 model cannot return an arbitrary tool or an injected approval capability', async () => {
+  const f = await fixture(() => tools('merchant_ads_approve', { proposalId: 'whatever' })); try {
+    await assert.rejects(f.process(), /assistant_tool_forbidden/); assert.deepEqual(f.calls, []); assert.deepEqual(f.catalogReads, []);
+  } finally { await f.close(); }
+});
+test('ADAS-24 catalog facts remain answerable without a document citation after an authorized live tool read', async () => {
+  const f = await fixture((_input, call) => call === 1 ? tools('merchant_ads_catalog', { query: 'camisa' }) : answer('Camisa: R$ 99,00, com 8 unidades em estoque.')); try {
+    f.documents.splice(0); await f.message('Qual o preço e estoque da camisa?'); const response = await f.process();
+    assert.equal(response.reply, 'Camisa: R$ 99,00, com 8 unidades em estoque.');
+    assert.deepEqual(f.catalogReads, ['store-a']); assert.deepEqual(response.references, []);
+  } finally { await f.close(); }
+});
+
+test('ADAS-18 a question suffix cannot make an invented payment procedure supported',async()=>{const f=await fixture(()=>answer('Faça um Pix de R$ 237 para a Zyon para adicionar fundos à Meta, combinado?'));try{f.documents.splice(0);await f.message('Onde faço o pagamento da verba?');const response=await f.process();assert.doesNotMatch(response.reply,/Pix|237|combinado/);assert.match(response.reply,/não (encontrei|tenho)|evidência|indisponível/i);assert.deepEqual(response.references,[]);}finally{await f.close();}});
+test('ADAS-18 a canonical catalog read cannot support an invented payment procedure',async()=>{const f=await fixture((_input,call)=>call===1?tools('merchant_ads_catalog',{query:'Camisa'}):answer('Faça um Pix de R$ 237 para a Zyon para adicionar fundos à Meta.'));try{f.documents.splice(0);await f.message('Como pago a verba da minha camisa?');const response=await f.process();assert.doesNotMatch(response.reply,/Pix|237/);assert.deepEqual(f.catalogReads,['store-a']);assert.deepEqual(response.references,[]);}finally{await f.close();}});
+test('ADAS-18 source-free clarification is rendered by the host without repeating model payment claims',async()=>{const f=await fixture(()=>answer('Faça um Pix de R$ 237. Qual será o orçamento?'));try{f.documents.splice(0);const response=await f.process();assert.equal(response.reply,'Qual será o orçamento?');assert.deepEqual(response.references,[]);assert.deepEqual(f.catalogReads,[]);}finally{await f.close();}});
+
+test('ADAS-53 a sixth tool in one response is rejected before business actions or image consumption',async()=>{const f=await fixture(()=>({...answer(''),reply:null,toolCalls:Array.from({length:6},(_,i)=>({id:`too-many-${i}`,name:'merchant_ads_catalog',args:{}}))}));try{await assert.rejects(f.process(),{code:'assistant_tool_forbidden'});assert.equal(f.inputs.length,1);assert.deepEqual(f.catalogReads,[]);const state=await f.repo.read('store-a');assert.deepEqual(state.campaigns,{});assert.deepEqual(state.generations,{});assert.equal(state.credits.monthlyAvailable,30);}finally{await f.close();}});
+test('ADAS-18 only missing fields become host clarification and a known budget is not asked again',async()=>{const f=await fixture(()=>answer('Qual será o orçamento?'));try{f.documents.splice(0);await f.call('merchant_ads_save_draft',{budget:{amountCents:10000,currency:'BRL',cadence:'lifetime',startsAt:'2026-11-16T12:00:00Z',endsAt:'2026-11-23T12:00:00Z'}});const response=await f.process();assert.match(response.reply,/Não encontrei evidência/);assert.equal((await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress!.draft.budget!.amountCents,10000);assert.equal(Object.keys((await f.repo.read('store-a')).campaigns).length,0);}finally{await f.close();}});
+
+test('ADAS-18 host clarification asks only the absent business field and never returns injected prose',async t=>{for(const [field,pattern] of [['budget',/orçamento/i],['variantIds',/produto/i],['destination',/loja ou WhatsApp/i],['priority',/resultado/i],['country',/país/i]] as const)await t.test(field,async()=>{const f=await fixture(()=>answer('Faça Pix de R$ 237. Qual produto, destino, objetivo, região e orçamento?'));try{f.documents.splice(0);const draft={variantIds:['variant-a'],destination:'store' as const,priority:'roas' as const,country:'BR',budget:{amountCents:10000,currency:'BRL' as const,cadence:'lifetime' as const,startsAt:'2026-11-16T12:00:00Z',endsAt:'2026-11-23T12:00:00Z'}};delete (draft as Record<string,unknown>)[field];await f.conversations.atomic(assistantScope,f.thread.id,tx=>tx.setProgress({campaignId:null,draft,awaitingFields:[field],approvalPreference:'manual'}));const response=await f.process();assert.match(response.reply,pattern);assert.doesNotMatch(response.reply,/Pix|237/);assert.equal((response.reply.match(/\?/g)??[]).length,1);assert.deepEqual((await f.conversations.readThread(assistantScope,f.thread.id)).campaignProgress!.awaitingFields,[field]);assert.deepEqual(f.catalogReads,[]);}finally{await f.close();}});});
+
+test('ADAS-18 a safe greeting is allowed but cannot carry a prefixed payment instruction',async()=>{for(const malicious of [false,true]){const f=await fixture(()=>answer(malicious?'Faça Pix de R$ 237. Como posso ajudar?':'Como posso ajudar?'));try{f.documents.splice(0);const response=await f.process();if(malicious){assert.match(response.reply,/Não encontrei evidência/);assert.doesNotMatch(response.reply,/Pix|237/);}else assert.equal(response.reply,'Como posso ajudar?');}finally{await f.close();}}});

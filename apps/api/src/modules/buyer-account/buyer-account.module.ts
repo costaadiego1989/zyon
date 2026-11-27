@@ -69,6 +69,7 @@ import { CheckoutModule } from "../checkout/checkout.module.js";
 import { SelfCheckoutModule } from "../self-checkout/self-checkout.module.js";
 import { BuyerPurchaseHistoryModule } from "../buyer-purchase-history/buyer-purchase-history.module.js";
 import { IntegrationsModule } from "../integrations/integrations.module.js";
+import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-templates.module.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
 import { OTP_STORE } from "./domain/ports/otp-store.port.js";
 import { WEBAUTHN_CREDENTIAL_STORE } from "./domain/ports/webauthn-credential.port.js";
@@ -76,11 +77,17 @@ import { BUYER_ACCOUNT_PRISMA_CLIENT } from "./buyer-account.tokens.js";
 import { PrismaOtpStore } from "./infrastructure/prisma-otp-store.js";
 import { RedisOtpStore } from "./infrastructure/redis-otp-store.js";
 import { PrismaWebAuthnCredentialRepository } from "./infrastructure/prisma-webauthn-credential.repository.js";
+import { LinkBuyerWhatsAppUseCase } from "./application/use-cases/link-buyer-whatsapp.use-case.js";
+import { BuyerWhatsAppLinkController } from "./presentation/http/buyer-whatsapp-link.controller.js";
+import { BuyerChannelIdentityModule } from "./buyer-channel-identity.module.js";
+import { BuyerInboundWhatsAppLinkUseCase } from "./application/use-cases/buyer-inbound-whatsapp-link.use-case.js";
 
 @Module({
-  imports: [AuthModule, BuyerAccountRepositoryModule, BuyerPurchaseHistoryModule, forwardRef(() => CheckoutModule), IntegrationsModule, SelfCheckoutModule, MerchantModule],
-  controllers: [BuyerAccountController, BuyerAgentController, BuyerHubController, BuyerWebAuthnController, BuyerPreferencesController, BuyerIntentController, BuyerPrivacyController, BuyerReviewsController, BuyerAddressesController],
+  imports: [WhatsAppTemplatesModule, AuthModule, BuyerAccountRepositoryModule, BuyerPurchaseHistoryModule, forwardRef(() => CheckoutModule), IntegrationsModule, SelfCheckoutModule, MerchantModule, BuyerChannelIdentityModule],
+  controllers: [BuyerAccountController, BuyerAgentController, BuyerHubController, BuyerWebAuthnController, BuyerPreferencesController, BuyerIntentController, BuyerPrivacyController, BuyerReviewsController, BuyerAddressesController, BuyerWhatsAppLinkController],
   providers: [
+    BuyerInboundWhatsAppLinkUseCase,
+    LinkBuyerWhatsAppUseCase,
     RegisterBuyerUseCase,
     RegisterBuyerWithRateLimitUseCase,
     {
@@ -185,6 +192,6 @@ import { PrismaWebAuthnCredentialRepository } from "./infrastructure/prisma-weba
       },
     },
   ],
-  exports: [BuyerJwtService, BuyerJwtAuthGuard, BuyerAccountRepositoryModule],
+  exports: [BuyerInboundWhatsAppLinkUseCase, BuyerJwtService, BuyerJwtAuthGuard, BuyerAccountRepositoryModule],
 })
 export class BuyerAccountModule {}

@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { UnprocessableEntityException } from "@nestjs/common";
 import { z } from "zod";
+import { readCashbackCouponComposition } from "./storefront-coupon/cashback-composition.js";
 import type { Cart, CheckoutEventName } from "@zyon/shared-types";
 import { moneyCents } from "@zyon/rules-engine";
 import { toCheckoutSession } from "../../modules/checkout/domain/services/checkout-session-projection.js";
@@ -22,14 +23,15 @@ const advancedSchema = z.array(z.object({ id: id.optional(), productId: id.optio
   action: z.object({ type: z.string(), params: z.record(z.string(), z.union([z.string(), z.number().finite(), z.boolean()])) }) })).max(20);
 const scopeSchema = z.object({ merchantId: id, sessionId: id, globalUserId: id, version: z.number().int().min(0).max(2_147_483_646) });
 export type NormalCommercialStoredScope = z.infer<typeof scopeSchema>;
-export interface NormalCommercialReadInput { stored: NormalCommercialStoredScope; canonicalCart: Cart; now: Date }
+export interface NormalCommercialReadInput { stored: NormalCommercialStoredScope; canonicalCart: Cart; now: Date; cashbackRuleVersion?: number }
 const fail = (reason: string): never => { throw new NormalCommercialBenefitReviewRequired(reason); };
 export const normalCommercialBenefitReview = () => new UnprocessableEntityException({ code: "cross_sell_quote_review_required",
   message: "As condições do benefício mudaram. Revise o pedido antes de pagar." });
 
 /** Real scoped rows only. No default policy provisioning, network, private key,
  * caller-supplied buyer/method authority or detached transaction is introduced. */
-export async function readNormalCommercialPolicyContext(tx: Prisma.TransactionClient, input: NormalCommercialReadInput, selectedMethod?: NormalCommercialPaymentMethod) {
+export async function readNormalCommercialPolicyContext(tx: Prisma.TransactionClient, input: NormalCommercialReadInput, selectedMethod?: NormalCommercialPaymentMethod,
+  override?: { maxDiscountPercent: number }) {
   const scope = scopeSchema.parse(input.stored);
   const stored = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: { merchantId: scope.merchantId, sessionId: scope.sessionId } } });
   if (!stored || stored.merchantId !== scope.merchantId || stored.sessionId !== scope.sessionId || stored.globalUserId !== scope.globalUserId
@@ -41,12 +43,17 @@ export async function readNormalCommercialPolicyContext(tx: Prisma.TransactionCl
   if (!row || row.merchantId !== scope.merchantId) return fail("policy_missing");
   // Minimum margin is informational and deliberately excluded from eligibility
   // and the fingerprint; even a malformed analytics value cannot block a grant.
-  const rules = toMerchantRules({ maxDiscountPercent: row.maxDiscountPercent, minimumMarginPercent: Number.NaN,
+  let rules = toMerchantRules({ maxDiscountPercent: row.maxDiscountPercent, minimumMarginPercent: Number.NaN,
     allowFreeShipping: row.allowFreeShipping, allowShippingDiscount: row.allowShippingDiscount, allowBonusItem: row.allowBonusItem,
     allowStackDiscountAndFreeShipping: row.allowStackDiscountAndFreeShipping, freeShippingMinCartValue: row.freeShippingMinCartValue,
     maxShippingSubsidy: row.maxShippingSubsidy, maxPartialShippingDiscount: row.maxPartialShippingDiscount,
     offerExpirationMinutes: row.offerExpirationMinutes, blockedRegions: row.blockedRegions, brandVoice: row.brandVoice,
     couponBoxEnabled: row.couponBoxEnabled, autonomousEngineEnabled: row.autonomousEngineEnabled });
+  if (toCheckoutSession(stored).cart.commercialBenefitsVersion) {
+    const composition = await readCashbackCouponComposition(tx, toCheckoutSession(stored), { cashbackRuleVersion: input.cashbackRuleVersion });
+    if (composition) rules = { ...rules, maxDiscountPercent: composition.effectiveRules.maxDiscountPercent };
+  }
+  if (override) rules = { ...rules, maxDiscountPercent: override.maxDiscountPercent };
   const setting = await tx.checkoutSetting.findUnique({ where: { merchantId: scope.merchantId },
     select:{merchantId:true,interventionPolicy:true,advancedRules:true} });
   if (setting && setting.merchantId !== scope.merchantId) return fail("policy_scope_invalid");

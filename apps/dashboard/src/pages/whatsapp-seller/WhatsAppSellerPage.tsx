@@ -1,7 +1,7 @@
+import { CheckCircle, CircleCheck, CreditCard, ExternalLink, Files, Loader2, MessageCircle, PackageCheck, Plug, Receipt, RefreshCw, ShieldCheck, ShoppingBag, X } from "lucide-react";
 import { formatWhatsAppPhone } from "../../utils/masks.js";
 ﻿import { PageHeader } from "../../components/PageHeader.js";
 import React, { useLayoutEffect, useRef } from "react";
-import { CheckCircle, CircleCheck, CreditCard, ExternalLink, Loader2, PackageCheck, RefreshCw, ShieldCheck, ShoppingBag, X } from "lucide-react";
 import { Button } from "../../components/Button.js";
 import { TabBar } from "../../components/TabBar.js";
 import type { MerchantProfile } from "../../api-client.js";
@@ -25,7 +25,7 @@ const stateCopy: Record<string, { title: string; text: string }> = {
 };
 
 const whatsappManagerUrl = "https://business.facebook.com/wa/manage/phone-numbers/";
-const WHATSAPP_TABS = [{ key: "connection", label: "Conexão", panelId: "whatsapp-connection" }, { key: "templates", label: "Modelos de mensagem", panelId: "whatsapp-templates" }, { key: "orders", label: "Pedidos no WhatsApp", panelId: "whatsapp-orders" }, { key: "usage", label: "Consumo e cobrança", panelId: "whatsapp-usage" }, { key: "conversations", label: "Conversas", panelId: "whatsapp-conversations" }];
+const WHATSAPP_TABS = [{ key: "connection", label: "Conexão", panelId: "whatsapp-connection", icon: <Plug size={16} /> }, { key: "templates", label: "Modelos de mensagem", panelId: "whatsapp-templates", icon: <Files size={16} /> }, { key: "orders", label: "Pedidos no WhatsApp", panelId: "whatsapp-orders", icon: <ShoppingBag size={16} /> }, { key: "usage", label: "Consumo e cobrança", panelId: "whatsapp-usage", icon: <Receipt size={16} /> }, { key: "conversations", label: "Conversas", panelId: "whatsapp-conversations", icon: <MessageCircle size={16} /> }];
 
 export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProfile | null; navigation?: ConversationNavigation }) {
   const route = useWhatsAppRoute(props.me?.role, props.navigation);

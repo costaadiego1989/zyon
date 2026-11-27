@@ -53,7 +53,7 @@ export class ProductPromotionEntity {
     const id = props.id || this.generateId();
 
     // Invariant 5: startsAt < endsAt
-    if (props.startsAt >= props.endsAt) {
+    if (!Number.isFinite(props.startsAt.getTime()) || !Number.isFinite(props.endsAt.getTime()) || props.startsAt >= props.endsAt) {
       throw new Error("promotion_invalid_window");
     }
 
@@ -64,6 +64,10 @@ export class ProductPromotionEntity {
       (props.promoPriceInCents !== undefined && props.promoPriceInCents !== null);
 
     const hasCoupon = props.couponId !== undefined && props.couponId !== null;
+    if (hasCoupon && (typeof props.couponId !== "string" || !props.couponId.trim() || props.couponId.length > 191
+      || props.couponId.includes("\0") || Array.from(props.couponId).some(character => {
+        const point = character.codePointAt(0)!; return point >= 0xd800 && point <= 0xdfff;
+      }))) throw new Error("promotion_invalid_coupon");
 
     // Invariant 1a: Both-set check
     if (hasCoupon && hasInlineDiscount) {
@@ -73,6 +77,12 @@ export class ProductPromotionEntity {
     // Invariant 1b: Neither-set check
     if (!hasCoupon && !hasInlineDiscount) {
       throw new Error("promotion_no_discount_source");
+    }
+
+    const hasType = props.discountType != null, hasValue = props.discountValue != null;
+    if (props.promoPriceInCents != null && (hasType || hasValue)) throw new Error("promotion_descriptor_ambiguous");
+    if (hasType !== hasValue || (hasType && props.discountType !== "percent" && props.discountType !== "fixed")) {
+      throw new Error("promotion_invalid_descriptor");
     }
 
     // Invariant 2: Percent bounds (0-100)
@@ -94,6 +104,11 @@ export class ProductPromotionEntity {
       if (props.promoPriceInCents < 0) {
         throw new Error("promotion_negative_price");
       }
+    }
+
+    if ((hasValue && !Number.isSafeInteger(props.discountValue))
+      || (props.promoPriceInCents != null && !Number.isSafeInteger(props.promoPriceInCents))) {
+      throw new Error("promotion_invalid_descriptor_value");
     }
 
     return new ProductPromotionEntity({

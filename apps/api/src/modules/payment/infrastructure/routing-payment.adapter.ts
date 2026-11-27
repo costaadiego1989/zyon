@@ -1,3 +1,4 @@
+import type { ReadPaymentReceiptInput } from "../domain/ports/payment-provider.port.js";
 import type { PendingPaymentCancellationInput, PendingPaymentCancellationResult } from "../domain/pending-payment-cancellation.js";
 import { Injectable } from "@nestjs/common";
 import type {
@@ -35,6 +36,22 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
     private readonly mercadopagoBaseUrl?: string,
     private readonly fetchImpl: typeof fetch = globalThis.fetch,
   ) {}
+
+  enrichCryptoReceipt(receipt: import("../domain/ports/crypto-verifier.port.js").PrivateCryptoReceipt) { return this.evmCrypto.enrichCryptoReceipt(receipt); }
+  async readPaymentReceipt(input: ReadPaymentReceiptInput) {
+    if (!input.provider || !input.providerAccountFingerprint || input.original.provider !== input.provider || input.original.providerAccountFingerprint !== input.providerAccountFingerprint || input.original.merchantId !== input.merchantId) throw new Error("payment_receipt_original_binding_required");
+    let adapter: PaymentProviderPort | null | undefined;
+    if (input.marketplaceAccount) adapter = (await this.marketplaceRoute(input.marketplaceAccount, input.provider, input.providerAccountFingerprint)).adapter;
+    else {
+      let tenant: PaymentProviderPort | null = null;
+      try { tenant = input.provider === "stripe" ? await this.resolveStripe(input.merchantId) : input.provider === "asaas" ? await this.resolveAsaas(input.merchantId) : input.provider === "mercadopago" ? await this.resolveMercadoPago(input.merchantId) : null; } catch { /* Only an exact known original account can be selected below. */ }
+      const platform = input.provider === "stripe" ? this.stripe : input.provider === "asaas" ? this.asaas : input.provider === "mercadopago" ? this.mercadopago : null;
+      adapter = [tenant, platform].find(candidate => candidate?.creationAccountFingerprint?.() === input.providerAccountFingerprint);
+      if (!adapter) throw new Error("payment_provider_account_changed");
+    }
+    if (!adapter.readPaymentReceipt) throw new Error("payment_receipt_provider_contract_unsupported");
+    return adapter.readPaymentReceipt(input);
+  }
 
   async preparePayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentInput> {
     if (input.marketplaceFunding) {

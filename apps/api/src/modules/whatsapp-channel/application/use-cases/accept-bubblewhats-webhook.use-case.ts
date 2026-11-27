@@ -145,6 +145,8 @@ export class AcceptBubbleWhatsWebhookUseCase {
       ...(input.metaMedia && /^\d{1,80}$/.test(input.metaMedia.id) ? { metaMedia: {
         id: input.metaMedia.id, mimeType: boundedString(input.metaMedia.mimeType, 128, false), name: boundedString(input.metaMedia.name, 200, false),
       } } : {}),
+      ...(source === "META" && provider === "META_CLOUD" && input.adReferral && /^\d{1,40}$/.test(input.adReferral.adId) ? { adReferral: { adId: input.adReferral.adId } } : {}),
+      ...(input.providerTimestampVerified === true ? { providerTimestampVerified: true } : {}),
       ...(account ? { authenticatedAccount: account } : {}),
     };
     const event: WhatsAppInboxEvent = {

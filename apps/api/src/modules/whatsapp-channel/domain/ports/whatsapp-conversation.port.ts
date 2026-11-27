@@ -10,7 +10,8 @@ export interface WhatsAppConversationPort {
     state: import("../ui/meta-ui.types.js").WhatsAppConversationState;
     action: import("../ui/service-booking-controls.js").NativeServiceBookingAction;
   }): Promise<import("../ui/meta-ui.types.js").WhatsAppStructuredResponse>;
-  respond(input: { merchantId: string; checkoutSessionId: string; message: string }): Promise<{
+  respond(input: { merchantId: string; checkoutSessionId: string; message: string; requestId?: string;
+    humanContext?: Array<{ role: "user" | "assistant"; content: string }> }): Promise<{
     agentMessage: string; quickReplies: string[];
   }>;
   respondStore?(input: {

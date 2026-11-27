@@ -10,7 +10,8 @@ const message = z.string().max(4000).refine(value => value.trim().length > 0);
 const history = z.array(z.strictObject({ role: z.enum(["user", "assistant"]), content: z.string().max(8000) })).max(100);
 const attachment = z.string().max(24000).optional();
 const identity = z.strictObject({ agentName: z.string().max(200).optional(), persona: z.string().max(4000).optional(),
-  tone: z.string().max(200).optional(), greeting: z.string().max(4000).optional(), language: z.string().max(80).optional() });
+  tone: z.string().max(200).optional(), greeting: z.string().max(4000).optional(), language: z.string().max(80).optional(),
+  emptyCartGreeting: z.string().max(500).optional() });
 const buyer = z.strictObject({ globalUserId: id, name: z.string().max(200).optional(),
   phone: z.string().max(40).optional(), email: z.string().max(320).optional() });
 export const oneBuyClickContextSchema = z.strictObject({ enabled: z.boolean(),
@@ -32,6 +33,7 @@ const policy = z.strictObject({ maxDiscountPercent: z.number().min(0).max(100).o
 
 export const sendStoreMessageInputSchema = z.strictObject({
   merchant_id: id, conversation_id: id, user_message: message, cart_id: id.optional(), global_user_id: id.optional(),
+  message_id: z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/).optional(), marketing_consent: z.enum(["granted", "declined"]).optional(),
   history: history.optional(), attachment_context: attachment, device_type: z.enum(["mobile", "tablet", "desktop"]).optional(),
   one_buy_click: oneBuyClickContextSchema.optional(), ui_action: uiAction.optional(), trusted_buyer_context: buyer.optional(),
 });
@@ -56,6 +58,7 @@ export const sendStoreMessageOutputSchema = z.strictObject({
   blocks: storefrontConversationOutputSchema.shape.blocks,
   cart_id: id.optional(), conversation_id: id, suggested_next: z.array(z.string().min(1).max(500)).max(50),
   suggested_actions: storefrontSuggestedReadActionsSchema.optional(),
+  history_saved: z.boolean().optional(), handoff: z.boolean().optional(),
 });
 
 /** Pin structured response references to the server's current conversation scope. */

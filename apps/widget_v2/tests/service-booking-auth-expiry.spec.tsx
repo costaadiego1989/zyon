@@ -57,7 +57,7 @@ describe("T45 expired or revoked service-booking authorization", () => {
       expect(Array.from(document.querySelectorAll("button")).some(node => /Revisar agendamento|Confirmar e pagar|Continuar para pagamento/.test(node.textContent ?? ""))).toBe(false);
       expect(requests.filter(url => url.endsWith(path))).toHaveLength(1);
       expect(requests.filter(url => url.endsWith("/confirm"))).toHaveLength(path === "/confirm" ? 1 : 0);
-      expect(requests).toHaveLength(path === "/confirm" ? 9 : 8);
+      expect(requests).toHaveLength(path === "/confirm" ? 10 : 9);
     });
   }
 });

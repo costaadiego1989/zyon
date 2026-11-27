@@ -13,8 +13,13 @@ import { WHATSAPP_SENDER_PORT, type WhatsAppSenderPort } from "../../../notifica
 import { EMAIL_SENDER_PORT, type EmailSenderPort } from "../../../notifications/domain/ports/email-sender.port.js";
 import type { WhatsAppTemplateType } from "../../domain/catalog/template-types.js";
 import { WHATSAPP_CONFIG_REPOSITORY, type WhatsAppConfigRepository } from "../../../whatsapp-channel/domain/ports/whatsapp-config-repository.port.js";
-import { connectedMetaCloudRecoveryCredentials, isApprovedSalesTemplate } from "../../domain/services/recovery-whatsapp-policy.js";
+import { connectedMetaCloudRecoveryCredentials, isApprovedSalesTemplate, isApprovedSalesTemplateIdentity } from "../../domain/services/recovery-whatsapp-policy.js";
 import { renderRecoveryEmail } from "../../domain/recovery-email.js";
+import type { PrismaClient } from "@prisma/client";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { RecoveryMessageJournal } from "../../../cart-recovery/infrastructure/recovery-message-journal.js";
+import { normalizeRecoveryRecipient } from "../../domain/services/recovery-whatsapp-policy.js";
+import { templateDispatchDigest } from "../../domain/services/template-dispatch-binding.js";
 
 export type WhatsAppProvider = "email" | "bubblewhats" | "meta";
 
@@ -42,6 +47,8 @@ export interface SendWhatsAppMessageInput {
   emailSubject?: string;
   /** Pre-rendered text for the email fallback body. */
   freeformText?: string;
+  /** Server-only eligibility guard, re-run immediately before physical dispatch. */
+  assertDispatchAuthorized?: (channel?: "whatsapp" | "email") => Promise<void>;
 }
 
 export interface SendWhatsAppMessageResult {
@@ -49,6 +56,7 @@ export interface SendWhatsAppMessageResult {
   status: "sent" | "skipped" | "failed" | "uncertain";
   messageId?: string;
   reason?: string;
+  fallbackReason?: string;
 }
 
 /** Official Meta templates for sales automation; uncertain acceptance never switches channels. */
@@ -70,6 +78,7 @@ export class SendWhatsAppMessageUseCase {
     @Optional()
     @Inject(WHATSAPP_CONFIG_REPOSITORY)
     private readonly configRepo?: WhatsAppConfigRepository,
+    @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
   ) {}
 
   async execute(input: SendWhatsAppMessageInput): Promise<SendWhatsAppMessageResult> {
@@ -84,15 +93,30 @@ export class SendWhatsAppMessageUseCase {
   }
 
   private async sendSalesMessage(input: SendWhatsAppMessageInput): Promise<SendWhatsAppMessageResult> {
+    let fallbackReason = input.toPhone?.trim() ? "whatsapp_sender_unavailable" : "whatsapp_contact_unavailable";
     if (input.toPhone?.trim() && this.templateSender && this.configRepo) {
-      const config = await this.configRepo.findByMerchantId(input.merchantId).catch(() => null);
+      fallbackReason = "meta_connection_unavailable";
+      const config = await this.configRepo.findByMerchantId(input.merchantId).catch(() => {
+        fallbackReason = "whatsapp_connection_lookup_unavailable"; return null;
+      });
       const connection = connectedMetaCloudRecoveryCredentials(config, input.merchantId);
       if (connection) {
+        fallbackReason = "approved_template_unavailable";
         const template = await this.templates
           .findByMerchantAndType(input.merchantId, input.type, "whatsapp")
-          .catch(() => null);
-        if (isApprovedSalesTemplate(template, input.merchantId, input.type, connection.wabaId)
+          .catch(() => { fallbackReason = "whatsapp_template_lookup_unavailable"; return null; });
+        if (template && input.type === "cart_recovery" && !hasRecoveryLinkSlot(template)) fallbackReason = "recovery_template_link_missing";
+        const approvalPolicy = input.type === "cart_recovery" ? isApprovedSalesTemplateIdentity : isApprovedSalesTemplate;
+        if (approvalPolicy(template, input.merchantId, input.type, connection.wabaId)
           && (input.type !== "cart_recovery" || hasRecoveryLinkSlot(template))) {
+          const variables = this.resolveVariables(template, input.variables ?? {});
+          const journal = this.prisma && input.type === "cart_recovery" && input.correlationId ? new RecoveryMessageJournal(this.prisma) : null;
+          const recordId = journal ? await journal.prepare(input.merchantId, input.correlationId!, "whatsapp_template", {
+            name: String(input.variables?.buyerName ?? "") || null, email: input.fallbackEmail ?? null,
+            phone: input.toPhone ?? null, recipient: normalizeRecoveryRecipient(input.toPhone!) ?? input.toPhone!,
+            body: (template.metaTemplateBody ?? template.body).replace(/\{\{(\d+)\}\}/g, (_, key: string) => variables[key] ?? ""),
+            subject: null, template: template.twilioContentSid,
+          }, config!.id) : null;
           try {
             const result = await this.templateSender.sendTemplate({
               merchantId: input.merchantId,
@@ -101,14 +125,18 @@ export class SendWhatsAppMessageUseCase {
               toNumber: input.toPhone,
               contentSid: template.twilioContentSid,
               language: template.metaLanguage ?? "pt_BR",
-              contentVariables: this.resolveVariables(template, input.variables ?? {}),
+              contentVariables: variables,
+              ...(journal ? { expectedConnection: { configId: config!.id, wabaId: connection.wabaId, phoneNumberId: connection.phoneNumberId },
+                expectedTemplate: { revision: template.metaRevision ?? 0, bodyDigest: templateDispatchDigest(template) } } : {}),
+              ...(input.assertDispatchAuthorized ? { assertDispatchAuthorized: () => input.assertDispatchAuthorized!("whatsapp") } : {}),
             });
+            if (journal && recordId) await journal.complete(recordId, result);
             if ((result.status === "sent" || result.status === "queued") && result.messageId?.trim()) {
               return { channel: "whatsapp_template", status: "sent", messageId: result.messageId };
             }
             if (result.status === "failed") {
               if (result.acceptance === "not_accepted" && !result.messageId?.trim()) {
-                return this.sendEmail(input);
+                return this.sendFallbackEmail(input, result.reason ?? "provider_rejected");
               }
               return { channel: "whatsapp_template", status: "failed", reason: result.reason ?? "provider_rejected" };
             }
@@ -117,13 +145,20 @@ export class SendWhatsAppMessageUseCase {
             if (result.status !== "skipped" || result.messageId?.trim()) {
               return { channel: "whatsapp_template", status: "uncertain", reason: result.reason ?? "provider_acceptance_unknown" };
             }
+            fallbackReason = result.reason ?? "whatsapp_dispatch_skipped";
           } catch {
+            if (journal && recordId) await journal.complete(recordId, { status: "uncertain", reason: "provider_acceptance_unknown" });
             return { channel: "whatsapp_template", status: "uncertain", reason: "provider_acceptance_unknown" };
           }
         }
       }
     }
-    return this.sendEmail(input);
+    return this.sendFallbackEmail(input, fallbackReason);
+  }
+
+  private async sendFallbackEmail(input: SendWhatsAppMessageInput, fallbackReason: string): Promise<SendWhatsAppMessageResult> {
+    const result = await this.sendEmail(input);
+    return input.type === "cart_recovery" ? { ...result, fallbackReason } : result;
   }
 
   private async sendEmail(input: SendWhatsAppMessageInput): Promise<SendWhatsAppMessageResult> {
@@ -138,9 +173,17 @@ export class SendWhatsAppMessageUseCase {
       }
     }
     if (input.fallbackEmail && this.email && input.freeformText) {
+      try { await input.assertDispatchAuthorized?.("email"); }
+      catch { return { channel: "none", status: "skipped", reason: "notification_authority_changed" }; }
       const html = input.freeformText.replace(/&/g, "&amp;").replace(/</g, "&lt;")
         .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;").replace(/\n/g, "<br>");
       let result;
+      const journal = this.prisma && input.type === "cart_recovery" && input.correlationId ? new RecoveryMessageJournal(this.prisma) : null;
+      const recordId = journal ? await journal.prepare(input.merchantId, input.correlationId!, "email", {
+        name: String(input.variables?.buyerName ?? "") || null, email: input.fallbackEmail,
+        phone: input.toPhone ?? null, recipient: input.fallbackEmail, body: input.freeformText,
+        subject: resolveTemplateEmailSubject(input.type, input.emailSubject, input.variables), template: null,
+      }) : null;
       try {
         result = await this.email.send({
           to: input.fallbackEmail,
@@ -151,7 +194,9 @@ export class SendWhatsAppMessageUseCase {
             : `<p>${html}</p>`,
           requireDelivery: true,
         });
+        if (journal && recordId) await journal.complete(recordId, result);
       } catch (error) {
+        if (journal && recordId) await journal.complete(recordId, { status: "uncertain", reason: "provider_acceptance_unknown" });
         return { channel: "email", status: "uncertain", reason: "provider_acceptance_unknown" };
       }
       if (result.messageId?.trim() && (result.status === "sent" || result.status === "queued")) {
@@ -179,6 +224,9 @@ export class SendWhatsAppMessageUseCase {
     const coupon = vars["coupon"] != null ? String(vars["coupon"]) : "";
     const discount = vars["discount"] != null ? String(vars["discount"]) : vars["discountPercent"] != null ? `${vars["discountPercent"]}%` : "";
     const values: Record<string, string> = {
+      otpCode: vars["otpCode"] != null ? String(vars["otpCode"]) : "",
+      cashbackAmount: vars["cashbackAmount"] != null ? String(vars["cashbackAmount"]) : "",
+      cashbackExpiresAt: vars["cashbackExpiresAt"] != null ? String(vars["cashbackExpiresAt"]) : "",
       appointmentSummary: vars["appointmentSummary"] != null ? String(vars["appointmentSummary"]) : "",
       buyerName: vars["buyerName"] != null ? String(vars["buyerName"]) : "Cliente",
       storeName: vars["storeName"] != null ? String(vars["storeName"]) : "nossa loja",

@@ -16,7 +16,10 @@ import type { BuyerSupportInbox } from "@/lib/viewmodels/useBuyerSupportInbox";
 import type { BuyerConversation } from "@/lib/viewmodels/useBuyerHub/types";
 import PreferencesTab from "./tabs/PreferencesTab";
 import LoyaltyTab from "./tabs/LoyaltyTab";
+import { CashbackWallet } from "./CashbackWallet";
 import { SettingsTab } from "./tabs/SettingsTab";
+import AgentTab from "./tabs/AgentTab";
+import { readBuyerFiscalNavigation } from "@/lib/fiscal-navigation";
 
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
@@ -29,11 +32,14 @@ export interface BuyerHubPanelProps {
   onClose: () => void;
   merchantId?: string;
   merchantSlug?: string;
+  storeName?: string;
+  theme?: "light" | "dark";
   onToggleTheme?: () => void;
   currentSessionId?: string | null;
   onResumeConversation?: (conversation: BuyerConversation) => Promise<void>;
   supportInbox?: BuyerSupportInbox;
   initialTab?: TabType;
+  cashbackEnabled?: boolean;
 }
 
 
@@ -52,6 +58,11 @@ interface TabDef {
 }
 
 const TABS: TabDef[] = [
+  {
+    key: "agent",
+    label: "Meu agente",
+    icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M12 3v3M8 3h8M5 10a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3z" /><path d="M9 12h.01M15 12h.01M9 16h6" /></svg>,
+  },
   {
     key: "profile",
     label: "Perfil",
@@ -103,6 +114,11 @@ const TABS: TabDef[] = [
         <path d="M13.73 21a2 2 0 01-3.46 0" />
       </svg>
     ),
+  },
+  {
+    key: "cashback",
+    label: "Cashback",
+    icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 8V6a2 2 0 0 0-2-2H6a3 3 0 0 0 0 6h14v10H6a3 3 0 0 1-3-3V7" /><path d="M20 12h-5v4h5" /></svg>,
   },
   {
     key: "loyalty",
@@ -457,10 +473,16 @@ function EmailLoginForm({ onAuthSuccess, merchantId, onAccountNotFound }: {
 }
 
 
-export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, onToggleTheme, currentSessionId, onResumeConversation, supportInbox, initialTab = "profile" }: BuyerHubPanelProps) {
+export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, storeName, theme, onToggleTheme, currentSessionId, onResumeConversation, supportInbox, initialTab = "profile", cashbackEnabled = false }: BuyerHubPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
   const vm = useBuyerHub(isOpen, merchantId);
-  useEffect(() => { if (isOpen) vm.setActiveTab(initialTab); }, [isOpen, initialTab, vm.setActiveTab]);
+  useEffect(() => { if (isOpen) vm.setActiveTab(initialTab === "cashback" && !cashbackEnabled ? "loyalty" : initialTab); }, [isOpen, initialTab, cashbackEnabled, vm.setActiveTab]);
+  useEffect(() => { if (!cashbackEnabled && vm.activeTab === "cashback") vm.setActiveTab("loyalty"); }, [cashbackEnabled, vm.activeTab, vm.setActiveTab]);
+  useEffect(() => {
+    if (isOpen && vm.auth) tabsRef.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [isOpen, vm.activeTab, Boolean(vm.auth), cashbackEnabled]);
   const cartView = useCart();
   const currentCart = merchantId && cartView.snapshotMerchantId === merchantId && !cartView.error && !cartView.updating
     ? cartView.cart : null;
@@ -474,6 +496,24 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, onTog
     freeShipping: currentCart.freeShipping,
     activeRules: currentCart.activeRules,
   } : undefined;
+  useEffect(() => {
+    if (isOpen && new URLSearchParams(window.location.search).has("agent")) vm.setActiveTab("agent");
+  }, [isOpen, vm.setActiveTab]);
+  const [fiscalNavigation, setFiscalNavigation] = useState<ReturnType<typeof readBuyerFiscalNavigation>>(null);
+  useEffect(() => {
+    const sync = () => {
+      const target = readBuyerFiscalNavigation(window.location.search);
+      setFiscalNavigation(target);
+      if (target) vm.setActiveTab("orders");
+    };
+    sync();
+    window.addEventListener("aacp:open-buyer-hub", sync);
+    window.addEventListener("popstate", sync);
+    return () => {
+      window.removeEventListener("aacp:open-buyer-hub", sync);
+      window.removeEventListener("popstate", sync);
+    };
+  }, [isOpen, vm.setActiveTab]);
   const [authVersion, setAuthVersion] = useState(0);
   const [registrationOtp, setRegistrationOtp] = useState<{ email: string; otp: string } | null>(null);
 
@@ -538,7 +578,7 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, onTog
           position: "fixed",
           top: 0,
           right: 0,
-          width: "min(480px, 100vw)",
+          width: vm.activeTab === "agent" ? "min(600px, 100vw)" : "min(480px, 100vw)",
           height: "100dvh",
           background: "var(--aacp-panel-bg, var(--aacp-bg, #edf0ee))",
           borderLeft: "1px solid var(--aacp-line)",
@@ -684,6 +724,7 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, onTog
           <>
             {/* Tab bar — HORIZONTAL SCROLLABLE, NOT STRETCHED */}
             <div
+              ref={tabsRef}
               role="tablist"
               aria-label="Navegacao do hub"
               style={{
@@ -697,7 +738,7 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, onTog
                 msOverflowStyle: "none",
               }}
             >
-              {TABS.map((tab) => {
+              {TABS.filter(tab => tab.key !== "cashback" || cashbackEnabled).map((tab) => {
                 const isActive = vm.activeTab === tab.key;
                 return (
                   <button data-neu="tab"
@@ -735,10 +776,11 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, onTog
               id={`buyerhub-tabpanel-${vm.activeTab}`}
               role="tabpanel"
               aria-label={TABS.find((t) => t.key === vm.activeTab)?.label}
-              style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", padding: "20px" }}
+              style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", padding: vm.activeTab === "agent" ? "28px 24px" : "20px" }}
             >
               {vm.activeTab === "profile" && (
                 <ProfileTab
+                  merchantId={merchantId}
                   profile={vm.profile.data}
                   addresses={vm.addresses.data ?? []}
                   loading={vm.profile.loading || vm.addresses.loading}
@@ -748,6 +790,7 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, onTog
                   onDeleteAddress={vm.deleteAddress}
                 />
               )}
+              {vm.activeTab === "agent" && merchantId && <AgentTab key={`${merchantId}:${vm.auth?.globalUserId ?? ""}:${authVersion}`} merchantId={merchantId} storeName={storeName} theme={theme} />}
               {vm.activeTab === "orders" && (
                 <OrdersTab
                   purchases={vm.purchases.data ?? []}
@@ -757,6 +800,9 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, onTog
                   hasMore={vm.purchasesHasMore}
                   loadingMore={vm.purchases.loading}
                   onLoadMore={vm.loadMorePurchases}
+                  merchantId={merchantId}
+                  buyer={vm.auth}
+                  fiscalNavigation={fiscalNavigation}
                 />
               )}
               {vm.activeTab === "tracking" && (
@@ -793,6 +839,8 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, onTog
                 />
               )}
               {vm.activeTab === "loyalty" && (
+                <>
+                <CashbackWallet merchantId={merchantId} existingCreditsOnly={!cashbackEnabled} />
                 <LoyaltyTab
                   loyalty={vm.loyalty.data}
                   summary={vm.summary.data ?? null}
@@ -805,7 +853,9 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, onTog
                   onRetryBenefits={() => { void vm.loadBenefits(); }}
                   loading={vm.loyalty.loading || vm.discountRules.loading || vm.benefits.loading}
                 />
+                </>
               )}
+              {vm.activeTab === "cashback" && cashbackEnabled && <CashbackWallet merchantId={merchantId} />}
               {vm.activeTab === "settings" && (
                 <SettingsTab
                   theme={(typeof window !== "undefined" && (localStorage.getItem("zyon-theme") as "dark" | "light")) || "dark"}

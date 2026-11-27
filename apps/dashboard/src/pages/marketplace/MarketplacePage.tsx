@@ -1,8 +1,9 @@
+import { AlertCircle, ArrowRightLeft, BarChart3, CalendarClock, CheckCircle, CircleCheck, Clock, DollarSign, ListFilter, PackageCheck, Scale, Settings2, ShoppingBag, Store, TrendingUp, Truck, Undo2, Wallet, Zap } from "lucide-react";
 import "../../components/configuration-form.css";
 import { SetupGuide } from "../../components/SetupGuide.js";
 import { PageHeader } from "../../components/PageHeader.js";
 import React from "react";
-import { Store, ShoppingBag, Zap, Clock, TrendingUp, Truck, BarChart3, DollarSign, CheckCircle, AlertCircle } from "lucide-react";
+
 import type { MerchantProfile } from "../../api-client.js";
 import { EmptyState } from "../../components/EmptyState.js";
 import { TabBar } from "../../components/TabBar.js";
@@ -105,12 +106,12 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
 
       <TabBar
         tabs={[
-          { key: "stores", label: "Lojas" },
-          { key: "orders", label: "Pedidos" },
-          { key: "settlements", label: "Repasses" },
-          { key: "returns", label: "Devoluções" },
-          { key: "chargebacks", label: "Contestações" },
-          { key: "settings", label: "Configurações" },
+          { key: "stores", label: "Lojas", icon: <Store size={16} /> },
+          { key: "orders", label: "Pedidos", icon: <ShoppingBag size={16} /> },
+          { key: "settlements", label: "Repasses", icon: <Wallet size={16} /> },
+          { key: "returns", label: "Devoluções", icon: <Undo2 size={16} /> },
+          { key: "chargebacks", label: "Contestações", icon: <Scale size={16} /> },
+          { key: "settings", label: "Configurações", icon: <Settings2 size={16} /> },
         ]}
         activeTab={tab}
         onTabChange={changeTab}
@@ -172,10 +173,10 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
               <>
 <FilterToolbar
                   tabs={[
-                    { key: "all", label: "Todos" },
-                    { key: "pending", label: "Pendente" },
-                    { key: "shipped", label: "Enviado" },
-                    { key: "delivered", label: "Entregue" },
+                    { key: "all", label: "Todos", icon: <ListFilter size={16} /> },
+                    { key: "pending", label: "Pendente", icon: <Clock size={16} /> },
+                    { key: "shipped", label: "Enviado", icon: <Truck size={16} /> },
+                    { key: "delivered", label: "Entregue", icon: <PackageCheck size={16} /> },
                   ]}
                   activeTab={ordersStatus}
                   onTabChange={(k) => { setOrdersStatus(k); setOrdersPage(1); }}
@@ -270,11 +271,11 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
           <>
 <FilterToolbar
               tabs={[
-                { key: "all", label: "Todos" },
-                { key: "awaiting_return_window", label: "Aguardando devolução" },
-                { key: "transfer_scheduled", label: "Agendado" },
-                { key: "transferred", label: "Transferido" },
-                { key: "finalized", label: "Finalizado" },
+                { key: "all", label: "Todos", icon: <ListFilter size={16} /> },
+                { key: "awaiting_return_window", label: "Aguardando devolução", icon: <Clock size={16} /> },
+                { key: "transfer_scheduled", label: "Agendado", icon: <CalendarClock size={16} /> },
+                { key: "transferred", label: "Transferido", icon: <ArrowRightLeft size={16} /> },
+                { key: "finalized", label: "Finalizado", icon: <CircleCheck size={16} /> },
               ]}
               activeTab={settlementsStatus}
               onTabChange={(k) => { setSettlementsStatus(k); setSettlementsPage(1); }}
@@ -358,7 +359,7 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
 
             <>
 <FilterToolbar
-                tabs={[{ key: "all", label: "Todas" }]}
+                tabs={[{ key: "all", label: "Todas", icon: <ListFilter size={16} /> }]}
                 activeTab="all"
                 onTabChange={() => {}}
                 search={returnsSearch}
@@ -432,7 +433,7 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
           return (
           <>
 <FilterToolbar
-                tabs={[{ key: "all", label: "Todos" }]}
+                tabs={[{ key: "all", label: "Todos", icon: <ListFilter size={16} /> }]}
                 activeTab="all"
                 onTabChange={() => {}}
                 search={chargebacksSearch}

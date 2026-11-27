@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Plus, Zap } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { SetupGuide } from "../../components/SetupGuide.js";
@@ -12,12 +12,14 @@ import { useExperimentsPage } from "./hooks/useExperimentsPage.js";
 import { ExperimentCard } from "./components/ExperimentCard.js";
 import { ExperimentDetail } from "./components/ExperimentDetail.js";
 import { ExperimentForm } from "./components/ExperimentForm.js";
+import { ExperimentActivationReview } from "./components/ExperimentActivationReview.js";
 import { ConfirmDialog } from "../../components/ConfirmDialog.js";
 import "./experiments.css";
 export interface ExperimentsPageProps { apiBaseUrl: string; me: MerchantProfile | null; }
 const STATUSES = [{ value: "all", label: "Todos os status" }, { value: "draft", label: "Rascunhos" }, { value: "running", label: "Em execução" }, { value: "paused", label: "Pausados" }, { value: "completed", label: "Concluídos" }, { value: "archived", label: "Arquivados" }];
 export function ExperimentsPage(props: ExperimentsPageProps) {
   const vm = useExperimentsPage({ me: props.me });
+  const [activationId, setActivationId] = useState<string | null>(null);
   if (!props.me) return <PageHeader title="Testes A/B" description="Faça login para acompanhar seus testes." />;
   return <div className="page-container experiments-page">
     <PageHeader title="Testes A/B" description="Compare versões das instruções do agente e acompanhe os resultados."
@@ -49,7 +51,7 @@ export function ExperimentsPage(props: ExperimentsPageProps) {
         <section className="experiments-detail" aria-label="Detalhes do teste">
           {vm.selectedExperiment && vm.experiments.some(exp => exp.id === vm.selectedId) ? <ExperimentDetail experiment={vm.selectedExperiment} results={vm.selectedResults} loading={vm.resultsLoading} saving={vm.saving}
             resultsError={vm.resultsError} onRetryResults={vm.reloadResults}
-            onStart={() => vm.handleStartExperiment(vm.selectedId!)} onStop={() => vm.handleStopExperiment(vm.selectedId!)}
+            onStart={() => setActivationId(vm.selectedId!)} onStop={() => vm.handleStopExperiment(vm.selectedId!)}
             onPromote={variantId => vm.handlePromoteVariant(vm.selectedId!, variantId)} onArchive={() => vm.requestArchive(vm.selectedId!)} /> :
             <EmptyState icon={Zap} title="Selecione um teste" description="Escolha um item da lista para consultar versões, resultados e próximas ações." />}
         </section>
@@ -59,5 +61,6 @@ export function ExperimentsPage(props: ExperimentsPageProps) {
       updateVariant={vm.updateVariant} onGenerateVariants={vm.handleGenerateVariants} generatingVariants={vm.generatingVariants} />}
     <ConfirmDialog open={vm.archiveConfirmId !== null} title="Arquivar teste?" description="O teste será movido para Arquivados. Arquivar um rascunho não inicia o teste."
       confirmLabel="Arquivar teste" variant="danger" busy={vm.saving} error={vm.archiveError} onConfirm={vm.confirmArchive} onCancel={vm.cancelArchive} />
+    {activationId && <ExperimentActivationReview experimentId={activationId} onClose={() => setActivationId(null)} onActivated={vm.applyActivatedExperiment} />}
   </div>;
 }

@@ -2,9 +2,11 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
 import { repairRevenueFoundationFailure, revenueFoundationMigration } from "./revenue-foundation-repair.mjs";
+import { prospectingMigrationPlan } from "./prospecting-migration-plan.mjs";
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("DATABASE_URL is required for migrations");
+const directoryMigration = await prospectingMigrationPlan(process.env);
 
 const client = new pg.Client({ connectionString: databaseUrl });
 const failedLegacyMigration = "20260501103000_checkout_module";
@@ -230,6 +232,7 @@ try {
 }
 
 prisma(["migrate", "deploy"]);
+if (directoryMigration) prisma(directoryMigration);
 
 // A prior deploy can record a migration as applied even when a deployment is
 // interrupted between its history update and an additive schema change. Verify

@@ -1,12 +1,14 @@
 "use client";
 
-import type { MerchantThemeAppearance, StorefrontReadUiAction } from "@zyon/shared-types";
+import type { MerchantThemeAppearance, StorefrontPublicUiAction as StorefrontReadUiAction } from "@zyon/shared-types";
 import { readRealtimeVoiceCall } from "@zyon/shared-types";
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PerimeterBorder } from "../../../widget_v2/src/components/PerimeterBorder";
+import { MerchantTrustBadges } from "../../../widget_v2/src/components/MerchantTrustBadges";
 import { useAgentBlockDelay } from "../../../widget_v2/src/lib/use-agent-block-delay";
 import { SafeStoreHtml } from "./SafeStoreHtml";
+import { MarketingConsentOpening } from "./MarketingConsentOpening";
 import { useCart } from "@/lib/cart-store";
 import { useStorefrontCrossSell } from "@/lib/use-storefront-cross-sell";
 import { createCrossSellDetailContext, crossSellDetailRequiresRecovery, isCrossSellDetailCurrent, type CrossSellDetailContext, type CrossSellDetailPurchase } from "@/lib/storefront-cross-sell-detail";
@@ -22,6 +24,9 @@ import BlockRenderer from "./blocks/BlockRenderer";
 import RichProductDetailsPanel from "./blocks/RichProductDetailsPanel";
 import { BuyerHub } from "./BuyerHub";
 import { BuyerHubTrigger } from "./BuyerHubTrigger";
+import { CashbackNavigation } from "./CashbackNavigation";
+import { useStoreCashbackNavigation } from "@/lib/hooks/useStoreCashbackNavigation";
+import { cashbackWelcomeReplies, isCashbackBalanceLink } from "@/lib/cashback-navigation";
 import { useBuyerSupportInbox } from "@/lib/viewmodels/useBuyerSupportInbox";
 import SupportPanel, { type SupportTarget } from "./SupportPanel";
 import type { TabType } from "@/lib/viewmodels/useBuyerHub";
@@ -44,6 +49,7 @@ import { RealtimeVoiceComposer } from "./conversation/RealtimeVoiceComposer";
 import { VoiceChannelButton } from "./conversation/VoiceChannelButton";
 import QuickPurchasePreferencesDialog, { type QuickPurchasePreferences } from "./QuickPurchasePreferencesDialog";
 import { AttachmentPicker } from "./conversation/AttachmentPicker";
+import { MetaAdsAttribution } from "./MetaAdsAttribution";
 import type { ConversationAttachment } from "@/lib/viewmodels/useConversationViewModel/types";
 
 type Channel = "chat" | "voice";
@@ -247,6 +253,8 @@ export default function ConversationShell({
   budgetModeEnabled: initialBudgetMode = false,
   showBranding,
   voiceCheckoutEnabled,
+  marketingCrmEnabled,
+  cashbackEnabled: initialCashbackEnabled = false,
   agentMode,
   agentInitialDelaySeconds,
   initialRichProductId,
@@ -268,6 +276,8 @@ export default function ConversationShell({
   themeMode?: "dark" | "light" | "grey";
   showBranding?: boolean;
   voiceCheckoutEnabled?: boolean;
+  marketingCrmEnabled?: boolean;
+  cashbackEnabled?: boolean;
   agentMode?: "silent_until_trigger" | "proactive" | "manual_only";
   agentInitialDelaySeconds?: number;
   initialRichProductId?: string;
@@ -295,6 +305,7 @@ export default function ConversationShell({
     budgetModeEnabled,
     agentMode,
     agentInitialDelaySeconds,
+    marketingCrmEnabled,
   });
   const {
     mode, channel, theme, messages, input, isLoading,
@@ -304,6 +315,7 @@ export default function ConversationShell({
     handleQuickReply, appendAgentMessage, handleUpdateQuantity, setInput,
     setSupportOpen, setBuyerHubOpen, setShowBuyerAuth, setCheckoutIntent, setPolicyModal,
     setCartDrawerForceOpen, dismissCrossSell, dismissProductCrossSell, clearPreparedCheckout,
+    humanHandoff,marketingChoiceRequired,chooseMarketing,
   } = vm;
   const pendingAgentBlocks = useAgentBlockDelay(messages, conversationId ?? merchantId ?? null);
   const latestAgentMessage = [...messages].reverse().find((message) => message.role === "agent");
@@ -311,6 +323,14 @@ export default function ConversationShell({
   const supportInbox = useBuyerSupportInbox(merchantId, conversationId);
   const [supportTarget, setSupportTarget] = useState<SupportTarget>();
   const [buyerHubTab, setBuyerHubTab] = useState<TabType>("profile");
+  const cashbackNavigation = useStoreCashbackNavigation(merchantId, merchantSlug, initialCashbackEnabled);
+  const openCashback = async () => {
+    if (!await cashbackNavigation.refresh()) return;
+    setStoreMenuOpen(false);
+    setSupportOpen(false);
+    setBuyerHubTab("cashback");
+    setBuyerHubOpen(true);
+  };
   const inputRef = useRef<HTMLInputElement | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
   const presentedProductVariantRef = useRef<string | undefined>(undefined);
@@ -389,7 +409,7 @@ export default function ConversationShell({
       prepare: crossSell.prepare, present: crossSell.quoted, accept: crossSell.accept } : undefined;
   const realtimeVoice = useRealtimeVoiceCheckout({
     // This session is reserved for the explicit purchase-voice composer control.
-    enabled: voiceCheckoutEnabled === true && !checkoutOpen,
+    enabled: voiceCheckoutEnabled === true && !checkoutOpen && !humanHandoff && !marketingChoiceRequired,
     createSession: async (sdp) => {
       const activeConversationId = await ensureConversation();
       if (!activeConversationId) throw new Error("conversation_not_ready");
@@ -420,7 +440,7 @@ export default function ConversationShell({
     window.dispatchEvent(new CustomEvent("zyon:realtime-product-narration-progress", { detail: { requestId, ...progress } }));
   }, []);
   const narrationVoice = useRealtimeProductNarration({
-    enabled: voiceCheckoutEnabled === true && !checkoutOpen,
+    enabled: voiceCheckoutEnabled === true && !checkoutOpen && !humanHandoff && !marketingChoiceRequired,
     onProgress: publishNarrationProgress,
     createSession: async (productId, sdp) => {
       const activeConversationId = await ensureConversation();
@@ -717,17 +737,20 @@ export default function ConversationShell({
   useEffect(() => {
     const onOpenBuyerHub = (event: Event) => {
       const tab = (event as CustomEvent<{ tab?: string }>).detail?.tab;
-      setBuyerHubTab(tab === "orders" || tab === "tracking" || tab === "conversations" ? tab : "profile");
+      setBuyerHubTab(tab === "orders" || tab === "tracking" || tab === "conversations" || tab === "agent" || tab === "cashback" && cashbackNavigation.enabled ? tab : "profile");
       setSupportOpen(false);
       setBuyerHubOpen(true);
     };
     window.addEventListener("aacp:open-buyer-hub", onOpenBuyerHub);
+    const buyerQuery = new URLSearchParams(window.location.search);
+    if (buyerQuery.get("buyerHub") === "orders") { setBuyerHubTab("orders"); setBuyerHubOpen(true); }
+    else if (buyerQuery.has("agent")) { setBuyerHubTab("agent"); setBuyerHubOpen(true); }
     window.addEventListener("zyon:open-buyer-hub", onOpenBuyerHub);
     return () => {
       window.removeEventListener("aacp:open-buyer-hub", onOpenBuyerHub);
       window.removeEventListener("zyon:open-buyer-hub", onOpenBuyerHub);
     };
-  }, [setBuyerHubOpen, setSupportOpen]);
+  }, [setBuyerHubOpen, setSupportOpen, cashbackNavigation.enabled]);
   useEffect(() => {
     const onRichProductAdd = (event: Event) => {
       if (detailScopeRef.current.context && detailScopeRef.current.productId === detailScopeRef.current.context.productId) return;
@@ -871,6 +894,7 @@ export default function ConversationShell({
       handleQuickReply(option, uiAction);
       return;
     }
+    if (isCashbackBalanceLink(option)) { void openCashback(); return; }
     const pending = pendingProductCart.current;
     if (option === "Adicionar ao carrinho" && pending) {
       pendingProductCart.current = null;
@@ -881,9 +905,12 @@ export default function ConversationShell({
   };
   return (
     <div id="storefront-chat" className="pulse-widget-shell" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", position: "relative", borderRadius: "var(--aacp-radius, 19px)", padding: "1px" }}>
+      <MetaAdsAttribution merchantId={merchantId} conversationId={conversationId} />
       <PerimeterBorder radius="var(--aacp-radius, 19px)" />
       {/* Content */}
       <div data-aacp-chat-content style={{ position: "relative", display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", borderRadius: "max(0px, calc(var(--aacp-radius, 19px) - 1px))", overflow: "hidden", background: "var(--aacp-bg, #08080c)", zIndex: 2 }}>
+      {marketingChoiceRequired && effectiveMode === "chat" ? <MarketingConsentOpening storeName={storeName} onChoice={chooseMarketing}/> : null}
+      {humanHandoff ? <p role="status" style={{margin:0,padding:"10px 14px",fontSize:14}}>Você está conversando com a equipe da loja.</p> : null}
       <h1 style={{ position: "absolute", width: "1px", height: "1px", padding: 0, margin: "-1px", overflow: "hidden", clip: "rect(0,0,0,0)", whiteSpace: "nowrap", border: 0 }}>
         {storeName} - Loja Online
       </h1>
@@ -940,12 +967,12 @@ export default function ConversationShell({
             <svg width="15" height="15" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="var(--aacp-muted)" strokeWidth="1.8" /><path d="M12 3a9 9 0 0 0 0 18z" fill="var(--aacp-muted)" /></svg>
           </button>
 
-          <BuyerHubTrigger onClick={() => setBuyerHubOpen(!buyerHubOpen)} unreadCount={supportInbox.unreadCount} />
+          <BuyerHubTrigger onClick={() => { void cashbackNavigation.refresh(); setBuyerHubTab("profile"); setBuyerHubOpen(!buyerHubOpen); }} unreadCount={supportInbox.unreadCount} />
           <button data-neu="control" type="button" onClick={() => setSupportOpen((v) => !v)} title="Suporte" style={{ width: "30px", height: "30px", borderRadius: "50%", border: `1px solid ${supportOpen ? "var(--aacp-accent)" : "var(--aacp-line)"}`, background: supportOpen ? "color-mix(in srgb, var(--aacp-accent) 12%, transparent)" : "var(--aacp-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={supportOpen ? "var(--aacp-accent)" : "var(--aacp-muted)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
           </button>
 
-          {Object.values(storeSettings?.social ?? {}).some(Boolean) && (
+          {(cashbackNavigation.enabled || Object.values(storeSettings?.social ?? {}).some(Boolean)) && (
             <button
               data-neu="control"
               className="store-menu-trigger"
@@ -954,7 +981,7 @@ export default function ConversationShell({
               aria-controls="store-social-menu"
               aria-expanded={storeMenuOpen}
               title="Mais da loja"
-              onClick={() => setStoreMenuOpen((open) => !open)}
+              onClick={() => { void cashbackNavigation.refresh(); setStoreMenuOpen((open) => !open); }}
               style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", color: "var(--aacp-muted)", cursor: "pointer", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="5" cy="12" r="1" fill="currentColor" /><circle cx="12" cy="12" r="1" fill="currentColor" /><circle cx="19" cy="12" r="1" fill="currentColor" /></svg>
@@ -962,6 +989,7 @@ export default function ConversationShell({
           )}
 
           <nav className="conversation-header__social" aria-label="Ações rápidas" style={{ display: "flex", gap: "6px" }}>
+            <CashbackNavigation enabled={cashbackNavigation.enabled} pending={cashbackNavigation.pending} onOpen={() => { void openCashback(); }} />
             {storeSettings?.social?.instagram && (
               <a data-neu="control" href={storeSettings.social.instagram} target="_blank" rel="noopener noreferrer" style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none", transition: "all 0.15s", cursor: "pointer" }} title="Instagram"
                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--aacp-accent)"; e.currentTarget.style.background = "color-mix(in srgb, var(--aacp-accent) 12%, transparent)"; e.currentTarget.style.color = "var(--aacp-fg)"; }}
@@ -1003,6 +1031,7 @@ export default function ConversationShell({
           <>
             <button className="store-menu-backdrop" type="button" aria-label="Fechar mais da loja" onClick={() => setStoreMenuOpen(false)} />
             <aside id="store-social-menu" className="store-menu" role="dialog" aria-label="Mais da loja">
+              <CashbackNavigation enabled={cashbackNavigation.enabled} pending={cashbackNavigation.pending} onOpen={() => { void openCashback(); }} />
               <div className="store-menu__title">Acompanhe a loja</div>
               <StoreSocialLinks social={storeSettings?.social} />
             </aside>
@@ -1041,6 +1070,7 @@ export default function ConversationShell({
                 <span style={{ fontSize: "10.5px", color: "var(--aacp-muted)", lineHeight: 1.3 }}>Converse digitando</span>
               </button>
             </div>
+            <div style={{ marginTop: "16px" }}><CashbackNavigation enabled={cashbackNavigation.enabled} pending={cashbackNavigation.pending} onOpen={() => { void openCashback(); }} /></div>
           </div>
         </div>
       ) : (
@@ -1061,8 +1091,8 @@ export default function ConversationShell({
                   </div>
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", justifyContent: "center", marginTop: "10px", paddingBottom: "8px", width: "100%" }}>
-                  {(quickReplies ?? chatQuickReplies).map((label) => (
-                    <button data-neu="control" key={label} type="button" onClick={() => handleQuickReply(label)} style={{ padding: "7px 14px", borderRadius: "999px", border: "1px solid var(--aacp-line)", background: "transparent", color: "var(--aacp-muted)", fontSize: "11.5px", fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.15s", fontFamily: "var(--aacp-font)" }}
+                  {cashbackWelcomeReplies(quickReplies ?? chatQuickReplies, cashbackNavigation.enabled).map((label) => (
+                    <button data-neu="control" key={label} type="button" onClick={() => { if (isCashbackBalanceLink(label)) void openCashback(); else handleQuickReply(label); }} style={{ padding: "7px 14px", borderRadius: "999px", border: "1px solid var(--aacp-line)", background: "transparent", color: "var(--aacp-muted)", fontSize: "11.5px", fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.15s", fontFamily: "var(--aacp-font)" }}
                       onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--aacp-accent)"; e.currentTarget.style.color = "var(--aacp-fg)"; }}
                       onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--aacp-line)"; e.currentTarget.style.color = "var(--aacp-muted)"; }}
                     >{label}</button>
@@ -1196,6 +1226,7 @@ export default function ConversationShell({
         </div>
       )}
       {/* Whitelabel badge — free-plan merchants, both chat and intro modes */}
+      <MerchantTrustBadges badges={merchantTheme?.trustBadges} />
       <WhitelabelBadge show={showBranding} />
       {/* Policy Modal */}
       {policyModal && (
@@ -1264,7 +1295,7 @@ export default function ConversationShell({
         }}
       />
       {/* Buyer Hub Panel */}
-      <BuyerHub isOpen={buyerHubOpen} onClose={() => setBuyerHubOpen(false)} merchantId={merchantId} merchantSlug={merchantSlug} onToggleTheme={toggleTheme}
+      <BuyerHub isOpen={buyerHubOpen} onClose={() => setBuyerHubOpen(false)} merchantId={merchantId} merchantSlug={merchantSlug} storeName={storeName} theme={theme} onToggleTheme={toggleTheme} cashbackEnabled={cashbackNavigation.enabled}
         initialTab={buyerHubTab}
         supportInbox={supportInbox}
         currentSessionId={conversationId}

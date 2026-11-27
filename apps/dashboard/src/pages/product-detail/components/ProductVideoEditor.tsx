@@ -1,5 +1,6 @@
+import { CircleCheck, Clock, Image as ImageIcon, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import React, { useCallback, useState } from "react";
-import { Plus, Trash2, Clock, Image as ImageIcon } from "lucide-react";
+
 import { ToggleSwitch } from "../../../components/ToggleSwitch.js";
 import { Button } from "../../../components/Button.js";
 import { TabBar } from "../../../components/TabBar.js";
@@ -12,7 +13,7 @@ export interface ProductVideoEditorProps {
   videos: ProductVideo[];
   merchantId: string;
   busy?: boolean;
-  onSave: (v: ProductVideo) => Promise<void>;
+  onSave: (v: Omit<ProductVideo, "id"> & { id?: string }) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onModerate: (id: string, action: "approved" | "rejected", isPublished: boolean) => Promise<void>;
 }
@@ -48,8 +49,8 @@ function segmentedStyle(active: boolean): React.CSSProperties {
 }
 
 const TABS = [
-  { key: "approved", label: "Publicados" },
-  { key: "pending", label: "Moderar" },
+  { key: "approved", label: "Publicados", icon: <CircleCheck size={16} /> },
+  { key: "pending", label: "Moderar", icon: <ShieldCheck size={16} /> },
 ];
 
 const newVideo = (order: number): ProductVideo => ({
@@ -69,7 +70,7 @@ function isAllowedExternalUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
     if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return false;
-    return ALLOWED_HOSTS.some((host) => parsed.hostname.endsWith(host));
+    return ALLOWED_HOSTS.some((host) => parsed.hostname === host || parsed.hostname.endsWith(`.${host}`));
   } catch {
     return false;
   }
@@ -96,23 +97,20 @@ export function ProductVideoEditor({
   const [draftSource, setDraftSource] = useState<"external" | "upload">("external");
   const [draftUrl, setDraftUrl] = useState("");
   const [draftThumb, setDraftThumb] = useState("");
+  const [newDraft, setNewDraft] = useState<ProductVideo | null>(null);
 
-  const approved = videos.filter((v) => v.moderationStatus === "approved");
+  const approved = [...videos.filter((v) => v.moderationStatus === "approved"), ...(newDraft ? [newDraft] : [])];
   const pending = videos.filter((v) => v.moderationStatus === "pending");
 
-  const handleAdd = useCallback(async () => {
+  const handleAdd = useCallback(() => {
     const next = newVideo(videos.length);
-    try {
-      await onSave(next);
-      setEditingId(next.id);
-      setDraftTitle("");
-      setDraftSource("external");
-      setDraftUrl("");
-      setDraftThumb("");
-    } catch (e) {
-      showToast("error", "Erro ao criar vídeo");
-    }
-  }, [onSave, videos.length]);
+    setNewDraft(next);
+    setEditingId(next.id);
+    setDraftTitle("");
+    setDraftSource("external");
+    setDraftUrl("");
+    setDraftThumb("");
+  }, [videos.length]);
 
   const handleStartEdit = useCallback((v: ProductVideo) => {
     setEditingId(v.id);
@@ -128,6 +126,7 @@ export function ProductVideoEditor({
   }, []);
 
   const handleCancel = useCallback(() => {
+    setNewDraft(null);
     setEditingId(null);
     setDraftTitle("");
     setDraftSource("external");
@@ -148,16 +147,18 @@ export function ProductVideoEditor({
       try {
         await onSave({
           ...v,
+          id: newDraft?.id === v.id ? undefined : v.id,
           title: draftTitle.trim(),
           videoUrl: draftUrl.trim(),
           thumbnailUrl: draftThumb.trim() || null,
         });
+        setNewDraft(null);
         setEditingId(null);
       } catch (e) {
         showToast("error", e instanceof Error ? e.message : "Erro ao salvar vídeo");
       }
     },
-    [draftThumb, draftTitle, draftUrl, draftSource, onSave],
+    [draftThumb, draftTitle, draftUrl, draftSource, onSave, newDraft],
   );
 
   const handleDelete = useCallback(
@@ -361,7 +362,7 @@ export function ProductVideoEditor({
                   <ToggleSwitch
                     checked={v.isPublished}
                     onChange={() => void handleTogglePublished(v)}
-                    disabled={busy}
+                    disabled={busy || newDraft?.id === v.id}
                   />
                   <span style={{ font: "10px var(--font-mono)", color: "var(--color-text-faint)" }}>
                     {v.isPublished ? "PUBLICADO" : "RASCUNHO"}
@@ -371,7 +372,7 @@ export function ProductVideoEditor({
             );
           })}
 
-          <Button variant="primary" size="sm" onClick={() => void handleAdd()} disabled={busy}>
+          <Button variant="primary" size="sm" onClick={handleAdd} disabled={busy || editingId !== null}>
             <Plus size={13} /> Adicionar vídeo
           </Button>
         </>

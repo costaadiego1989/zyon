@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage } from "node:http";
 import { z } from "zod";
 import { GRAPH_EMBEDDING_ID } from "../domain/graph-embedding-model.js";
 import type { GatewayReadEngine } from "./community-read-engine.js";
-import { GRAPH_GATEWAY_MAX_BODY_BYTES, GRAPH_QUERY_PROTOCOL, gatewayTemplateHash, gatewayReadEnvelope, publicBusinessReadEnvelope, verifyQuery, signQueryResponse } from "./query-protocol.js";
+import { GRAPH_GATEWAY_MAX_BODY_BYTES, GRAPH_QUERY_PROTOCOL, GRAPH_TEMPLATE_HASH, gatewayTemplateHash, gatewayReadEnvelope, publicBusinessReadEnvelope, verifyQuery, signQueryResponse } from "./query-protocol.js";
 import { PUBLIC_BUSINESS_TEMPLATE_HASH } from "../domain/public-business-query.js";
 
 export interface QueryGatewaySettings { keyId: string; secret: string; merchantIds: readonly string[] }
@@ -55,7 +55,8 @@ export function createQueryGateway(settings: QueryGatewaySettings, engine: Gatew
         if (!checked.success || checked.data.merchantIds.some(id => !settings.merchantIds.includes(id))) { send(403, { error: "scope_or_protocol" }, headers.nonce);return; }
         if (!await engine.probe()) { send(503, { error: "unavailable" }, headers.nonce);return; }
         send(200, { protocol: GRAPH_QUERY_PROTOCOL, templateHash: checked.data.templateHash, modelId: GRAPH_EMBEDDING_ID,
-          merchantIds: checked.data.merchantIds, mode: "community_controlled", operations: ["catalog", "knowledge"] }, headers.nonce);return;
+          merchantIds: checked.data.merchantIds, mode: "community_controlled", operations:
+            checked.data.templateHash === GRAPH_TEMPLATE_HASH ? ["catalog", "knowledge", "merchant_help"] : ["catalog", "knowledge"] }, headers.nonce);return;
       }
       const publicChecked = publicBusinessReadEnvelope.safeParse(value);
       if (publicChecked.success) {

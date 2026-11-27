@@ -1,0 +1,109 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import "./meta-ads-agent.css";
+import type { MetaAdsActionKind, MetaAdsCampaign, MetaAdsMetrics, MetaAdsOverview, MetaAdsRecommendation, MetaAdsWorkspaceQuery, MetaAdsCampaignWorkspacePage, MetaAdsCampaignWorkspaceRow } from "@zyon/shared-types";
+import { metaAdsAgentEndpoints, type MetaAdsAgentApi } from "../../api/endpoints/meta-ads-agent.js";
+import type { MerchantAssistantApi } from "../../api/endpoints/merchant-assistant.js";
+import { MetaAdsAssistant } from "./MetaAdsAssistant.js";
+import { OfferPanel } from "./OfferPanel.js";
+import { ConnectionPanel } from "./ConnectionPanel.js";
+import { CampaignComposer } from "./CampaignComposer.js";
+import { CampaignInsights } from "./CampaignInsights.js";
+import { actions, money, useAction } from "./presentation.js";
+import { PageHeader } from '../../components/PageHeader.js';
+import { ArrowLeft,RefreshCw } from 'lucide-react';
+import {CampaignWorkspace} from './CampaignWorkspace.js';
+import {CampaignWorkspaceDetail} from './CampaignWorkspaceDetail.js';
+import {CampaignQuickActions} from './CampaignQuickActions.js';
+import {campaignApprovalEndpoints} from './api.js';
+import {CampaignListMetrics} from './CampaignListMetrics.js';
+import {useExistingMetrics} from './useExistingMetrics.js';
+import '../../components/dashboard-ui.css';
+import type {CampaignReviewTarget} from '../../components/notification-inbox.js';
+import {PeriodFilter} from '../../components/PeriodFilter.js';
+import {Pagination} from '../../components/Pagination.js';
+
+export function MetaAdsAgentPage({merchantId, apiBaseUrl, api: supplied, assistantClient,reviewTarget}: {merchantId: string; apiBaseUrl: string; api?: MetaAdsAgentApi; assistantClient?: MerchantAssistantApi;reviewTarget?:CampaignReviewTarget}) {
+  const api = useMemo(() => supplied ?? metaAdsAgentEndpoints(apiBaseUrl), [supplied, apiBaseUrl]);
+  return <MetaAdsAgentView key={merchantId} api={api} merchantId={merchantId} apiBaseUrl={apiBaseUrl} assistantClient={assistantClient} reviewTarget={reviewTarget}/>;
+}
+function collectedPeriod(data:MetaAdsOverview){return data.metrics.filter(m=>data.campaigns.some(c=>c.id===m.campaignId&&c.remoteAccountId===data.connection.account?.id)).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt))[0]??null;}
+function readOnlyCampaign(id: string, name: string): MetaAdsCampaign {return {id: `existing-${id}`, draft: {name, destination: "store", priority: "paid_sales", variantIds: [], budget: null, mediaIds: [], headline: "", primaryText: "", country: "BR"}, products: [], createdByAgent: false, managed: false, remoteCampaignId: id, remoteAdSetId: null, remoteAdIds: [], status: "draft", createdAt: "", updatedAt: ""};}
+function MetaAdsAgentView({api,merchantId,apiBaseUrl,assistantClient,reviewTarget}: {api: MetaAdsAgentApi;merchantId:string;apiBaseUrl:string;assistantClient?:MerchantAssistantApi;reviewTarget?:CampaignReviewTarget}) {
+  const periodInitialized=useRef(false),pendingFeedbackCampaign=useRef<string|null>(null);
+  const [mode,setMode]=useState<"manual"|"automatic"|"unknown">("unknown");
+  const [startRequest,setStartRequest]=useState(0);
+  const today=new Date(),localDay=(d:Date)=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const [workspaceQuery,setWorkspaceQuery]=useState<MetaAdsWorkspaceQuery>(()=>({filter:'all',search:'',page:1,since:localDay(new Date(today.getFullYear(),today.getMonth(),today.getDate()-6)),until:localDay(today)}));
+  const [workspacePage,setWorkspacePage]=useState<MetaAdsCampaignWorkspacePage|null>(null),[workspaceLoading,setWorkspaceLoading]=useState(true),[workspaceError,setWorkspaceError]=useState(''),[selectedRow,setSelectedRow]=useState<MetaAdsCampaignWorkspaceRow|null>(null),[detailError,setDetailError]=useState(''),[lastSelected,setLastSelected]=useState<string|null>(null),[setupRequest,setSetupRequest]=useState(0);
+  const workspaceRead=useRef<AbortController|null>(null),detailRead=useRef<AbortController|null>(null),listAnchor=useRef<HTMLDivElement>(null);
+  const approval=useMemo(()=>campaignApprovalEndpoints(apiBaseUrl),[apiBaseUrl]);useEffect(()=>()=>approval.dispose(),[approval]);
+  const loadWorkspace=useCallback(async()=>{workspaceRead.current?.abort();const controller=new AbortController();workspaceRead.current=controller;setWorkspaceLoading(true);setWorkspaceError('');try{const result=await api.workspace(workspaceQuery,controller.signal);if(!controller.signal.aborted)setWorkspacePage(result);}catch{if(!controller.signal.aborted)setWorkspaceError('Não foi possível carregar as campanhas. Seus filtros foram preservados.');}finally{if(!controller.signal.aborted)setWorkspaceLoading(false);}},[api,workspaceQuery]);
+  const [data, setData] = useState<MetaAdsOverview | null>(null); const [loading, setLoading] = useState(true); const [loadError, setLoadError] = useState(""); const sequence = useRef(0);
+  const [selectedId, setSelectedId] = useState<string | null>(null); const [reviewProposalId,setReviewProposalId]=useState<string|null>(null),[detailVersion,setDetailVersion]=useState(0); const [composing, setComposing] = useState(false);
+  const [existing, setExisting] = useState<Array<{id: string; name: string; status: string}> | null>(null); const [existingPage, setExistingPage] = useState(1); const [external, setExternal] = useState<{campaign: MetaAdsCampaign; metrics: MetaAdsMetrics} | null>(null);
+  const [since, setSince] = useState(new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)); const [until, setUntil] = useState(new Date().toISOString().slice(0, 10));
+  const [analysisPeriod,setAnalysisPeriod]=useState('');
+  function presetAnalysis(key:string){const end=new Date(),start=new Date(end);start.setDate(start.getDate()-(Number(key)-1));const localDay=(date:Date)=>`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;setSince(localDay(start));setUntil(localDay(end));setAnalysisPeriod(key);}
+  const [kind, setKind] = useState<MetaAdsActionKind>("prepare"); const [reason, setReason] = useState(""); const [budget, setBudget] = useState(""); const [country, setCountry] = useState("BR"); const [notice, setNotice] = useState(""); const [workingLabel, setWorkingLabel] = useState(""); const [stopReview, setStopReview] = useState(false); const keys = useRef(new Map<string, string>()); const action = useAction();
+  const accountScope=data?.connection.account?`${data.connection.account.id}:${data.connection.epoch}`:'';
+  const existingResults=useExistingMetrics(api,(existing??[]).slice((existingPage-1)*10,existingPage*10).map(c=>c.id),accountScope,since,until,!!data?.entitled);
+  useEffect(()=>{setExisting(null);setExternal(null);setExistingPage(1);},[accountScope]);
+  useEffect(()=>{setExternal(null);},[since,until]);
+  const load = useCallback(async (notify=false) => {const current = ++sequence.current; setLoading(true); setLoadError(""); try {const result = await api.overview(); if (current === sequence.current) {if(!periodInitialized.current){periodInitialized.current=true;const observed=collectedPeriod(result);if(observed)setWorkspaceQuery(q=>({...q,since:observed.since,until:observed.until}));}setData(result);if(notify)action.notify("success","Dados atualizados.");}} catch {if (current === sequence.current) {const message="Não foi possível atualizar os dados. O rascunho aberto e a última consulta foram preservados.";setLoadError(message);if(notify)action.notify("error",message);}} finally {if (current === sequence.current) setLoading(false);}}, [api]);
+  useEffect(() => {void load(); return () => {sequence.current++;};}, [load]);
+  useEffect(()=>{if(data)void loadWorkspace();return()=>workspaceRead.current?.abort();},[data,loadWorkspace]);
+  useEffect(()=>{if(!selectedId||!data)return;detailRead.current?.abort();const controller=new AbortController();detailRead.current=controller;setDetailError('');void api.workspaceDetail(selectedId,{since:workspaceQuery.since,until:workspaceQuery.until},controller.signal).then(row=>{if(!controller.signal.aborted)setSelectedRow(row);}).catch(()=>{if(!controller.signal.aborted){setSelectedRow(null);setDetailError('Não foi possível abrir esta campanha. Volte à lista e tente novamente.');}});return()=>controller.abort();},[api,selectedId,data,workspaceQuery.since,workspaceQuery.until,detailVersion]);
+  function openWorkspace(id:string,proposalId?:string){setSelectedRow(null);setDetailError('');setReviewProposalId(proposalId??null);setDetailVersion(n=>n+1);setLastSelected(id);setSelectedId(id);setComposing(false);const c=data?.campaigns.find(c=>c.id===id);if(c)open(c,proposalId);}
+  function back(){setReviewProposalId(null);setSelectedId(null);setSelectedRow(null);setComposing(false);setDetailError('');setTimeout(()=>{const article=Array.from(listAnchor.current?.querySelectorAll('article')??[]).find(el=>el.getAttribute('data-campaign-id')===lastSelected);(article?.querySelector('button') as HTMLElement|null)?.focus({preventScroll:true});article?.scrollIntoView?.({block:'nearest'});},0);}
+
+  useEffect(()=>{const params=new URLSearchParams(window.location.search),id=params.get('adCampaign');if(id&&params.get('adStore')===merchantId)openWorkspace(id);},[merchantId]);
+  useEffect(()=>{if(pendingFeedbackCampaign.current&&data?.campaigns.some(c=>c.id===pendingFeedbackCampaign.current&&c.status==='remote_paused')){pendingFeedbackCampaign.current=null;setNotice('');}},[data]);
+  const current = selectedRow?.campaign??data?.campaigns.find(c => c.id === selectedId);
+  useEffect(() => {if (current?.remoteCampaignId && kind === "prepare") setKind("publish");}, [current?.remoteCampaignId, kind]);
+  function open(campaign: MetaAdsCampaign,proposalId?:string) {setReviewProposalId(proposalId??null);setSelectedId(campaign.id); setComposing(false); setKind(campaign.remoteCampaignId ? "publish" : "prepare"); setReason(""); setBudget(campaign.draft.budget ? (campaign.draft.budget.amountCents / 100).toFixed(2) : ""); setCountry(campaign.draft.country); setStopReview(false);}
+  async function propose(recommendation?: MetaAdsRecommendation) {
+    if (!current || !data?.entitled) return;
+    const actionKind = recommendation?.proposedAction ?? kind; const reasoning = recommendation?.hypothesis ?? reason; if (!actionKind || !reasoning.trim()) {setNotice("Descreva o motivo da alteração para solicitar a proposta."); return;}
+    let after: Record<string, unknown> = recommendation?.proposedFields ?? {};
+    if (!recommendation && actionKind === "budget") {if (!current.draft.budget || !/^\d+(?:[.,]\d{1,2})?$/.test(budget) || Number(budget.replace(",", ".")) <= 0) {setNotice("Informe um novo orçamento válido em reais."); return;} after = {budget: {...current.draft.budget, amountCents: Math.round(Number(budget.replace(",", ".")) * 100)}};}
+    if (!recommendation && actionKind === "audience") after = {country};
+    const intent = JSON.stringify({campaignId: current.id, kind: actionKind, after, reasoning}); if (!keys.current.has(intent)) keys.current.set(intent, crypto.randomUUID());
+    setWorkingLabel("Preparando proposta…"); await action.run(async () => {await api.propose(current.id, {kind: actionKind, after, reasoning, idempotencyKey: keys.current.get(intent)!}); setNotice("Proposta criada para revisão. Nenhuma alteração enviada à Meta."); await load();},"Proposta criada. Revise antes de aprovar.");
+  }
+  if (!data) return <div className="meta-ads-agent"><h1>Anúncios com IA</h1>{loading && <div className="mga-skeleton" role="status">Carregando anúncios da loja…</div>}{loadError && <div role="alert"><p>{loadError}</p><button type="button" disabled={loading} onClick={() => void load(true)}>Tentar atualizar novamente</button></div>}</div>;
+  const blocked = !!current && data.executions.some(e => e.campaignId === current.id && ["reserved", "sending", "publishing", "execution_unknown"].includes(e.status));
+  const settings=<ConnectionPanel connection={data.connection} entitled={data.entitled} api={api} onUpdated={load}/>;
+  const billingSettings=<OfferPanel overview={data} api={api} onUpdated={load}/>;
+  return <div className="meta-ads-agent dashboard-ui"><div className="mga-page-heading"><PageHeader title="Anúncios com IA" description="Crie campanhas e acompanhe os resultados com ajuda da IA." actions={<button type="button" className="mga-secondary" disabled={loading} onClick={()=>{void load(true);if(selectedId)setDetailVersion(n=>n+1);}}><RefreshCw size={15} aria-hidden="true"/>Atualizar dados</button>}/></div>
+    <MetaAdsAssistant merchantId={merchantId} apiBaseUrl={apiBaseUrl} overview={data} api={api} client={assistantClient} pollMs={15000} onUpdated={load} onModeChanged={setMode} startRequest={startRequest} settings={settings} billingSettings={billingSettings} selectedCampaignId={selectedId} reviewTarget={reviewTarget} setupRequest={setupRequest} onOpenCampaign={target=>openWorkspace(target.campaignId,target.proposalId)} workspaceActions={selectedId?<button type="button" className="mga-secondary ads-detail__back" aria-label="Voltar às campanhas" onClick={()=>{back();void loadWorkspace();}}><ArrowLeft size={16} aria-hidden="true"/><span className="ads-detail__back-label">Voltar às campanhas</span></button>:null}>
+    {notice&&<p role="status" className="mga-notice" data-workspace-feedback>{notice}</p>}
+    {loading && <p role="status">Atualizando dados…</p>}{loadError && <div className="mga-notice" role="alert"><p>{loadError}</p><button type="button" disabled={loading} onClick={() => void load(true)}>Tentar atualizar novamente</button></div>}
+    {!data.entitled && <p className="mga-notice">Seu histórico permanece disponível. Novas gerações e execuções exigem adicional ativo em plano Growth ou Escala. O encerramento não pausa anúncios na Meta.</p>}
+    <div ref={listAnchor} hidden={!!selectedId||composing}>
+    <CampaignWorkspace page={workspacePage} query={workspaceQuery} observedPeriod={collectedPeriod(data)} loading={workspaceLoading} error={workspaceError} selectedId={lastSelected} onQuery={setWorkspaceQuery} onOpen={row=>openWorkspace(row.campaign.id)} onRetry={()=>void loadWorkspace()} onCreate={()=>setStartRequest(n=>n+1)} actions={row=><CampaignQuickActions key={row.campaign.id} row={row} api={api} onChanged={async()=>{await load();await loadWorkspace();}} onFeedback={(type,text)=>{pendingFeedbackCampaign.current=type==='pending'?row.campaign.id:null;setNotice(type==='pending'?text:'');if(type!=='pending')action.notify(type,text);}} onVerify={()=>openWorkspace(row.campaign.id)}/>}/>
+    {!workspacePage?.total&&workspaceQuery.filter==='all'&&!workspaceQuery.search&&<div className="mga-empty-actions"><button type="button" onClick={()=>setStartRequest(n=>n+1)} disabled={!data.entitled}>Criar com a IA</button><button type="button" className="mga-secondary" onClick={()=>{setSelectedId(null);setComposing(true);}} disabled={!data.entitled}>Preparar primeira campanha</button></div>}
+    <div className="mga-actions mga-existing-actions"><button type="button" className="mga-secondary" disabled={!data.entitled || action.busy} onClick={() => {if(!data.connection.account){const message="Conecte sua conta de anúncios em Configurações para analisar campanhas.";setNotice(message);action.notify("error",message);return;}setWorkingLabel("Consultando campanhas existentes…"); void action.run(async () => {const result=await api.existing();setExisting(result);setExistingPage(1);return result;},result=>({type:"success",text:result.length?"Campanhas consultadas.":"Consulta concluída. Nenhuma campanha encontrada."}));}}>Analisar campanhas existentes</button></div>
+    </div>
+    {detailError&&<div role="alert"><p>{detailError}</p><button type="button" onClick={back}>Voltar às campanhas</button></div>}
+    {selectedId&&!selectedRow&&!detailError&&<p role="status">Abrindo campanha…</p>}
+    {existing && <section className="mga-panel"><h2>Campanhas da conta Meta</h2><p>Veja os resultados sem alterar os anúncios.</p><PeriodFilter presets={[{key:'1',label:'Hoje'},{key:'7',label:'Últimos 7 dias'},{key:'15',label:'Últimos 15 dias'},{key:'30',label:'Últimos 30 dias'}]} active={analysisPeriod} onPreset={presetAnalysis} from={since} to={until} onDate={(field,value)=>{setAnalysisPeriod('');if(field==='from')setSince(value);else setUntil(value);}}/>
+      {!existing.length && <p>Nenhuma campanha autorizada encontrada na conta selecionada.</p>}<ul className="mga-campaign-list">{existing.slice((existingPage - 1) * 10, existingPage * 10).map(c => <li key={c.id}><div><strong>{c.name}</strong><small>{c.status==="ACTIVE"?"Ativa na Meta":c.status==="PAUSED"?"Pausada na Meta":"Confira o estado na Meta"} · Somente análise</small></div><button type="button" className="mga-secondary" aria-label={`Analisar ${c.name}`} disabled={action.busy || !existingResults.rows[c.id]?.metrics} onClick={() => {const metrics=existingResults.rows[c.id]?.metrics;if(metrics)setExternal({campaign:readOnlyCampaign(c.id,c.name),metrics});}}>Ver detalhes</button><CampaignListMetrics destination="unknown" metrics={existingResults.rows[c.id]?.metrics} loading={existingResults.rows[c.id]?.loading} error={existingResults.rows[c.id]?.error} onRetry={()=>existingResults.retry(c.id)}/></li>)}</ul>
+      {existing.length > 10 && <Pagination page={existingPage} pageSize={10} total={existing.length} onChange={setExistingPage}/>}
+    </section>}
+    {external && <CampaignInsights automationMode={mode} campaign={external.campaign} metrics={external.metrics} recommendations={[]} entitled={false} onEdit={() => {}} onPropose={() => {}}/>}
+    {current&&selectedRow&&<CampaignWorkspaceDetail key={current.id} backInToolbar period={{since:workspaceQuery.since,until:workspaceQuery.until}} onPeriodChange={(since,until)=>setWorkspaceQuery(q=>({...q,since,until,page:1}))} refreshRevision={detailVersion} reviewProposalId={reviewProposalId??undefined} merchantId={merchantId} row={{...selectedRow,campaign:current}} overview={data} api={api} approval={approval} onBack={back} onUpdated={load} onEdit={()=>setComposing(true)} onSetup={()=>setSetupRequest(n=>n+1)}>
+    {composing && <CampaignComposer key={selectedId ?? "new"} overview={data} campaign={current} api={api} onSaved={saved => {setData(old => old ? {...old, campaigns: [...old.campaigns.filter(c => c.id !== saved.id), saved]} : old); setSelectedId(saved.id);}} onUpdated={load}/>}
+    {current?.managed && current.createdByAgent && current.remoteCampaignId && <details className="mga-panel" data-campaign-edit-options><summary>Outras alterações</summary><p>Altere a verba, o público ou o anúncio. Você confere os novos dados antes de enviar à Meta.</p>{blocked && <p role="status">Existe um envio aguardando confirmação. Consulte a situação da campanha antes de fazer outra alteração.</p>}
+      <div className="mga-form"><label>Alteração<select aria-label="Alteração" disabled={!data.entitled || action.busy || blocked} value={kind} onChange={e => setKind(e.target.value as MetaAdsActionKind)}>{(current.remoteCampaignId ? ["publish", "pause", "budget", "audience", "creative"] as const : ["prepare"] as const).map(k => <option key={k} value={k}>{actions[k]}</option>)}</select></label>
+        {kind === "budget" && <label>Novo orçamento em reais<input aria-label="Novo orçamento em reais" inputMode="decimal" value={budget} onChange={e => setBudget(e.target.value)}/><small>Modalidade e período permanecem os do rascunho salvo: {current.draft.budget?.cadence === "lifetime" ? "total" : "diário"} · atual {money(current.draft.budget?.amountCents ?? null)}</small></label>}
+        {kind === "audience" && <label>Novo país<input aria-label="Novo país" maxLength={2} value={country} onChange={e => setCountry(e.target.value.toUpperCase())}/></label>}
+        <label>Motivo da alteração<textarea aria-label="Motivo da alteração" maxLength={2000} value={reason} disabled={!data.entitled || action.busy || blocked} onChange={e => setReason(e.target.value)}/></label><button type="button" data-action="propose" disabled={!data.entitled || action.busy || blocked || !reason.trim()} onClick={() => void propose()}>Criar proposta</button>
+      </div>
+      {!stopReview ? <button type="button" className="mga-secondary" disabled={!data.entitled || action.busy || blocked} onClick={() => setStopReview(true)}>Encerrar gerenciamento desta campanha</button> : <div className="mga-notice"><p>Encerrar o gerenciamento não pausa a Meta. A campanha pode continuar consumindo verba. O histórico permanecerá disponível.</p><button type="button" disabled={action.busy} onClick={() => {setWorkingLabel("Encerrando gerenciamento…"); void action.run(async () => {await api.stopManaging(current.id); setStopReview(false); setComposing(false); await load();},"Gerenciamento encerrado. Os anúncios na Meta não foram pausados.");}}>Confirmar encerramento do gerenciamento</button><button type="button" className="mga-secondary" disabled={action.busy} onClick={() => setStopReview(false)}>Manter gerenciamento</button></div>}
+    </details>}
+    </CampaignWorkspaceDetail>}
+    {composing&&!current&&<CampaignComposer overview={data} api={api} onSaved={saved=>{setData(old=>old?{...old,campaigns:[...old.campaigns,saved]}:old);openWorkspace(saved.id);}} onUpdated={load}/>}
+    {action.busy && <p role="status">{workingLabel || "Consultando…"}</p>}{action.error && <p className="mga-notice" role="alert">{action.error}</p>}
+    </MetaAdsAssistant>
+  </div>;
+}

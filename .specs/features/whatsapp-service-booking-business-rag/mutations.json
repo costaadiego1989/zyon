@@ -1,0 +1,292 @@
+[
+  {
+    "file": "apps/api/src/modules/buyer-account/application/use-cases/login-buyer.use-case.ts",
+    "old": "if (!valid) throw new UnauthorizedException(\"invalid_credentials\");",
+    "new": "if (false && !valid) throw new UnauthorizedException(\"invalid_credentials\");",
+    "proof": "pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/buyer-account/application/use-cases/login-buyer.use-case.spec.ts",
+    "label": "M1 AUTH-01: invalid password is admitted to real JWT signer",
+    "independentEvidence": {
+      "reviewHead": "31fb89c24018964c7b246aba34b945aeb4851f99",
+      "id": "M1",
+      "baselineBefore": {
+        "label": "m1-baseline-before",
+        "command": "pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/buyer-account/application/use-cases/login-buyer.use-case.spec.ts",
+        "startedAtUtc": "2026-11-27T16:30:47.944859+00:00",
+        "finishedAtUtc": "2026-11-27T16:30:49.832315+00:00",
+        "durationSeconds": 1.891,
+        "actualExitCode": 0,
+        "log": "C:\\tmp\\zyon-service-final-20261124\\.cache\\final-verifier-recovery-31fb89c2-20261127\\m1-baseline-before.log",
+        "logSha256": "91a6c4a4b2387f52b67dc2d3d4f1302a8f946d6182f5b0962c76de450df9a494",
+        "hasAssertionFailure": false,
+        "assertionFailureLines": [],
+        "tapSummary": [
+          "# tests 12",
+          "# pass 12",
+          "# fail 0",
+          "# cancelled 0",
+          "# skipped 0",
+          "# todo 0"
+        ]
+      },
+      "mutant": {
+        "label": "m1-mutant",
+        "command": "pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/buyer-account/application/use-cases/login-buyer.use-case.spec.ts",
+        "startedAtUtc": "2026-11-27T16:30:49.835902+00:00",
+        "finishedAtUtc": "2026-11-27T16:30:51.712460+00:00",
+        "durationSeconds": 1.875,
+        "actualExitCode": 1,
+        "log": "C:\\tmp\\zyon-service-final-20261124\\.cache\\final-verifier-recovery-31fb89c2-20261127\\m1-mutant.log",
+        "logSha256": "68204d0f98207cfc0a389f26d14c47b4dda569313ad5e0a939984d38d60c65e5",
+        "hasAssertionFailure": true,
+        "assertionFailureLines": [
+          "not ok 1 - Buyer login rejects the wrong password with the real hasher and creates no JWT",
+          "  failureType: 'testCodeFailure'",
+          "  error: 'Missing expected rejection.'",
+          "  code: 'ERR_ASSERTION'",
+          "    not ok 1 - not-a-password-hash",
+          "      failureType: 'testCodeFailure'",
+          "      error: 'Missing expected rejection.'",
+          "      code: 'ERR_ASSERTION'",
+          "    not ok 2 - argon2id:salt:hash",
+          "      failureType: 'testCodeFailure'",
+          "      error: 'Missing expected rejection.'",
+          "      code: 'ERR_ASSERTION'",
+          "    not ok 3 - scrypt::missing-salt",
+          "      failureType: 'testCodeFailure'",
+          "      error: 'Missing expected rejection.'",
+          "      code: 'ERR_ASSERTION'",
+          "not ok 2 - Buyer login rejects malformed and unsupported stored hashes without creating a JWT",
+          "  failureType: 'subtestsFailed'",
+          "  error: '3 subtests failed'",
+          "    not ok 1 - wrong password",
+          "      failureType: 'testCodeFailure'",
+          "      error: 'Missing expected rejection.'",
+          "      code: 'ERR_ASSERTION'",
+          "    not ok 2 - unsupported stored hash",
+          "      failureType: 'testCodeFailure'",
+          "      error: 'Missing expected rejection.'",
+          "      code: 'ERR_ASSERTION'",
+          "not ok 6 - Buyer login preserves independent complete account snapshots across password outcomes",
+          "  failureType: 'subtestsFailed'",
+          "  error: '2 subtests failed'"
+        ],
+        "tapSummary": [
+          "# tests 12",
+          "# pass 4",
+          "# fail 8",
+          "# cancelled 0",
+          "# skipped 0",
+          "# todo 0"
+        ]
+      },
+      "originalSha256": "35d9d48a04d1963cad8ad51fb4209c09890ecca0c70b0e95b551789678586541",
+      "mutantSha256": "bdd2d77d576e3ab24d4236be1dc00629d8e5ac57742dbacab390203cf3e2ae2f",
+      "restoredSha256": "35d9d48a04d1963cad8ad51fb4209c09890ecca0c70b0e95b551789678586541",
+      "restoredByteExact": true,
+      "baselineAfter": {
+        "label": "m1-baseline-after",
+        "command": "pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/buyer-account/application/use-cases/login-buyer.use-case.spec.ts",
+        "startedAtUtc": "2026-11-27T16:30:51.731426+00:00",
+        "finishedAtUtc": "2026-11-27T16:30:53.748840+00:00",
+        "durationSeconds": 2.015,
+        "actualExitCode": 0,
+        "log": "C:\\tmp\\zyon-service-final-20261124\\.cache\\final-verifier-recovery-31fb89c2-20261127\\m1-baseline-after.log",
+        "logSha256": "80c7e2305eafb5ebf5b8e001acf4a77bad72891c135549a45b3617d2a00551a1",
+        "hasAssertionFailure": false,
+        "assertionFailureLines": [],
+        "tapSummary": [
+          "# tests 12",
+          "# pass 12",
+          "# fail 0",
+          "# cancelled 0",
+          "# skipped 0",
+          "# todo 0"
+        ]
+      },
+      "killedByBehavioralAssertion": true,
+      "officialFinalProofCredit": false
+    }
+  },
+  {
+    "file": "apps/api/src/modules/catalog/domain/services/professional-availability.ts",
+    "old": "if (occupied && occupied.start < end) continue;",
+    "new": "if (occupied && occupied.start < start) continue;",
+    "proof": "pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/catalog/domain/services/professional-availability.spec.ts",
+    "label": "M2 AGENDA-03/ATEND-04/09: occupancy starting within a candidate is offered",
+    "independentEvidence": {
+      "reviewHead": "31fb89c24018964c7b246aba34b945aeb4851f99",
+      "id": "M2",
+      "baselineBefore": {
+        "label": "m2-baseline-before",
+        "command": "pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/catalog/domain/services/professional-availability.spec.ts",
+        "startedAtUtc": "2026-11-27T16:30:53.752616+00:00",
+        "finishedAtUtc": "2026-11-27T16:30:55.365982+00:00",
+        "durationSeconds": 1.609,
+        "actualExitCode": 0,
+        "log": "C:\\tmp\\zyon-service-final-20261124\\.cache\\final-verifier-recovery-31fb89c2-20261127\\m2-baseline-before.log",
+        "logSha256": "1ef5076d7219d68ee3bc0a8867c05c70a8fc8b7b463638a77ff031ee9cd4a416",
+        "hasAssertionFailure": false,
+        "assertionFailureLines": [],
+        "tapSummary": [
+          "# tests 15",
+          "# pass 15",
+          "# fail 0",
+          "# cancelled 0",
+          "# skipped 0",
+          "# todo 0"
+        ]
+      },
+      "mutant": {
+        "label": "m2-mutant",
+        "command": "pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/catalog/domain/services/professional-availability.spec.ts",
+        "startedAtUtc": "2026-11-27T16:30:55.371998+00:00",
+        "finishedAtUtc": "2026-11-27T16:30:56.914929+00:00",
+        "durationSeconds": 1.547,
+        "actualExitCode": 1,
+        "log": "C:\\tmp\\zyon-service-final-20261124\\.cache\\final-verifier-recovery-31fb89c2-20261127\\m2-mutant.log",
+        "logSha256": "14bffbcb192440590d799d10fdc15ba68c8e7972db0666318e602ff7bf6fd531",
+        "hasAssertionFailure": true,
+        "assertionFailureLines": [
+          "    not ok 8 - precise historical occupancy blocks its actual interval without rounding or re-anchoring public minutes",
+          "      failureType: 'testCodeFailure'",
+          "      error: |-",
+          "      code: 'ERR_ASSERTION'",
+          "    not ok 9 - dates and slots union offered time and subtract all confirmed occupancy and blocks",
+          "      failureType: 'testCodeFailure'",
+          "      error: |-",
+          "      code: 'ERR_ASSERTION'",
+          "    not ok 10 - shared offers and overlapping one-off windows never duplicate professional capacity",
+          "      failureType: 'testCodeFailure'",
+          "      error: |-",
+          "      code: 'ERR_ASSERTION'",
+          "    not ok 11 - another service consumes twenty minutes without removing a previously offered free thirty-minute slot",
+          "      failureType: 'testCodeFailure'",
+          "      error: |-",
+          "      code: 'ERR_ASSERTION'",
+          "not ok 1 - T23",
+          "  failureType: 'subtestsFailed'",
+          "  error: '4 subtests failed'"
+        ],
+        "tapSummary": [
+          "# tests 15",
+          "# pass 10",
+          "# fail 5",
+          "# cancelled 0",
+          "# skipped 0",
+          "# todo 0"
+        ]
+      },
+      "originalSha256": "8701b910fcf921c4b2dfb5a1d7d2506132822c223c51afba4d52770f427b2761",
+      "mutantSha256": "13c7fefc1b47d3a9ef202956c0ad4f9c477e95a5679693897ebc69f82b431e1e",
+      "restoredSha256": "8701b910fcf921c4b2dfb5a1d7d2506132822c223c51afba4d52770f427b2761",
+      "restoredByteExact": true,
+      "baselineAfter": {
+        "label": "m2-baseline-after",
+        "command": "pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/catalog/domain/services/professional-availability.spec.ts",
+        "startedAtUtc": "2026-11-27T16:30:56.933633+00:00",
+        "finishedAtUtc": "2026-11-27T16:30:58.398702+00:00",
+        "durationSeconds": 1.468,
+        "actualExitCode": 0,
+        "log": "C:\\tmp\\zyon-service-final-20261124\\.cache\\final-verifier-recovery-31fb89c2-20261127\\m2-baseline-after.log",
+        "logSha256": "a9fc7e456546d08ac5c5f8a4d6efcf03c4f1b216ce9cd8991a8023b54f136c8c",
+        "hasAssertionFailure": false,
+        "assertionFailureLines": [],
+        "tapSummary": [
+          "# tests 15",
+          "# pass 15",
+          "# fail 0",
+          "# cancelled 0",
+          "# skipped 0",
+          "# todo 0"
+        ]
+      },
+      "killedByBehavioralAssertion": true,
+      "officialFinalProofCredit": false
+    }
+  },
+  {
+    "file": "apps/api/src/modules/graph-rag/domain/public-business-source.ts",
+    "old": "if (professional.isActive && professional.isPublished && professional.linkIsActive)",
+    "new": "if (professional.isActive && professional.linkIsActive)",
+    "proof": "pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/graph-rag/domain/public-business-source.spec.ts",
+    "label": "M3 RAG-02/07: unpublished linked professional enters public service projection",
+    "independentEvidence": {
+      "reviewHead": "31fb89c24018964c7b246aba34b945aeb4851f99",
+      "id": "M3",
+      "baselineBefore": {
+        "label": "m3-baseline-before",
+        "command": "pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/graph-rag/domain/public-business-source.spec.ts",
+        "startedAtUtc": "2026-11-27T16:30:58.402706+00:00",
+        "finishedAtUtc": "2026-11-27T16:30:59.552775+00:00",
+        "durationSeconds": 1.157,
+        "actualExitCode": 0,
+        "log": "C:\\tmp\\zyon-service-final-20261124\\.cache\\final-verifier-recovery-31fb89c2-20261127\\m3-baseline-before.log",
+        "logSha256": "374ba39335599ee5cbcbcb1d9dfe3213780d23f7f77166db762e349d33eaf492",
+        "hasAssertionFailure": false,
+        "assertionFailureLines": [],
+        "tapSummary": [
+          "# tests 16",
+          "# pass 16",
+          "# fail 0",
+          "# cancelled 0",
+          "# skipped 0",
+          "# todo 0"
+        ]
+      },
+      "mutant": {
+        "label": "m3-mutant",
+        "command": "pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/graph-rag/domain/public-business-source.spec.ts",
+        "startedAtUtc": "2026-11-27T16:30:59.558295+00:00",
+        "finishedAtUtc": "2026-11-27T16:31:00.574718+00:00",
+        "durationSeconds": 1.015,
+        "actualExitCode": 1,
+        "log": "C:\\tmp\\zyon-service-final-20261124\\.cache\\final-verifier-recovery-31fb89c2-20261127\\m3-mutant.log",
+        "logSha256": "efed7824bff3eb96dddd968011cc8702d1186a0a68ae69fe1e4c2dc6f8dbf7d2",
+        "hasAssertionFailure": true,
+        "assertionFailureLines": [
+          "    not ok 11 - service relationships include only linked published professionals and the same tenant category",
+          "      failureType: 'testCodeFailure'",
+          "      error: |-",
+          "      code: 'ERR_ASSERTION'",
+          "not ok 1 - T63",
+          "  failureType: 'subtestsFailed'",
+          "  error: '1 subtest failed'"
+        ],
+        "tapSummary": [
+          "# tests 16",
+          "# pass 14",
+          "# fail 2",
+          "# cancelled 0",
+          "# skipped 0",
+          "# todo 0"
+        ]
+      },
+      "originalSha256": "e6bd1a7efcc8390ba094f533e283ae9effc242808ca43b2ccbc096aeb34440f9",
+      "mutantSha256": "28f17c87dcd5cf65b2ed0a3fdcbff494c5f6c579389969429edcda6d3550592a",
+      "restoredSha256": "e6bd1a7efcc8390ba094f533e283ae9effc242808ca43b2ccbc096aeb34440f9",
+      "restoredByteExact": true,
+      "baselineAfter": {
+        "label": "m3-baseline-after",
+        "command": "pnpm --dir apps/api exec node --import ./tests/test-network-guard.mjs --loader ./tests/ready-prod-loader.mjs --test --test-concurrency=1 ./src/modules/graph-rag/domain/public-business-source.spec.ts",
+        "startedAtUtc": "2026-11-27T16:31:00.594334+00:00",
+        "finishedAtUtc": "2026-11-27T16:31:01.706710+00:00",
+        "durationSeconds": 1.109,
+        "actualExitCode": 0,
+        "log": "C:\\tmp\\zyon-service-final-20261124\\.cache\\final-verifier-recovery-31fb89c2-20261127\\m3-baseline-after.log",
+        "logSha256": "872bafd091d655da933f3580f48a91551bc6c0c2d994ea2ee38ae03fad7e2c09",
+        "hasAssertionFailure": false,
+        "assertionFailureLines": [],
+        "tapSummary": [
+          "# tests 16",
+          "# pass 16",
+          "# fail 0",
+          "# cancelled 0",
+          "# skipped 0",
+          "# todo 0"
+        ]
+      },
+      "killedByBehavioralAssertion": true,
+      "officialFinalProofCredit": false
+    }
+  }
+]

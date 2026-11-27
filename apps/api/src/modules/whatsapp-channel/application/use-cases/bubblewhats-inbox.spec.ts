@@ -139,7 +139,7 @@ describe("BubbleWhats authenticated durable acceptance", () => {
     assert.equal(accepted[0][1], "META");
     assert.equal(accepted[0][2], "wamid-1");
     assert.deepEqual(accepted[0][3], {
-      fromNumber: "+5511988888888", fromAlias: "Ana", body: "Oi", messageType: "text", timestamp: 1_750_000_000_000,
+      fromNumber: "+5511988888888", fromAlias: "Ana", body: "Oi", messageType: "text", timestamp: 1_750_000_000_000, providerTimestampVerified: true,
     });
     await assert.rejects(controller.receiveMetaWebhook("sha256=invalid", payload, { rawBody } as any), UnauthorizedException);
   });
@@ -148,11 +148,12 @@ describe("BubbleWhats authenticated durable acceptance", () => {
     const previousSecret = process.env.META_APP_SECRET;
     process.env.META_APP_SECRET = "meta-webhook-secret";
     t.after(() => { if (previousSecret === undefined) delete process.env.META_APP_SECRET; else process.env.META_APP_SECRET = previousSecret; });
-    let nativeReceipts = 0; let legacyReceipts = 0;
+    let nativeReceipts = 0; let legacyReceipts = 0; const fiscalReceipts: unknown[][] = [];
     const controller = new WhatsAppWebhookController({ findByMetaPhoneNumberId: async () => ({ ...config(), enabled: false, provider: "META_CLOUD" }) } as any,
       { messageForAuthenticatedConfig: async () => { assert.fail("paused channel cannot accept a new conversation"); } } as any,
       { reconcileMeta: async () => { legacyReceipts++; } } as any,
-      { receiveMetaReceipt: async () => { nativeReceipts++; } } as any);
+      { receiveMetaReceipt: async () => { nativeReceipts++; } } as any,
+      { fromMeta: async (...input: unknown[]) => { fiscalReceipts.push(input); } } as any);
     const payload = { entry: [{ changes: [{ field: "messages", value: { metadata: { phone_number_id: "987654321" },
       statuses: [{ id: "wamid-delivered", status: "delivered", biz_opaque_callback_data: "zyon:turn1:0" }],
       messages: [{ id: "wamid-in", from: "5511988888888", text: { body: "Oi" } }] } }] }] };
@@ -160,6 +161,7 @@ describe("BubbleWhats authenticated durable acceptance", () => {
     const signature = `sha256=${createHmac("sha256", process.env.META_APP_SECRET).update(rawBody).digest("hex")}`;
     await controller.receiveMetaWebhook(signature, payload, { rawBody } as any);
     assert.equal(nativeReceipts, 1); assert.equal(legacyReceipts, 1);
+    assert.deepEqual(fiscalReceipts, [["987654321", payload.entry[0].changes[0].value.statuses]]);
   });
 
   it("keeps Meta and Twilio acknowledgements behind durable inbox acceptance", async t => {

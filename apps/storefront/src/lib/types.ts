@@ -286,7 +286,46 @@ export interface ProductContentConversationBlock {
   };
 }
 
+export interface ProductQuestionsBlock {
+  type: "product_questions";
+  data: { productId: string; productName: string; scope: "public_answered"; filter: "answered";
+    questions: Array<{ id: string; question: string; answer: string }>; totalCount: number };
+}
+
+export interface BuyerProductQuestionsBlock {
+  type: "buyer_product_questions";
+  data: { productId: string; productName: string; scope: "buyer_history"; filter: "mine";
+    questions: Array<{ id: string; ticketId: string; question: string; date: string; answerState: "not_linked" }>;
+    returnedCount: number; hasMore: boolean; historyLimited: true };
+}
+
+export interface ProductQuestionInputBlock {
+  type: "product_question_input";
+  data: { productId: string; productName: string };
+}
+
+export interface QuestionSubmissionBlock {
+  type: "question_submission";
+  data: { ticketId: string; productId: string; status: "awaiting_answer"; questionMessageId?: string };
+}
+
+export interface ReviewSubmissionBlock {
+  type: "review_submission";
+  data: { reviewId: string; productId: string; status: "pending_moderation" };
+}
+
+export interface FiscalInvoicesBlock {
+  type: "fiscal_invoices";
+  data: { orderId: string; invoices: Array<{ intentId: string; sellerMerchantId: string; environment: "production" | "homologation"; state: string; documentState: string; number?: string; options: Array<{ label: string; action: "navigate"; href: string }> }> };
+}
+
 export type ConversationBlock =
+  | FiscalInvoicesBlock
+  | ProductQuestionsBlock
+  | BuyerProductQuestionsBlock
+  | ProductQuestionInputBlock
+  | QuestionSubmissionBlock
+  | ReviewSubmissionBlock
   | { type: "service_booking"; data: Record<string, unknown> }
   | ProductCardBlock
   | ProductCarouselBlock

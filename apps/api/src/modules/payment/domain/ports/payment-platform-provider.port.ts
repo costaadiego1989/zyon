@@ -72,6 +72,7 @@ export interface StripePlatformPort {
 }
 
 export interface StripeBillingSubscription {
+  module?: string;
   merchantId?: string;
   customerId: string;
   subscriptionId: string;

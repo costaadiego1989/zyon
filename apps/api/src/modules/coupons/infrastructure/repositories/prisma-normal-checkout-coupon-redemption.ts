@@ -45,8 +45,11 @@ export async function redeemNormalCheckoutCouponFromOrder(prisma:PrismaClient,ra
     if(!payment||payment.id!==original.payload.payment_intent_id||payment.merchantId!==input.merchantId||payment.sessionId!==a.checkoutSessionId
       ||payment.status!=="approved"||payment.providerPaymentId!==original.payload.external_order_id||payment.approvedAmountCents!==payment.amountCents)return conflict();
     const normal=readPaymentNormalCrossSellAuthority(payment);
+    const normalOwner=normal?.discountOwner;
+    const couponOwner=normalOwner?.kind==="cashback_combination"?normalOwner.coupon:normalOwner;
     if(!normal||normal.frozenProjection.cart.source==="storefront"||normal.frozenProjection.cart.cart_ref!==undefined
-      ||!isDeepStrictEqual(normal.discountOwner,a)||normal.amountBreakdown.discountCents!==a.discountCents)return conflict();
+      ||!isDeepStrictEqual(couponOwner,a)||normal.amountBreakdown.discountCents!==normalOwner?.discountCents
+      ||normalOwner?.kind==="cashback_combination"&&(normal.version!==2||normalOwner.coupon?.kind!=="checkout_coupon"))return conflict();
     const order=await tx.completedOrder.findFirst({where:{merchantId:input.merchantId,sessionId:a.checkoutSessionId,externalOrderId:original.payload.external_order_id},
       select:{merchantId:true,sessionId:true,externalOrderId:true,orderTotal:true,currency:true}});
     if(!order||order.merchantId!==input.merchantId||order.sessionId!==a.checkoutSessionId||order.externalOrderId!==original.payload.external_order_id

@@ -3,17 +3,22 @@ import { ServiceSlotHoldsService } from "../../../../shared/bookings/service-slo
 import type { CheckoutSession } from "@zyon/shared-types";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
+import { CashbackService } from "../../../cashback/application/cashback.service.js";
 
 @Injectable()
 export class GetCheckoutSessionUseCase {
   private readonly logger = new Logger(GetCheckoutSessionUseCase.name);
 
   constructor(@Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
-    @Optional() private readonly serviceSlots?: ServiceSlotHoldsService) {}
+    @Optional() private readonly serviceSlots?: ServiceSlotHoldsService,
+    @Optional() private readonly cashback?: CashbackService) {}
 
   async execute(merchantId: string, sessionId: string): Promise<CheckoutSession> {
     const session = await this.sessions.getSession(merchantId, sessionId);
     if (!session) throw new NotFoundException("checkout_session_not_found");
-    return { ...session, serviceSlotHold: await this.serviceSlots?.get(session) };
+    const cashbackCents = await this.cashback?.checkoutCashbackCents(session);
+    const { cashbackCents: _untrustedProjection, ...cart } = session.cart;
+    return { ...session, cart: { ...cart, ...(cashbackCents ? { cashbackCents } : {}) },
+      serviceSlotHold: await this.serviceSlots?.get(session) };
   }
 }

@@ -32,7 +32,7 @@ function fixture(){
       const row=state.outbox.find(row=>row.eventId===where.eventId);return row?(select?Object.fromEntries(Object.keys(select).map(key=>[key,row[key]])):row):null;},
       upsert:async({create}:{create:Record<string,unknown>})=>{if(state.fail==="outbox")throw Error("synthetic_outbox_failure");state.writes.push("outbox");state.outbox.push(create);return create;}}};
   type FixtureTransaction=typeof tx;
-  const prisma={...tx,$transaction:async(body:(tx:FixtureTransaction)=>Promise<void>)=>{const before={row:{...state.row},usage:state.usage,outbox:[...state.outbox]};
+  const prisma={...tx,$transaction:async(body:(value:FixtureTransaction)=>Promise<void>)=>{const before={row:{...state.row},usage:state.usage,outbox:[...state.outbox]};
     try{return await body(tx);}catch(error){Object.assign(state,before);throw error;}}}as unknown as PrismaClient;
   return{owner,source,application,state,run:()=>redeemNormalCheckoutCouponFromOrder(prisma,{merchantId:"merchant",eventId:"source"})};
 }

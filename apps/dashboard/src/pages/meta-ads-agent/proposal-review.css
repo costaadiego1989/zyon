@@ -1,0 +1,21 @@
+.mga-proposal > header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px 24px; }
+.mga-proposal > header > div { min-width:0; }
+.meta-ads-agent .mga-proposal > header h3 { margin:0; font-size:16px; line-height:1.5; }
+.meta-ads-agent .mga-proposal > header p { margin:4px 0 0; font-size:13px; }
+.mga-proposal > header > small { flex:none; padding-top:3px; }
+.meta-ads-agent .mga-proposal-scope { margin:16px 0 0; font-size:12px; color:var(--color-text-secondary); }
+.mga-proposal .mga-comparison { gap:24px; margin:20px 0; }
+.meta-ads-agent .mga-proposal .mga-comparison h4 { margin:0 0 16px; padding:0 0 10px; font-size:13px; }
+.mga-change-facts { display:grid; gap:16px; margin:0; }
+.mga-change-facts > div { min-width:0; }
+.mga-change-facts dt { font-size:12px; line-height:1.5; color:var(--color-text-secondary); }
+.mga-change-facts dd { margin:4px 0 0; font-size:14px; line-height:1.6; color:var(--color-text); font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.mga-change-facts dd small { margin-top:3px; font-size:12px; }
+.mga-proposal .mga-snapshot .mga-change-products { list-style:none; margin:16px 0 0; padding:0; font-size:13px; line-height:1.6; }
+.mga-proposal .mga-meta-references { margin:16px 0; border-block:1px solid var(--color-border); }
+.mga-meta-references > summary { min-height:44px; padding:12px 0; font:500 12px/1.5 var(--font-sans); color:var(--color-text-secondary); }
+.mga-meta-references > dl { display:grid; gap:12px; margin:0; padding:4px 0 16px; }
+.mga-meta-references > dl > div { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; font-size:12px; line-height:1.6; }
+.mga-meta-references dt { color:var(--color-text-secondary); }
+.mga-meta-references dd { margin:0; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
+@media(max-width:600px) { .mga-proposal > header { flex-direction:column; gap:4px; } .mga-proposal .mga-comparison { grid-template-columns:minmax(0,1fr); gap:24px; } .mga-meta-references > dl > div { grid-template-columns:minmax(0,1fr); gap:2px; } }

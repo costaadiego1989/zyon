@@ -127,8 +127,8 @@ test("a real active manual rule produces a scoped complementary variant through 
   await rules.save(promotion.archive()); assert.deepEqual(await f.run(), []);
 });
 
-function realAddFixture(existingLineForAdd?: import("../../domain/ports/storefront-cart.port.js").StorefrontExistingCartLine) {
-  const f = fixture();
+function realAddFixture(existingLineForAdd?: import("../../domain/ports/storefront-cart.port.js").StorefrontExistingCartLine, recommendationRuleId = "active-rule") {
+  const f = fixture({ promo: recommendationRuleId });
   const source = new ProductEntity({ id: "source-product", merchantId: "merchant", name: "Cabo", isActive: true,
     createdAt: new Date(), updatedAt: new Date(), variants: [{ ...f.product.variants[1], id: "source", sku: "SOURCE", basePriceInCents: 1000 }] });
   let saved: any = { id: "cart", merchantId: "merchant", sessionId: "session", items: [], total: 0, discount: 0, couponCode: null,
@@ -165,6 +165,24 @@ test("normal ADD forwards a precondition only from the internal server context, 
   const checked = await callStorefrontTool("add_item_to_cart", { cartId: "session", variantId: "source", quantity: 1, existingLineForAdd: expected },
     args => rejected.handlers.addItemToCart(args as any), { cartId: "session" });
   assert.equal(checked.ok, false); assert.equal(rejected.state.writes, 0); assert.equal(rejected.state.preconditions.length, 0);
+});
+
+test("category recommendation without a rule preserves the committed add and its canonical cart", async () => {
+  const f = realAddFixture(undefined, "");
+  const added = await f.add();
+  assert.equal(f.state.writes, 1);
+  assert.equal(added.ok, true);
+  if (!added.ok) throw Error("confirmed add was lost");
+  const wire = JSON.parse(JSON.stringify(buildConversationBlocks({ merchantId: "merchant", userMessage: "Adicione o cabo",
+    finalContent: "Adicionado", presentationMode: "structured", toolResults: { add_item_to_cart: added.data } })));
+  const cart = wire.blocks.find((block: any) => block.type === "cart_summary");
+  assert.equal(cart.data.items[0].quantity, 1);
+  assert.equal(cart.data.total, 10);
+  const product = wire.blocks.find((block: any) => block.type === "cross_sell").data.products[0];
+  assert.equal(product.id, "target");
+  assert.equal(product.price, 30);
+  assert.equal(Object.hasOwn(product, "recommendationRuleId"), false);
+  assert.equal(Object.hasOwn(product, "promoId"), false);
 });
 
 test("the real NLP tool/handler evaluates post-cart after every confirmed add and builds a public offer", async () => {

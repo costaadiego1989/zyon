@@ -93,7 +93,8 @@ export class ConfirmCryptoPaymentUseCase {
     }
 
     const reservedHashes: string[] = [];
-    let verified: { from: string } = { from: walletAddress };
+    let verified: import("../domain/ports/crypto-verifier.port.js").VerifyCryptoTransferResult = { from: walletAddress };
+    const receipts: import("../domain/ports/crypto-verifier.port.js").VerifiedCryptoReceipt[] = [];
     try {
       for (let index = 0; index < transfers.length; index += 1) {
         const transfer = transfers[index]!;
@@ -117,6 +118,7 @@ export class ConfirmCryptoPaymentUseCase {
             amountDisplay: transfer.amountDisplay,
           }
         });
+        if (verified.receipt) receipts.push(verified.receipt);
       }
 
       const intent = PaymentIntentEntity.rehydrate(snap);
@@ -125,7 +127,8 @@ export class ConfirmCryptoPaymentUseCase {
         approvedAmountCents: snap.amountCents
       });
 
-      await savePaymentTransition(this.payments, intent);
+      await savePaymentTransition(this.payments, intent, undefined, receipts.length === transfers.length
+        ? { kind: "crypto_v1", quote: buyerFacing, transfers: receipts } : undefined);
     } catch (e) {
       for (const hash of reservedHashes) {
         await this.payments.deleteCryptoTransfer({ chain: buyerFacing.chain, txHash: hash });

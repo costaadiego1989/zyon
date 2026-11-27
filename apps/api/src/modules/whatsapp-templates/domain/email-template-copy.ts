@@ -4,6 +4,10 @@ import { cleanEmailSubject } from "../../../shared/messaging/email-content.js";
 
 /** Recipient-facing subjects are independent of the labels in the template editor. */
 export const EMAIL_TEMPLATE_SUBJECTS: Record<WhatsAppTemplateType, string> & Record<string, string> = {
+  campaign_ready:'{{storeName}} | Campanha {{campaignName}} pronta para aprovação',
+  fiscal_invoice: "{{storeName}} | Nota fiscal do pedido {{orderId}}",
+  cashback_available: "{{storeName}} | Seu cashback está disponível",
+  cashback_expiring: "{{storeName}} | Seu cashback está próximo do vencimento",
   support_case_alert: "{{storeName}} | Novo atendimento humano",
   service_appointment_notice: "{{storeName}} | Atualiza\u00e7\u00e3o do atendimento",
   shopping_agent_alert: "{{storeName}} | Atualização do seu agente pessoal",
@@ -32,6 +36,7 @@ export const EMAIL_TEMPLATE_SUBJECTS: Record<WhatsAppTemplateType, string> & Rec
   exchange_completed: "{{storeName}} | Troca do pedido {{orderId}} concluída",
   return_posting_code: "{{storeName}} | Código de devolução do pedido {{orderId}}",
   return_declaration_ready: "{{storeName}} | Declaração para devolução do pedido {{orderId}}",
+  buyer_whatsapp_link_otp: "{{storeName}} | Seu código de vínculo",
   checkout_otp: "{{storeName}} | Seu código de confirmação",
 };
 

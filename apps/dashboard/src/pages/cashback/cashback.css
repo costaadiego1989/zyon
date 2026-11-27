@@ -1,0 +1,143 @@
+.cashback-page { min-width: 0; }
+.cashback-page > [role="tabpanel"] { min-width: 0; }
+.cashback-page > [role="tabpanel"][hidden] { display: none; }
+.cashback-page > .tab-bar { width: fit-content; max-width: 100%; }
+.cashback-overview-content { display: grid; gap: 24px; min-width: 0; }
+.cashback-page > .cashback-program-state { padding: 14px 20px; background: var(--surface-1); border: 1px solid var(--color-border); border-radius: var(--radius-lg, 12px); }
+.cashback-program-identity { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.cashback-program-identity > svg { flex-shrink: 0; color: var(--color-text-muted); }
+.cashback-program-identity > div { min-width: 0; }
+.cashback-program-labels { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.cashback-program-version { color: var(--color-text-secondary); font-size: 12px; }
+.cashback-program-note { display: block; color: var(--color-text-muted); font-size: 12px; line-height: 1.5; margin-top: 4px; }
+.cashback-program-state > .cashback-state-actions { width: auto; flex-shrink: 0; }
+.cashback-page .cashback-period > .cashback-help { margin-top: 10px; }
+.cashback-page .filter-toolbar, .cashback-page .filter-toolbar__controls, .cashback-page .filter-toolbar__search { min-width: 0; max-width: 100%; }
+.cashback-page .filter-toolbar__controls > .tab-bar { max-width: 100%; flex-wrap: wrap; }
+.cashback-page .filter-toolbar__search { flex-shrink: 1; }
+.cashback-page .filter-toolbar__search > * { max-width: 100%; }
+.cashback-table-wrap:focus-visible { outline: 2px solid var(--color-brand); outline-offset: -2px; }
+.cashback-page .cashback-table { min-width: 680px; }
+.cashback-page .panel, .cashback-page .data-panel__body { min-width: 0; }
+.cashback-section-heading h2, .cashback-statements h2, .cashback-results h2, .cashback-introduction h2 { margin: 0 0 6px; font: 650 18px/1.4 var(--font-sans); letter-spacing: -.02em; }
+.cashback-page h3 { font-family: var(--font-sans); letter-spacing: normal; }
+.cashback-page h3 { margin: 22px 0 10px; font-size: 15px; font-weight: 600; }
+.cashback-page p { line-height: 1.6; }
+.cashback-program-state { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-width: 0; }
+.cashback-program-state p { margin: 8px 0 0; max-width: 72ch; color: var(--color-text-muted); font-size: 13px; }
+.cashback-state-actions, .cashback-form-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.cashback-status { display: inline-flex; border-radius: 6px; background: var(--surface-2); color: var(--color-text); font: 500 12px/1.5 var(--font-sans); padding: 5px 9px; }
+.cashback-status[data-active="true"] { color: var(--color-brand); background: var(--color-brand-subtle); }
+.cashback-feedback { padding: 14px 18px; border: 1px solid var(--color-border); border-radius: 10px; font-size: 14px; }
+.cashback-feedback--success { background: var(--color-brand-subtle); color: var(--color-text); }
+.cashback-feedback--error { color: var(--color-error); background: var(--surface-2); }
+.cashback-feedback:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; }
+.cashback-period { min-width: 0; }
+.cashback-period .cashback-field-error { margin-top: 8px; }
+.cashback-field input, .cashback-field select, .cashback-field textarea { width: 100%; min-width: 0; min-height: 44px; border: 1px solid var(--color-border); border-radius: 8px; padding: 11px 12px; background: var(--color-bg, var(--surface-1)); color: var(--color-text); font: 400 14px/1.5 var(--font-sans); }
+.cashback-field textarea { resize: vertical; }
+.cashback-field select { padding-right: 28px; }
+.cashback-field input:focus-visible, .cashback-field select:focus-visible, .cashback-field textarea:focus-visible, .cashback-customer-link:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; }
+.cashback-field [aria-invalid="true"] { border-color: var(--color-error); }
+.cashback-field input:disabled, .cashback-field select:disabled, .cashback-field textarea:disabled { opacity: .65; cursor: not-allowed; }
+.cashback-loading { padding: 24px; }
+.cashback-loading span { display: block; height: 16px; max-width: 480px; background: var(--surface-2); margin-bottom: 12px; border-radius: 4px; }
+.cashback-loading span:nth-child(2) { max-width: 340px; }
+.cashback-loading span:nth-child(3) { max-width: 220px; }
+.cashback-loading p, .cashback-state { color: var(--color-text-muted); font-size: 13px; }
+.cashback-state { padding: 24px; }
+.cashback-introduction { max-width: 720px; padding: 20px 0 28px; }
+.cashback-introduction p { font-size: 14px; color: var(--color-text-muted); }
+.cashback-overview, .cashback-transactions { display: grid; gap: var(--page-section-gap, 24px); min-width: 0; }
+.cashback-current, .cashback-settings, .cashback-adjustment { padding: 0; }
+.cashback-section-heading { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 24px; }
+.cashback-section-heading p { margin: 0; color: var(--color-text-muted); font-size: 13px; max-width: 75ch; }
+.cashback-balances { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; padding: 0 24px 24px; gap: 24px; }
+.cashback-balances dt { font-size: 13px; color: var(--color-text-muted); margin-bottom: 8px; }
+.cashback-balances dd { margin: 0; font: 600 26px/1.25 var(--font-sans); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.cashback-overview-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; }
+.cashback-statements, .cashback-results { padding: 24px; }
+.cashback-statements dl, .cashback-results dl { margin: 14px 0 0; }
+.cashback-statements dl > div, .cashback-results dl > div { display: flex; justify-content: space-between; gap: 20px; padding: 13px 0; border-bottom: 1px solid var(--color-border); font-size: 14px; }
+.cashback-statements dl > div:last-child, .cashback-results dl > div:last-child { border-bottom: 0; }
+.cashback-statements dd, .cashback-results dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cashback-settings form { padding: 0 24px 24px; }
+.cashback-settings fieldset { padding: 24px 0; margin: 0; border: 0; border-top: 1px solid var(--color-border); min-width: 0; }
+.cashback-settings legend { float: left; padding: 0; margin: 0 0 16px; font-size: 15px; font-weight: 600; }
+.cashback-settings fieldset > .cashback-help, .cashback-settings fieldset > .cashback-fields, .cashback-settings fieldset > .cashback-field { clear: both; }
+.cashback-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 24px; }
+.cashback-field { display: grid; align-content: start; min-width: 0; gap: 7px; font-size: 13px; font-weight: 500; }
+.cashback-field > label { line-height: 1.5; }
+.cashback-limit { display: grid; align-content: start; gap: 14px; }
+.cashback-help { margin: 0; font: 400 12px/1.65 var(--font-sans); color: var(--color-text-muted); }
+fieldset > .cashback-help { padding-bottom: 16px; }
+.cashback-field-error { margin: 0; color: var(--color-error); font-size: 13px; }
+.cashback-review { margin: 0 24px 24px; padding: 24px; border-radius: 10px; background: var(--surface-2); }
+.cashback-review h3 { margin-top: 0; }
+.cashback-review p { font-size: 14px; max-width: 75ch; }
+.cashback-definition-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin: 24px 0; }
+.cashback-definition-list dt { font-size: 12px; color: var(--color-text-muted); margin-bottom: 5px; }
+.cashback-definition-list dd { margin: 0; font-size: 14px; }
+.cashback-review details { margin-bottom: 22px; }
+.cashback-review summary { cursor: pointer; font-size: 14px; padding: 10px 0; }
+.cashback-terms { white-space: pre-wrap; overflow-wrap: anywhere; }
+.cashback-simulation { max-width: 560px; margin: 20px 0; }
+.cashback-combination-note { padding: 12px 14px; margin: 0 0 18px; background: var(--surface-2); border-radius: 8px; font-size: 13px; clear: both; }
+.cashback-combination-footnote { padding-top: 16px; }
+.cashback-simulation-result { padding-block: 12px; font-variant-numeric: tabular-nums; }
+.cashback-simulation-result p { margin: 10px 0; }
+.cashback-table-wrap { max-width: 100%; overflow: auto; }
+.cashback-table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+.cashback-table th { background: var(--surface-2); color: var(--color-text-muted); font-weight: 500; font-size: 12px; padding: 13px 20px; white-space: nowrap; }
+.cashback-table td { padding: 17px 20px; border-top: 1px solid var(--color-border); vertical-align: top; line-height: 1.55; }
+.cashback-table small { display: block; margin-top: 5px; color: var(--color-text-muted); font-size: 12px; overflow-wrap: anywhere; }
+.cashback-table tbody tr:hover { background: var(--surface-2); }
+.cashback-table .cashback-amount { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cashback-reference { max-width: 240px; overflow-wrap: anywhere; }
+.cashback-customer-link { display: block; padding: 4px 0; color: var(--color-brand); font: 600 14px/1.5 var(--font-sans); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; text-align: left; border: 0; background: none; }
+.cashback-customer-detail { display: grid; gap: 20px; }
+.cashback-customer-detail > .zyn-btn { justify-self: start; }
+.cashback-customer-detail .cashback-current { margin: 0; }
+.cashback-detail-note { margin: 0; padding: 0 24px 24px; font-size: 13px; color: var(--color-text-muted); }
+.cashback-adjustment form { padding: 0 24px 24px; display: grid; gap: 18px; }
+.cashback-adjustment form > .zyn-btn { justify-self: start; }
+@media (max-width: 900px) {
+  .cashback-overview-columns { grid-template-columns: 1fr; }
+  .cashback-balances dd { font-size: 22px; }
+}
+@media (max-width: 560px) {
+  .cashback-page > .tab-bar { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); width: 100%; }
+  .cashback-page > .cashback-program-state { padding: 12px 14px; }
+  .cashback-page .page-header__actions { width: 100%; }
+  .cashback-fields, .cashback-definition-list { grid-template-columns: 1fr; }
+  .cashback-balances { grid-template-columns: 1fr; gap: 18px; padding-inline: 18px; }
+  .cashback-balances > div { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+  .cashback-balances dt { margin: 0; }
+  .cashback-balances dd { font-size: 20px; }
+  .cashback-section-heading, .cashback-statements, .cashback-results { padding: 20px 18px; }
+  .cashback-settings form, .cashback-adjustment form { padding-inline: 18px; }
+  .cashback-review { margin-inline: 12px; padding: 18px; }
+  .cashback-form-actions > .zyn-btn { width: 100%; }
+  .cashback-state-actions { width: 100%; }
+  .cashback-state-actions .zyn-btn { flex: 1 1 auto; }
+  .cashback-table th, .cashback-table td { padding-inline: 16px; }
+}
+.cashback-page .chat-dock-collapsed .chat-dock-trigger { display: none; }
+@media (max-width: 768px) {
+  .cashback-page .page-header__copy { flex: 0 1 auto; }
+}
+@media (max-width: 700px) {
+  .console-content.dashboard-ui > .cashback-page { --page-section-gap: 16px; gap: 16px; }
+  .console-content.dashboard-ui:has(> .cashback-page[data-tab="settings"]) { padding-top: 16px !important; }
+  .cashback-page .page-header { flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 12px; padding-bottom: 16px; }
+  .cashback-page .page-header__copy { min-width: 0; flex: 1; }
+  .cashback-page .page-header__actions { width: auto; flex-wrap: nowrap; flex-shrink: 0; }
+  .cashback-page .cashback-header-action, .cashback-page .cashback-program-configure { min-width: 44px; width: 44px; height: 44px; padding: 10px; }
+  .cashback-header-action .zyn-btn__label > span, .cashback-program-configure .zyn-btn__label > span { display: none; }
+  .cashback-page[data-tab="settings"] .cashback-program-note { display: none; }
+  .cashback-settings[data-compact="true"] .cashback-settings-layout { padding-top: 0; border-top: 0; }
+  .cashback-settings[data-compact="true"] .cashback-section-lead { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cashback-page *, .cashback-page *::before, .cashback-page *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+}

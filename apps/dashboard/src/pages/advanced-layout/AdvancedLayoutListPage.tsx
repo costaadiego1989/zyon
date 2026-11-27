@@ -1,7 +1,8 @@
+import { File, FileCheck, Layers, LayoutGrid, ListFilter, MessageSquare, Pencil, Star, Video } from "lucide-react";
 import { Button } from "../../components/Button.js";
 import { PageHeader } from "../../components/PageHeader.js";
 import React, { useEffect, useMemo, useState } from "react";
-import { LayoutGrid, Pencil, Layers, MessageSquare, Star, Video } from "lucide-react";
+
 import type { MerchantProfile } from "../../api-client.js";
 import type { Product, ProductLayoutStatusEntry } from "../../api/endpoints/catalog.js";
 import { DataPanel } from "../../components/DataPanel.js";
@@ -185,9 +186,9 @@ export function AdvancedLayoutListPage({ me, onEditProduct }: AdvancedLayoutList
       >
         <FilterToolbar
           tabs={[
-            { key: "all", label: "Todos" },
-            { key: "configured", label: "Com conteúdo" },
-            { key: "empty", label: "Sem conteúdo" },
+            { key: "all", label: "Todos", icon: <ListFilter size={16} /> },
+            { key: "configured", label: "Com conteúdo", icon: <FileCheck size={16} /> },
+            { key: "empty", label: "Sem conteúdo", icon: <File size={16} /> },
           ]}
           activeTab={statusFilter}
           onTabChange={(k) => resetPage(() => setStatusFilter(k as StatusFilter))}

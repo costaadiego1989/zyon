@@ -1,6 +1,7 @@
+import { CircleCheck, Clock, Copy, ListFilter, Pause, Percent, Play, Plus, Tag, Trash2, TrendingUp } from "lucide-react";
 import { SetupGuide } from "../../components/SetupGuide.js";
 import { PageHeader } from "../../components/PageHeader.js";
-import { Plus, Trash2, Copy, Tag, Pause, Play, TrendingUp, Percent } from "lucide-react";
+
 import { useState, useMemo, useEffect } from "react";
 import { Button } from "../../components/Button.js";
 import { DataPanel } from "../../components/DataPanel.js";
@@ -12,6 +13,7 @@ import { StatCard } from "../overview/components/StatCard.js";
 import { CouponForm } from "./CouponForm.js";
 import { useCouponsPage } from "./useCouponsPage.js";
 import type { MerchantProfile } from "../../api-client.js";
+import { isExistingIsoDate } from "../../lib/calendar-date.js";
 import "./coupons.css";
 export interface CouponsPageProps { apiBaseUrl: string; me: MerchantProfile | null; }
 function formatDiscount(type: string, value: number): string {
@@ -19,10 +21,11 @@ function formatDiscount(type: string, value: number): string {
   if (type === "percent") return String(value || 0) + "%";
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
 }
-function formatDate(iso: string): string {
-  // A date without a time is a calendar date; avoid shifting it to the previous day.
-  const date = new Date(iso.length === 10 ? iso + "T12:00:00" : iso);
-  return Number.isNaN(date.getTime()) ? "Data indisponível" : date.toLocaleDateString("pt-BR");
+export function formatCouponDate(iso: string): string {
+  // The date-only form is serialized by the API as UTC midnight.
+  if (!isExistingIsoDate(iso)) return "Data indisponível";
+  const date = new Date(iso);
+  return date.toLocaleDateString("pt-BR", { timeZone: "UTC" });
 }
 export function CouponsPage(_props: CouponsPageProps) {
   const vm = useCouponsPage();
@@ -68,7 +71,7 @@ export function CouponsPage(_props: CouponsPageProps) {
       )}
 
     <DataPanel title="Lista de cupons" page={currentPage} pageSize={PAGE_SIZE} total={vm.loading || vm.loadError ? 0 : filteredCoupons.length} onPageChange={setPage}>
-      <FilterToolbar tabs={[{ key: "all", label: "Todos" }, { key: "active", label: "Ativos" }, { key: "paused", label: "Pausados" }, { key: "expired", label: "Expirados" }]} activeTab={statusFilter} onTabChange={key => { setStatusFilter(key as typeof statusFilter); setPage(1); }} search={searchQuery} onSearchChange={value => { setSearchQuery(value); setPage(1); }} searchPlaceholder="Buscar código do cupom" />
+      <FilterToolbar tabs={[{ key: "all", label: "Todos", icon: <ListFilter size={16} /> }, { key: "active", label: "Ativos", icon: <CircleCheck size={16} /> }, { key: "paused", label: "Pausados", icon: <Pause size={16} /> }, { key: "expired", label: "Expirados", icon: <Clock size={16} /> }]} activeTab={statusFilter} onTabChange={key => { setStatusFilter(key as typeof statusFilter); setPage(1); }} search={searchQuery} onSearchChange={value => { setSearchQuery(value); setPage(1); }} searchPlaceholder="Buscar código do cupom" />
       {vm.loading ? <p className="coupons-state" role="status">Carregando cupons…</p> : vm.loadError ? <EmptyState icon={Tag} title="Não foi possível carregar os cupons" description={vm.loadError} action={<Button variant="outline" onClick={() => void vm.reload()}>Tentar novamente</Button>} /> : filteredCoupons.length === 0 ? <EmptyState icon={Tag} title={hasFilters ? "Nenhum cupom encontrado" : "Crie seu primeiro cupom"} description={hasFilters ? "Tente outro código ou limpe os filtros para ver os cupons da loja." : "Ofereça um benefício aos clientes e compartilhe o código nas suas campanhas."} action={<Button variant={hasFilters ? "outline" : "primary"} onClick={hasFilters ? clearFilters : vm.openForm}>{hasFilters ? "Limpar filtros" : "Criar cupom"}</Button>} /> : <div className="coupons-list">
         {paginatedCoupons.map(coupon => <article key={coupon.id} className="coupon-row" aria-label={"Cupom " + coupon.code}>
           <div className="coupon-row__heading"><div className="coupon-row__identity"><h2>{coupon.code}</h2><span className="coupon-row__status" data-active={coupon.isActive}>{coupon.isActive ? "Ativo" : "Pausado"}</span></div>
@@ -78,7 +81,7 @@ export function CouponsPage(_props: CouponsPageProps) {
               <Button variant="ghost" size="sm" disabled={!!vm.mutatingId} onClick={() => { vm.clearDeleteError(); setDeleteTarget({ id: coupon.id, code: coupon.code }); }} aria-label={"Arquivar cupom " + coupon.code}><Trash2 size={14} /> Arquivar</Button>
             </div>
           </div>
-          <dl className="coupon-row__details"><div><dt>Benefício</dt><dd>{formatDiscount(coupon.discountType, coupon.discountValue)}</dd></div><div><dt>Resgates</dt><dd>{coupon.usedCount ?? 0}{coupon.maxUses ? " de " + coupon.maxUses : " · sem limite"}</dd></div><div><dt>Validade</dt><dd>{coupon.startsAt ? "De " + formatDate(coupon.startsAt) : "Sem início definido"}<br />{coupon.expiresAt ? "Até " + formatDate(coupon.expiresAt) : "Sem data final"}</dd></div>
+          <dl className="coupon-row__details"><div><dt>Benefício</dt><dd>{formatDiscount(coupon.discountType, coupon.discountValue)}</dd></div><div><dt>Resgates</dt><dd>{coupon.usedCount ?? 0}{coupon.maxUses ? " de " + coupon.maxUses : " · sem limite"}</dd></div><div><dt>Validade</dt><dd>{coupon.startsAt ? "De " + formatCouponDate(coupon.startsAt) : "Sem início definido"}<br />{coupon.expiresAt ? "Até " + formatCouponDate(coupon.expiresAt) : "Sem data final"}</dd></div>
             <div><dt>Compra mínima</dt><dd>{coupon.minCartValue ? formatDiscount("fixed", coupon.minCartValue) : "Sem mínimo"}</dd></div>
             <div><dt>Usos por comprador</dt><dd>{coupon.maxPerBuyer ?? "Sem limite"}</dd></div>
             {!!coupon.allowedSkus?.length && <div><dt>SKUs elegíveis</dt><dd>{coupon.allowedSkus.join(", ")}</dd></div>}

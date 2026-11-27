@@ -1,6 +1,7 @@
 const REQUIRED_PUBLIC_AUTH_KEYS = Object.freeze([
-  'VITE_API_BASE_URL', 'VITE_GOOGLE_CLIENT_ID',
-  'VITE_OAUTH_REDIRECT_URI', 'VITE_TURNSTILE_SITE_KEY',
+  'VITE_API_BASE_URL', 'VITE_GOOGLE_CLIENT_ID', 'VITE_MICROSOFT_CLIENT_ID',
+  'VITE_FACEBOOK_CLIENT_ID', 'VITE_OAUTH_REDIRECT_URI', 'VITE_TURNSTILE_SITE_KEY',
+  'VITE_FACEBOOK_LOGIN_ENABLED',
 ]);
 const OPTIONAL_PUBLIC_AUTH_KEYS = Object.freeze(['VITE_GITHUB_CLIENT_ID']);
 const PROJECT_ID = 'prj_ExtCipEsyn65zIa2cg6FbUbugR3E';
@@ -24,12 +25,16 @@ function validatePublicAuthConfig(input) {
   }
   if (new URL(result.VITE_OAUTH_REDIRECT_URI).pathname !== '/auth/oauth/callback') throw Error('public_auth_invalid_callback:VITE_OAUTH_REDIRECT_URI');
   if (!result.VITE_GOOGLE_CLIENT_ID.endsWith('.apps.googleusercontent.com')) throw Error('public_auth_invalid_client:VITE_GOOGLE_CLIENT_ID');
+  if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(result.VITE_MICROSOFT_CLIENT_ID)) throw Error('public_auth_invalid_client:VITE_MICROSOFT_CLIENT_ID');
+  if (!/^\d+$/.test(result.VITE_FACEBOOK_CLIENT_ID)) throw Error('public_auth_invalid_client:VITE_FACEBOOK_CLIENT_ID');
+  if (!['true', 'false'].includes(result.VITE_FACEBOOK_LOGIN_ENABLED)) throw Error('public_auth_invalid_flag:VITE_FACEBOOK_LOGIN_ENABLED');
   return result;
 }
 
 function verifyAuthBundle(code, input) {
   const config = validatePublicAuthConfig(input);
   for (const key of Object.keys(config)) {
+    if (key === 'VITE_FACEBOOK_LOGIN_ENABLED') continue; // Vite may eliminate this visibility constant.
     if (!code.includes(JSON.stringify(config[key]))) throw Error('public_auth_bundle_missing:' + key);
   }
   return true;

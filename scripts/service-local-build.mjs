@@ -14,6 +14,8 @@ if(target!=='widget-v2')Object.assign(env,{NEXT_TELEMETRY_DISABLED:'1',
   VITE_API_BASE_URL:'https://127.0.0.1:5187',
   VITE_OAUTH_REDIRECT_URI:'https://127.0.0.1:5187/auth/oauth/callback',
   VITE_GOOGLE_CLIENT_ID:'synthetic-local-only.apps.googleusercontent.com',
+  VITE_MICROSOFT_CLIENT_ID:'11111111-1111-4111-8111-111111111111',
+  VITE_FACEBOOK_CLIENT_ID:'100000000000001',VITE_FACEBOOK_LOGIN_ENABLED:'false',
   VITE_TURNSTILE_SITE_KEY:'synthetic-local-only',
   NEXT_PUBLIC_API_BASE_URL:'http://127.0.0.1:5187',AACP_API_URL:'http://127.0.0.1:5187'});
 // Invoke the already cached version pinned by the workspace, bypassing the

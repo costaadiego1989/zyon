@@ -297,6 +297,7 @@ import type { ServiceBookingResult } from "../contracts/service-booking-tool.sch
 export type ConversationBlock =
   | { type: "service_booking"; data: ServiceBookingResult }
   | { type: "cart_add_result"; data: { cartId: string; variantId: string; serviceSlotId?: string; optionItemIds?: string[]; status: "succeeded" | "rejected" | "unknown"; code?: string } }
+  | FiscalInvoicesBlock
   | ProductCardBlock
   | ProductCarouselBlock
   | ComparisonTableBlock
@@ -320,3 +321,8 @@ export type ConversationBlock =
   | CrossSellBlock
   | CouponListBlock
   | CategoryCarouselBlock;
+
+export interface FiscalInvoicesBlock {
+  type: "fiscal_invoices";
+  data: { orderId: string; invoices: Array<{ intentId: string; sellerMerchantId: string; environment: "production" | "homologation"; state: string; documentState: string; number?: string; options: Array<{ label: string; action: "navigate"; href: string }> }> };
+}

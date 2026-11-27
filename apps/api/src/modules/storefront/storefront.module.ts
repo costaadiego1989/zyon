@@ -213,6 +213,7 @@ import { StorefrontServiceBookingBridge } from "./application/services/storefron
     GetStorefrontFunnelUseCase,
     STOREFRONT_CONVERSATION_PORT,
     STOREFRONT_CART_PORT,
+    STOREFRONT_TELEMETRY_PORT,
     AIGatewayService
   ]
 })

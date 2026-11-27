@@ -1,6 +1,16 @@
+import { MarketingModule } from "./modules/marketing/marketing.module.js";
+import { platformProspectingModule } from "./modules/platform-prospecting/platform-prospecting.module.js";
 import { createHttpLoggerOptions } from "./shared/logger/http-logger.config.js";
 import { AiMeteringModule } from "./modules/ai-metering/ai-metering.module.js";
 import { Module } from "@nestjs/common";
+import { PlatformSupportModule } from "./modules/platform-support/platform-support.module.js";
+import { MetaAdsAgentModule } from "./modules/meta-ads-agent/meta-ads-agent.module.js";
+import { FiscalModule } from "./modules/fiscal/fiscal.module.js";
+import { CashbackCoreModule } from "./modules/cashback/cashback.module.js";
+import { CashbackAssistantModule } from "./modules/cashback/cashback-assistant.module.js";
+import { CashbackHttpModule } from "./modules/cashback/cashback-http.module.js";
+import { CashbackLifecycleJob } from "./modules/cashback/infrastructure/cashback-lifecycle.job.js";
+import { CashbackCommunicationsModule } from "./modules/cashback/cashback-communications.module.js";
 import { PlatformControlModule } from "./modules/platform-control/platform-control.module.js";
 import { PlatformOverviewModule } from "./modules/platform-overview/platform-overview.module.js";
 import { PlatformMerchantDirectoryModule } from "./modules/platform-merchant-directory/platform-merchant-directory.module.js";
@@ -78,12 +88,18 @@ import { PublicApiModule } from "./modules/public-api/public-api.module.js";
     ObservabilityModule,
     HttpModule,
     PersistenceModule,
+    FiscalModule,
+    CashbackCoreModule,
+    CashbackAssistantModule,
+    CashbackHttpModule,
+    CashbackCommunicationsModule,
     ServiceActivationModule,
     ServiceSlotHoldsModule,
     DataRetentionModule,
     MessagingModule,
     HealthModule,
     AuthModule,
+    MarketingModule,
     MerchantModule,
     AgentRulesModule,
     CheckoutSettingsModule,
@@ -115,6 +131,7 @@ import { PublicApiModule } from "./modules/public-api/public-api.module.js";
     StorageModule,
     ExperimentsModule,
     RevenueManagerModule,
+    MetaAdsAgentModule,
     RevenueLiftModule,
     MarketplaceModule,
     DashboardMarketplaceModule,
@@ -133,6 +150,8 @@ import { PublicApiModule } from "./modules/public-api/public-api.module.js";
     AgenticProtocolModule,
     PublicApiModule,
     PlatformControlModule,
+    platformProspectingModule,
+    PlatformSupportModule,
     AiMeteringModule,
     PlatformOverviewModule,
     PlatformMerchantDirectoryModule,
@@ -141,6 +160,7 @@ import { PublicApiModule } from "./modules/public-api/public-api.module.js";
     BillingPromotionsModule,
   ],
   providers: [
+    CashbackLifecycleJob,
     { provide: APP_INTERCEPTOR, useClass: MetricsInterceptor },
   ],
 })

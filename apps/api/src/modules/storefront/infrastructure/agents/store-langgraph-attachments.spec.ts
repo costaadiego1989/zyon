@@ -9,7 +9,7 @@ test("derived attachment and confirmation policy survive primary and fallback pr
     const interpret = async (request: OpenRouterChatRequest) => {
       assert.match(request.messages[0]!.content, /ANEXO DO COMPRADOR/);
       assert.match(request.messages[0]!.content, /confirmação explícita/);
-      assert.match([...request.messages].reverse().find(message => message.role === "user")!.content, /Creme reparador,2/);
+      assert.match(request.messages.filter(message => message.role === "user").at(-1)!.content, /Creme reparador,2/);
       interpreted = true;
       return { content: JSON.stringify({ schemaVersion: 1, message: "Encontrei referências para pesquisar. Deseja incluir os produtos?" }), toolCalls: [], usage: { promptTokens: 20, completionTokens: 10, totalTokens: 30 } };
     };

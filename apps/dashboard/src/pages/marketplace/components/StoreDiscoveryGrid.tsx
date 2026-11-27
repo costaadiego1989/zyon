@@ -1,5 +1,6 @@
+import { AlertCircle, Copy, ListFilter, Store } from "lucide-react";
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { Store, AlertCircle, Copy } from "lucide-react";
+
 import { useApi } from "../../../hooks/useApi.js";
 import { showToast } from "../../../components/Toast.js";
 import { EmptyState } from "../../../components/EmptyState.js";
@@ -111,7 +112,7 @@ export function StoreDiscoveryGrid(_props: Props) {
   return (
     <div className="marketplace-discovery">
       <FilterToolbar
-        tabs={[{ key: "all", label: "Lojas disponíveis" }]}
+        tabs={[{ key: "all", label: "Lojas disponíveis", icon: <ListFilter size={16} /> }]}
         activeTab="all"
         onTabChange={() => {}}
         search={search}

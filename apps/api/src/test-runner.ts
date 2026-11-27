@@ -341,6 +341,7 @@ import "./modules/notifications/infrastructure/adapters/bubblewhats.adapter.spec
 import "./modules/notifications/application/use-cases/notification-delivery.use-cases.spec.js";
 import "./modules/whatsapp-templates/application/use-cases/send-whatsapp-message.spec.js";
 import "./modules/whatsapp-templates/application/use-cases/recovery-channel-routing.spec.js";
+import "./modules/whatsapp-templates/application/use-cases/recovery-reliability.spec.js";
 import "./modules/auth/application/recovery-template-signup.spec.js";
 import "./modules/cart-recovery/__tests__/recovery-templates.controller.spec.js";
 import "./modules/cart-recovery/application/use-cases/generate-recovery-templates.use-case.spec.js";
@@ -544,3 +545,17 @@ import "./modules/checkout/domain/services/bound-coupon-release-proof.spec.js";
 import "./modules/checkout/infrastructure/prisma/prisma-checkout.coupon-lifecycle.spec.js";
 import "./modules/checkout/infrastructure/prisma/storefront-coupon-integration-boundary.spec.js";
 import "./shared/persistence/digital-order-fulfillment.spec.js";
+// Fiscal source suites: retain every preceding legacy import unchanged.
+import "./fiscal-test-runner.spec.js";
+import fiscalTest from "node:test";
+import assertFiscal from "node:assert/strict";
+import { discoverFiscalTestFiles, runFiscalTestFiles } from "./fiscal-test-runner.js";
+fiscalTest("FISCAL-64 all discovered fiscal source suites use the real loader and propagate failures", { timeout: 1_260_000 }, async () => {
+  const result = await runFiscalTestFiles(discoverFiscalTestFiles());
+  assertFiscal.equal(result.exitCode, 0, "fiscal source child must complete without failures");
+});
+// Source integration suites use real, explicitly local PostgreSQL, Neo4j and Redis.
+import { runProspectingRegression } from "./prospecting-test-runner.js";
+fiscalTest("Prospecção executa todas as suítes registradas e os contratos HTTP", {timeout:2_400_000}, async()=>{
+  assertFiscal.equal(await runProspectingRegression(),0);
+});

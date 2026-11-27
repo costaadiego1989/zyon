@@ -36,23 +36,23 @@ function inventory(emitted,productionInputs){
   if(productionInputs){
     assert.equal(emitted,true);files.push(...productionInputs);
     for(const entry of readdirSync(resolve(root,'packages'),{withFileTypes:true}))
-      if(entry.isDirectory())walk(resolve(root,'packages',entry.name,'dist'),['.js','.json']);
-    walk(resolve(api,'dist'),['.js','.json']);
+      if(entry.isDirectory())walk(resolve(root,'packages',entry.name,'dist'),['.js','.jsx','.mjs','.cjs','.json']);
+    walk(resolve(api,'dist'),['.js','.jsx','.mjs','.cjs','.json']);
     return files.sort((a,b)=>a.path.localeCompare(b.path,'en'));
   }
   // Production compilation inputs only. The JS harness is executed directly
   // and proven separately by its own tests, not typechecked by Nest build.
   // A conservative superset keeps runtime verification cheap and restrictive.
   // Build-time compiler coverage below proves no productive source is omitted.
-  walk(resolve(api,'src'),['.ts','.tsx','.mts','.cts','.json']);
-  for(const name of ['package.json','tsconfig.json','tsconfig.build.json','nest-cli.json','prisma.config.ts','prisma/schema.prisma'])add(resolve(api,name));
+  walk(resolve(api,'src'),['.ts','.tsx','.mts','.cts','.js','.jsx','.mjs','.cjs','.json']);
+  for(const name of ['package.json','tsconfig.json','tsconfig.build.json','nest-cli.json','prisma.config.ts','prisma/schema.prisma','prisma.company-directory.config.ts','prisma/company-directory.prisma'])add(resolve(api,name));
   for(const name of ['package.json','pnpm-lock.yaml','tsconfig.base.json'])add(resolve(root,name));
   for(const entry of readdirSync(resolve(root,'packages'),{withFileTypes:true}))if(entry.isDirectory()){
     const base=resolve(root,'packages',entry.name);if(existsSync(resolve(base,'package.json')))add(resolve(base,'package.json'));
     for(const name of ['tsconfig.json','tsconfig.build.json'])if(existsSync(resolve(base,name)))add(resolve(base,name));
-    walk(resolve(base,'src'),['.ts','.tsx','.mts','.cts','.json']);if(emitted)walk(resolve(base,'dist'),['.js','.json']);
+    walk(resolve(base,'src'),['.ts','.tsx','.mts','.cts','.js','.jsx','.mjs','.cjs','.json']);if(emitted)walk(resolve(base,'dist'),['.js','.jsx','.mjs','.cjs','.json']);
   }
-  if(emitted)walk(resolve(api,'dist'),['.js','.json']);
+  if(emitted)walk(resolve(api,'dist'),['.js','.jsx','.mjs','.cjs','.json']);
   files.sort((a,b)=>a.path.localeCompare(b.path,'en'));return files;
 }
 function checkedBuildInputs(){

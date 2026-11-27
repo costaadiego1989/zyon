@@ -39,6 +39,7 @@ export interface PurchaseItem {
 export interface BuyerPurchase {
   id: string;
   order_id: string;
+  merchant_id?: string;
   merchant_name: string;
   /** API confirmation of a physical delivery with a valid tracking code. */
   has_tracking?: boolean;
@@ -189,11 +190,13 @@ export interface PurchasePage {
 }
 
 export type TabType =
+  | "agent"
   | "profile"
   | "orders"
   | "tracking"
   | "conversations"
   | "preferences"
+  | "cashback"
   | "loyalty"
   | "settings";
 

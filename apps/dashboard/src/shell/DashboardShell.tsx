@@ -1,4 +1,4 @@
-import { mapInboxNotification } from "../components/notification-inbox.js";
+import { mapInboxNotification, campaignReviewHash, campaignReviewLocation } from "../components/notification-inbox.js";
 import "../components/dashboard-ui.css";
 import "./dashboard-responsive.css";
 import React, { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
@@ -31,6 +31,10 @@ import { SUBSCRIPTION_RECOVERY_TABS } from "./subscription-route-policy.js";
 import { SubscriptionAccessGate } from "./SubscriptionAccessGate.js";
 import { MarketplaceRemediationActions } from "../pages/onboarding-wizard/MarketplaceRemediationActions.js";
 import { Button } from "../components/Button.js";
+import { fiscalHash, readFiscalNavigation } from "./fiscal-navigation.js";
+import {marketingHash,readMarketingNavigation} from "./marketing-navigation.js";
+import {MarketingAccessGate} from "../pages/marketing/MarketingAccessGate.js";
+import type { FiscalEnvironment } from "../api/fiscal.js";
 import type { ConversationNavigation } from "../pages/whatsapp-seller/useConversationNavigation.js";
 
 function ShellImportProgressProvider({ children, suspended = false }: { children: React.ReactNode; suspended?: boolean }) {
@@ -73,10 +77,15 @@ const MerchantRulesAuthenticatedPage = lazy(() => import("../pages/merchant-rule
 const CheckoutSettingsPage = lazy(() => import("../pages/checkout-settings/index.js").then(m => ({ default: m.CheckoutSettingsPage })));
 const SupportSettingsPage = lazy(() => import("../pages/support-settings-page.js").then(m => ({ default: m.SupportSettingsPage })));
 const IntegrationsPage = lazy(() => import("../pages/integrations-page.js").then(m => ({ default: m.IntegrationsPage })));
+const FiscalSettingsPage = lazy(() => import("../pages/fiscal/FiscalSettingsPage.js").then(m => ({ default: m.FiscalSettingsPage })));
+const FiscalInvoicesPage = lazy(() => import("../pages/fiscal/FiscalInvoicesPage.js").then(m => ({ default: m.FiscalInvoicesPage })));
+const FiscalInvoiceDetail = lazy(() => import("../pages/fiscal/FiscalInvoiceDetail.js").then(m => ({ default: m.FiscalInvoiceDetail })));
 const CrmIntegrationsPage = lazy(() => import("../pages/crm-integrations/index.js").then(m => ({ default: m.IntegrationsPage })));
 const OrdersShipmentsPage = lazy(() => import("../pages/orders-shipments-page.js").then(m => ({ default: m.OrdersShipmentsPage })));
 const FinancePage = lazy(() => import("../pages/finance/FinancePage.js").then(m => ({ default: m.FinancePage })));
 const CustomersPage = lazy(() => import("../pages/customers-page.js").then(m => ({ default: m.CustomersPage })));
+const MarketingPage=lazy(()=>import("../pages/marketing/MarketingPage.js").then(m=>({default:m.MarketingPage})));
+const ConversationsPage=lazy(()=>import("../pages/marketing/ConversationsPage.js").then(m=>({default:m.ConversationsPage})));
 const FunnelPage = lazy(() => import("../pages/funnel/index.js").then(m => ({ default: m.FunnelPage })));
 const EmbedPage = lazy(() => import("../pages/embed-page.js").then(m => ({ default: m.EmbedPage })));
 const ThemePage = lazy(() => import("../pages/theme-page.js").then(m => ({ default: m.ThemePage })));
@@ -108,8 +117,10 @@ const MarketplaceSellerFeesPage = lazy(() => import("../pages/marketplace/Market
 const WhatsAppSellerPage = lazy(() => import("../pages/whatsapp-seller/WhatsAppSellerPage.js").then(m => ({ default: m.WhatsAppSellerPage })));
 const ExperimentsPage = lazy(() => import("../pages/experiments-page.js").then(m => ({ default: m.ExperimentsPage })));
 const CouponsPage = lazy(() => import("../pages/coupons/index.js").then(m => ({ default: m.CouponsPage })));
+const CashbackPage = lazy(() => import("../pages/cashback/index.js").then(m => ({ default: m.CashbackPage })));
 const RevenueLiftPage = lazy(() => import("../pages/revenue-lift/index.js").then(m => ({ default: m.RevenueLiftPage })));
 const RevenueManagerPage = lazy(() => import("../pages/revenue-manager/index.js").then(m => ({ default: m.RevenueManagerPage })));
+const MetaAdsAgentPage = lazy(() => import("../pages/meta-ads-agent/index.js").then(m => ({ default: m.MetaAdsAgentPage })));
 const CartRecoveryPage = lazy(() => import("../pages/cart-recovery/index.js").then(m => ({ default: m.CartRecoveryPage })));
 const M2MAgentsPage = lazy(() => import("../pages/m2m-agents/M2MAgentsPage.js").then(m => ({ default: m.M2MAgentsPage })));
 const ProtocolPage = lazy(() => import("../pages/checkout-protocol/ProtocolPage.js").then(m => ({ default: m.ProtocolPage })));
@@ -144,10 +155,21 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
   const resolveInitialTab = (): TabKey => {
     const hash = window.location.hash.slice(1).split("?")[0];
     if (hash) return hash as TabKey;
+    if (new URLSearchParams(window.location.search).get("tab") === "meta-ads-agent") return "meta-ads-agent";
     return initialTab ?? "overview";
   };
   const [requestedTab, setTab] = useState<TabKey>(resolveInitialTab);
   const tab = requestedTab;
+  const[marketingNavigation,setMarketingNavigation]=useState(()=>readMarketingNavigation(window.location.hash));
+  function navigateMarketing(page:"marketing"|"conversations",input:Parameters<typeof marketingHash>[1]={}){
+    const hash=marketingHash(page,input);setMarketingNavigation(readMarketingNavigation(hash));window.location.hash=hash;setTab(page);
+  }
+
+  const fiscalNavigation = readFiscalNavigation(window.location.hash);
+  function navigateFiscal(target: "fiscal-settings" | "fiscal-invoices" | "fiscal-detail", environment: FiscalEnvironment, intentId?: string) {
+    window.location.hash = fiscalHash(target, environment, intentId);
+    setTab(target);
+  }
   const serviceScope = JSON.stringify([me.id, me.user_id, me.role, me.businessMode, me.businessModeSelectionState]);
   const [editingProductId, setEditingProductId] = useState<string | null>(() => new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("productId"));
   const [hideOnboarding, setHideOnboarding] = useState(initialOnboardingCompleted !== false);
@@ -156,6 +178,8 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
   notificationMerchant.current = me.id;
   const [inventoryNotice, setInventoryNotice] = useState<{ id: string; itemId?: string; alertId?: string } | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [campaignReview,setCampaignReview]=useState(()=>campaignReviewLocation(window.location.hash,me.id,me.role??''));
+  useEffect(()=>{const read=()=>setCampaignReview(campaignReviewLocation(window.location.hash,me.id,me.role??''));read();window.addEventListener('hashchange',read);return()=>window.removeEventListener('hashchange',read);},[me.id,me.role]);
   const [reviewStrategyId, setReviewStrategyId] = useState<string | null>(null);
   useEffect(() => {
     setReviewStrategyId(null);
@@ -187,6 +211,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
     const onHashChange = () => {
       const hash = window.location.hash.slice(1).split("?")[0];
       if (hash === "product-detail") setEditingProductId(new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("productId"));
+      setMarketingNavigation(readMarketingNavigation(window.location.hash));
       if (hash) setTab(hash as TabKey);
     };
     window.addEventListener("hashchange", onHashChange);
@@ -362,7 +387,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
     [visibleSectionIds]
   );
 
-  const navigationTab = tab === "product-detail" ? "catalog" : tab;
+  const navigationTab = tab === "product-detail" ? "catalog" : tab === "fiscal-detail" ? "fiscal-invoices" : tab;
   const activeItem = visibleNavItems.find((item) => item.key === navigationTab) ?? NAV_ITEMS[0]!;
   const ActiveIcon = activeItem.icon;
   const activeSection = NAV_SECTIONS.find(section => section.id === activeItem.section)?.label ?? activeItem.section;
@@ -589,19 +614,10 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             <option value="logout">Sair da conta</option>
           </select>
           <div className="console-desktop-heading" style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            {tab === "overview" ? <>
-            <div style={{ width: 34, height: 34, borderRadius: 9, background: "var(--color-brand-subtle)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <ActiveIcon size={17} color="var(--color-brand-hover)" />
-            </div>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 5, font: "600 10.5px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)" }}>
-                {activeSection}<span style={{ color: "var(--color-text-faint)" }}>/</span><span style={{ color: "var(--color-brand-hover)" }}>{activeItem.label}</span>
-              </div>
-              <div style={{ font: "600 22px var(--font-serif)", color: "var(--color-text)", letterSpacing: "-0.005em" }}>{activeItem.label}</div>
-            </div>
-            </> : <div className="ui-breadcrumb"><ActiveIcon size={17} aria-hidden="true" /><span>{activeSection}</span><span aria-hidden="true">/</span><span className="ui-breadcrumb__current">{activeItem.label}</span></div>}
+            <div className="ui-breadcrumb"><ActiveIcon size={17} aria-hidden="true" /><span>{activeSection}</span><span aria-hidden="true">/</span><span className="ui-breadcrumb__current">{activeItem.label}</span></div>
           </div>
           <div className="console-topbar-actions" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {!subscriptionRequired && tab === "cashback" && <PlatformFeedbackFab key={me.id} apiBaseUrl={API_BASE_URL} merchantId={me.id} presentation="inline" />}
             {!subscriptionRequired && (me.plan === "STORE_ONLY" || me.plan === "BOTH") && storefrontHref && (
               <a
                 href={storefrontHref}
@@ -622,9 +638,14 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                 if (notificationMerchant.current === me.id) setNotifications([]);
               }}
               onClickNotification={async (n) => {
+                if(n.type==='campaign_ready'){
+                  const hash=campaignReviewHash(n,me.id,me.role??'');
+                  if(hash){setCampaignReview(campaignReviewLocation(hash,me.id,me.role??''));setTab('meta-ads-agent');window.location.hash=hash;}
+                }
                 if (n.hypothesisId) setReviewStrategyId(n.hypothesisId);
                 if (n.type === "inventory_alert") { setInventoryNotice({ id: n.id, itemId: n.inventoryItemId, alertId: n.inventoryAlertId }); changeTab("inventory"); }
                 if (n.type === "plan_expiry") changeTab("billing-plans");
+                if (n.type === "shipping_wallet_low_balance") changeTab("delivery");
                 if (n.ticketId) changeTab("support");
                 else {
                   const response = await dashboardFetch(API_BASE_URL, `/merchants/${me.id}/notifications/${encodeURIComponent(n.id)}/read`, { method: "POST" });
@@ -683,6 +704,9 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "support" ? <RouteGuard me={me} require="support"><SupportSettingsPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {(tab === "integrations" || tab === "integrations-api") ? <RouteGuard me={me} require="integrations"><IntegrationsPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "erp-integrations" ? <RouteGuard me={me} require="erp-integrations"><InventoryPage apiBaseUrl={API_BASE_URL} me={me} connectorsOnly /></RouteGuard> : null}
+            {tab === "fiscal-settings" ? <RouteGuard me={me} require="fiscal-settings"><FiscalSettingsPage key={`${me.id}:${fiscalNavigation.environment}`} apiBaseUrl={API_BASE_URL} merchantId={me.id} initialEnvironment={fiscalNavigation.environment} intentId={fiscalNavigation.intentId ?? undefined} /></RouteGuard> : null}
+            {tab === "fiscal-invoices" ? <RouteGuard me={me} require="fiscal-invoices"><FiscalInvoicesPage key={`${me.id}:${fiscalNavigation.environment}`} apiBaseUrl={API_BASE_URL} merchantId={me.id} initialEnvironment={fiscalNavigation.environment} onOpen={(id, environment) => navigateFiscal("fiscal-detail", environment, id)} onSettings={() => navigateFiscal("fiscal-settings", fiscalNavigation.environment)} /></RouteGuard> : null}
+            {tab === "fiscal-detail" ? <RouteGuard me={me} require="fiscal-detail">{fiscalNavigation.intentId ? <FiscalInvoiceDetail key={`${me.id}:${fiscalNavigation.environment}:${fiscalNavigation.intentId}`} apiBaseUrl={API_BASE_URL} merchantId={me.id} intentId={fiscalNavigation.intentId} environment={fiscalNavigation.environment} onBack={() => navigateFiscal("fiscal-invoices", fiscalNavigation.environment)} onSettings={() => navigateFiscal("fiscal-settings", fiscalNavigation.environment, fiscalNavigation.intentId!)} /> : <p role="alert">Selecione uma nota na área fiscal.</p>}</RouteGuard> : null}
             {tab === "crm-integrations" ? (
               <RouteGuard me={me} require="crm-integrations">
                 <PremiumFeatureGate
@@ -698,6 +722,12 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "shipments" ? <RouteGuard me={me} require="shipments"><OrdersShipmentsPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "finance" ? <RouteGuard me={me} require="finance"><FinancePage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "customers" ? <RouteGuard me={me} require="customers"><CustomersPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
+            {tab==="marketing"?<RouteGuard me={me} require="marketing"><MarketingAccessGate key={me.id} apiBaseUrl={API_BASE_URL} canUpgrade={me.role==="OWNER"}>
+              <MarketingPage key={`${me.id}:${marketingNavigation.contactId??""}:${marketingNavigation.view}`} apiBaseUrl={API_BASE_URL} me={me} initialTab={marketingNavigation.view} initialContactId={marketingNavigation.contactId} onConversation={conversationId=>navigateMarketing("conversations",{conversationId})}/>
+            </MarketingAccessGate></RouteGuard>:null}
+            {tab==="conversations"?<RouteGuard me={me} require="conversations"><MarketingAccessGate key={me.id} apiBaseUrl={API_BASE_URL} canUpgrade={me.role==="OWNER"}>
+              <ConversationsPage key={me.id} apiBaseUrl={API_BASE_URL} me={me} initialConversationId={marketingNavigation.conversationId} onContact={contactId=>navigateMarketing("marketing",{contactId})} onMarketing={me.role==="OWNER"||me.role==="ADMIN"?()=>navigateMarketing("marketing",{view:"campaigns"}):undefined}/>
+            </MarketingAccessGate></RouteGuard>:null}
             {tab === "funnel" ? <RouteGuard me={me} require="funnel"><FunnelPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "embed" ? <RouteGuard me={me} require="embed"><EmbedPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "theme" ? <RouteGuard me={me} require="theme"><ThemePage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
@@ -777,6 +807,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "marketplace-host-fees" ? <RouteGuard me={me} require="marketplace-host-fees"><MarketplaceSellerFeesPage family="host" me={me} /></RouteGuard> : null}
             {tab === "whatsapp-seller" ? <RouteGuard me={me} require="whatsapp-seller"><WhatsAppSellerPage apiBaseUrl={API_BASE_URL} me={me} navigation={conversationNavigation} /></RouteGuard> : null}
             {tab === "coupons" ? <RouteGuard me={me} require="coupons"><CouponsPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
+            {tab === "cashback" ? <RouteGuard me={me} require="cashback"><CashbackPage key={`${me.id}:${me.user_id}:${me.role}`} merchantId={me.id} apiBaseUrl={API_BASE_URL} scopeKey={`${me.id}:${me.user_id}:${me.role}`} /></RouteGuard> : null}
             {tab === "experiments" ? (
               <RouteGuard me={me} require="experiments">
                 <PremiumFeatureGate feature="abTests" requiredPlan="Scale" featureLabel="Testes A/B" description="Experimente variações de prompts e estratégias do agente com significância estatística e promoção automática do vencedor.">
@@ -798,6 +829,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                 </PremiumFeatureGate>
               </RouteGuard>
             ) : null}
+            {tab === "meta-ads-agent" ? <RouteGuard me={me} require="meta-ads-agent">{campaignReview.error&&<p role="alert">{campaignReview.error}</p>}<MetaAdsAgentPage apiBaseUrl={API_BASE_URL} merchantId={me.id} reviewTarget={campaignReview.target??undefined} /></RouteGuard> : null}
             {tab === "cart-recovery" ? <RouteGuard me={me} require="cart-recovery"><CartRecoveryPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "m2m-agents" ? (
               <RouteGuard me={me} require="m2m-agents">
@@ -818,16 +850,12 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "inventory" ? <RouteGuard me={me} require="inventory"><InventoryPage apiBaseUrl={API_BASE_URL} me={me} notificationTarget={inventoryNotice} /></RouteGuard> : null}
             {tab === "negotiation-policy" ? (
               <RouteGuard me={me} require="negotiation-policy">
-                <PremiumFeatureGate feature="advancedRules" requiredPlan="Growth" featureLabel="Negociação" description="Política de negociação e barganha: o agente negocia descontos dentro dos limites que você define.">
-                  <NegotiationPolicyPage apiBaseUrl={API_BASE_URL} me={me} />
-                </PremiumFeatureGate>
+                <NegotiationPolicyPage apiBaseUrl={API_BASE_URL} me={me} />
               </RouteGuard>
             ) : null}
             {tab === "chargebacks" ? (
               <RouteGuard me={me} require="chargebacks">
-                <PremiumFeatureGate feature="marketplace" requiredPlan="Scale" featureLabel="Chargebacks">
-                  <ChargebacksPage apiBaseUrl={API_BASE_URL} me={me} />
-                </PremiumFeatureGate>
+                <ChargebacksPage apiBaseUrl={API_BASE_URL} me={me} />
               </RouteGuard>
             ) : null}
             {tab === "returns" ? <RouteGuard me={me} require="returns"><ReturnExchangesPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
@@ -871,7 +899,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
           </PageErrorBoundary>
         </section>
       </main>
-      {!subscriptionRequired && <PlatformFeedbackFab key={me.id} apiBaseUrl={API_BASE_URL} merchantId={me.id} />}
+      {!subscriptionRequired && tab !== "cashback" && <PlatformFeedbackFab key={me.id} apiBaseUrl={API_BASE_URL} merchantId={me.id} />}
       <ToastContainer />
       {!subscriptionRequired && <ImportProgressBanner />}
       </div>

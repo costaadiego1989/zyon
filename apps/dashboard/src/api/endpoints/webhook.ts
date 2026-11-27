@@ -42,12 +42,12 @@ export function webhookEndpoints(base: string, f: typeof fetch) {
         ),
       );
     },
-    async testWebhookEndpoint(endpointId: string): Promise<WebhookDelivery> {
+    async testWebhookEndpoint(endpointId: string, eventType?: string): Promise<WebhookDelivery> {
       return mapWebhookDelivery(
         await dashboardJson<WebhookDeliveryApi>(
           base,
           `/webhook-endpoints/${encodeURIComponent(endpointId)}/test`,
-          { method: "POST" },
+          { method: "POST", ...(eventType ? { jsonBody: { event_type: eventType } } : {}) },
           f,
         ),
       );

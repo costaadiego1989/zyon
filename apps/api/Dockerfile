@@ -81,6 +81,13 @@ RUN cd /repo/apps/api && \
     DATABASE_URL="postgresql://prisma:prisma@localhost:5432/prisma?schema=public" \
     pnpm exec prisma generate --schema prisma/schema.prisma
 
+# The platform directory has its own generated client and migration namespace.
+# Generate it inside Linux even when real prospecting is disabled at runtime.
+RUN cd /repo/apps/api && \
+    PROSPECTING_DIRECTORY_DATABASE_URL="postgresql://prisma:prisma@localhost:5432/prisma?schema=company_directory" \
+    pnpm exec prisma generate --config prisma.company-directory.config.ts && \
+    test -f node_modules/.prisma/company-directory/index.js
+
 # Verify generated client exists. Prisma 6 generates inside @prisma/client package
 # (under .pnpm/...), not under a separate .prisma/client directory.
 RUN test -d /repo/apps/api/node_modules/@prisma/client && \
@@ -110,6 +117,7 @@ RUN pnpm --filter @zyon/payments-evm build
 # retained by BuildKit instead of disappearing behind Nest's child-process exit.
 # Semantic errors still fail the image; no noCheck/ignore-error build is used.
 RUN cd /repo/apps/api && NODE_OPTIONS=--max-old-space-size=4096 pnpm exec tsc -p tsconfig.build.json --pretty false
+RUN node /repo/apps/api/prisma/seeds/cashback-validation-build.mjs
 
 # Cache the exact application's embedding model and verify real inference before
 # publishing an image. The first buyer conversation must not depend on a model

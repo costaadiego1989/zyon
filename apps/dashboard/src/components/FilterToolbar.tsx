@@ -1,11 +1,8 @@
 import React from "react";
-import { TabBar } from "./TabBar.js";
+import { TabBar, type TabItem } from "./TabBar.js";
 import { SearchInput } from "./SearchInput.js";
 
-export interface FilterTab {
-  key: string;
-  label: string;
-}
+export type FilterTab = Pick<TabItem, "key" | "label" | "icon">;
 
 export interface FilterToolbarProps {
   tabs: FilterTab[];

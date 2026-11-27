@@ -1,4 +1,8 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
+import {
+  MARKETING_RELATIONSHIP,
+  type MarketingRelationshipPort,
+} from "../../shared/contracts/marketing.js";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 
@@ -17,29 +21,94 @@ export interface RecordCampaignConsentInput {
 /** A tenant-scoped permission boundary for commercial contact. */
 @Injectable()
 export class CampaignContactConsentService {
-  constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
+  constructor(
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
+    @Optional()
+    @Inject(MARKETING_RELATIONSHIP)
+    private readonly marketing?: MarketingRelationshipPort
+  ) {}
 
   async grant(input: RecordCampaignConsentInput): Promise<void> {
     const now = new Date();
-    await Promise.all(input.channels.map((channel) => (this.prisma as any).campaignContactConsent.upsert({
-      where: { merchantId_globalUserId_channel_purpose: { merchantId: input.merchantId, globalUserId: input.globalUserId, channel, purpose: CAMPAIGN_CONTACT_PURPOSE } },
-      create: { merchantId: input.merchantId, globalUserId: input.globalUserId, channel, purpose: CAMPAIGN_CONTACT_PURPOSE,
-        status: "granted", policyVersion: input.policyVersion, source: input.source, evidence: input.evidence, grantedAt: now, revokedAt: null },
-      update: { status: "granted", policyVersion: input.policyVersion, source: input.source, evidence: input.evidence, grantedAt: now, revokedAt: null },
-    })));
+    await Promise.all(
+      input.channels.map((channel) =>
+        (this.prisma as any).campaignContactConsent.upsert({
+          where: {
+            merchantId_globalUserId_channel_purpose: {
+              merchantId: input.merchantId,
+              globalUserId: input.globalUserId,
+              channel,
+              purpose: CAMPAIGN_CONTACT_PURPOSE,
+            },
+          },
+          create: {
+            merchantId: input.merchantId,
+            globalUserId: input.globalUserId,
+            channel,
+            purpose: CAMPAIGN_CONTACT_PURPOSE,
+            status: "granted",
+            policyVersion: input.policyVersion,
+            source: input.source,
+            evidence: input.evidence,
+            grantedAt: now,
+            revokedAt: null,
+          },
+          update: {
+            status: "granted",
+            policyVersion: input.policyVersion,
+            source: input.source,
+            evidence: input.evidence,
+            grantedAt: now,
+            revokedAt: null,
+          },
+        })
+      )
+    );
   }
 
   async revoke(input: RecordCampaignConsentInput): Promise<void> {
     const now = new Date();
     await (this.prisma as any).$transaction(async (tx: any) => {
-      await Promise.all(input.channels.map((channel) => tx.campaignContactConsent.upsert({
-        where: { merchantId_globalUserId_channel_purpose: { merchantId: input.merchantId, globalUserId: input.globalUserId, channel, purpose: CAMPAIGN_CONTACT_PURPOSE } },
-        create: { merchantId: input.merchantId, globalUserId: input.globalUserId, channel, purpose: CAMPAIGN_CONTACT_PURPOSE,
-          status: "revoked", policyVersion: input.policyVersion, source: input.source, evidence: input.evidence, grantedAt: null, revokedAt: now },
-        update: { status: "revoked", policyVersion: input.policyVersion, source: input.source, evidence: input.evidence, revokedAt: now },
-      })));
+      await Promise.all(
+        input.channels.map((channel) =>
+          tx.campaignContactConsent.upsert({
+            where: {
+              merchantId_globalUserId_channel_purpose: {
+                merchantId: input.merchantId,
+                globalUserId: input.globalUserId,
+                channel,
+                purpose: CAMPAIGN_CONTACT_PURPOSE,
+              },
+            },
+            create: {
+              merchantId: input.merchantId,
+              globalUserId: input.globalUserId,
+              channel,
+              purpose: CAMPAIGN_CONTACT_PURPOSE,
+              status: "revoked",
+              policyVersion: input.policyVersion,
+              source: input.source,
+              evidence: input.evidence,
+              grantedAt: null,
+              revokedAt: now,
+            },
+            update: {
+              status: "revoked",
+              policyVersion: input.policyVersion,
+              source: input.source,
+              evidence: input.evidence,
+              revokedAt: now,
+            },
+          })
+        )
+      );
       await tx.postSaleScheduledMessage.updateMany({
-        where: { merchantId: input.merchantId, buyerId: input.globalUserId, channel: { in: input.channels }, status: "pending" },
+        where: {
+          merchantId: input.merchantId,
+          buyerId: input.globalUserId,
+          channel: { in: input.channels },
+          status: "pending",
+        },
         data: { status: "cancelled", failureReason: "contact_consent_revoked" },
       });
     });
@@ -47,43 +116,115 @@ export class CampaignContactConsentService {
 
   async replace(input: RecordCampaignConsentInput): Promise<void> {
     const granted = new Set(input.channels);
-    const revoked = (["email", "whatsapp"] as const).filter((channel) => !granted.has(channel));
+    const revoked = (["email", "whatsapp"] as const).filter(
+      (channel) => !granted.has(channel)
+    );
     const now = new Date();
     await (this.prisma as any).$transaction(async (tx: any) => {
-      await Promise.all((["email", "whatsapp"] as const).map((channel) => {
-        const isGranted = granted.has(channel);
-        return tx.campaignContactConsent.upsert({
-          where: { merchantId_globalUserId_channel_purpose: { merchantId: input.merchantId, globalUserId: input.globalUserId, channel, purpose: CAMPAIGN_CONTACT_PURPOSE } },
-          create: { merchantId: input.merchantId, globalUserId: input.globalUserId, channel, purpose: CAMPAIGN_CONTACT_PURPOSE,
-            status: isGranted ? "granted" : "revoked", policyVersion: input.policyVersion, source: input.source, evidence: input.evidence,
-            grantedAt: isGranted ? now : null, revokedAt: isGranted ? null : now },
-          update: { status: isGranted ? "granted" : "revoked", policyVersion: input.policyVersion, source: input.source, evidence: input.evidence,
-            grantedAt: isGranted ? now : undefined, revokedAt: isGranted ? null : now },
-        });
-      }));
+      await Promise.all(
+        (["email", "whatsapp"] as const).map((channel) => {
+          const isGranted = granted.has(channel);
+          return tx.campaignContactConsent.upsert({
+            where: {
+              merchantId_globalUserId_channel_purpose: {
+                merchantId: input.merchantId,
+                globalUserId: input.globalUserId,
+                channel,
+                purpose: CAMPAIGN_CONTACT_PURPOSE,
+              },
+            },
+            create: {
+              merchantId: input.merchantId,
+              globalUserId: input.globalUserId,
+              channel,
+              purpose: CAMPAIGN_CONTACT_PURPOSE,
+              status: isGranted ? "granted" : "revoked",
+              policyVersion: input.policyVersion,
+              source: input.source,
+              evidence: input.evidence,
+              grantedAt: isGranted ? now : null,
+              revokedAt: isGranted ? null : now,
+            },
+            update: {
+              status: isGranted ? "granted" : "revoked",
+              policyVersion: input.policyVersion,
+              source: input.source,
+              evidence: input.evidence,
+              grantedAt: isGranted ? now : undefined,
+              revokedAt: isGranted ? null : now,
+            },
+          });
+        })
+      );
       if (revoked.length) {
         await tx.postSaleScheduledMessage.updateMany({
-          where: { merchantId: input.merchantId, buyerId: input.globalUserId, channel: { in: revoked }, status: "pending" },
-          data: { status: "cancelled", failureReason: "contact_consent_revoked" },
+          where: {
+            merchantId: input.merchantId,
+            buyerId: input.globalUserId,
+            channel: { in: revoked },
+            status: "pending",
+          },
+          data: {
+            status: "cancelled",
+            failureReason: "contact_consent_revoked",
+          },
         });
       }
     });
   }
 
-  async canContact(input: { merchantId: string; globalUserId: string; channel: CampaignContactChannel }): Promise<boolean> {
+  async canContact(input: {
+    merchantId: string;
+    globalUserId: string;
+    channel: CampaignContactChannel;
+  }): Promise<boolean> {
+    if (input.channel === "whatsapp" && this.marketing) {
+      const decision = await this.marketing.permission(
+        input.merchantId,
+        input.globalUserId,
+        "whatsapp"
+      );
+      if (decision !== null) return decision;
+    }
     const row = await (this.prisma as any).campaignContactConsent.findUnique({
-      where: { merchantId_globalUserId_channel_purpose: { merchantId: input.merchantId, globalUserId: input.globalUserId,
-        channel: input.channel, purpose: CAMPAIGN_CONTACT_PURPOSE } },
+      where: {
+        merchantId_globalUserId_channel_purpose: {
+          merchantId: input.merchantId,
+          globalUserId: input.globalUserId,
+          channel: input.channel,
+          purpose: CAMPAIGN_CONTACT_PURPOSE,
+        },
+      },
       select: { status: true, grantedAt: true, revokedAt: true },
     });
-    if (!row || row.status !== "granted" || !row.grantedAt || row.revokedAt) return false;
+    if (!row || row.status !== "granted" || !row.grantedAt || row.revokedAt)
+      return false;
     const preferences = await (this.prisma as any).buyerPreference.findUnique({
-      where: { globalUserId: input.globalUserId }, select: { emailOptIn: true, whatsappOptIn: true },
+      where: { globalUserId: input.globalUserId },
+      select: { emailOptIn: true, whatsappOptIn: true },
     });
-    return input.channel === "email" ? preferences?.emailOptIn !== false : preferences?.whatsappOptIn !== false;
+    return input.channel === "email"
+      ? preferences?.emailOptIn !== false
+      : preferences?.whatsappOptIn !== false;
+  }
+  async reserveCommercial(input: {
+    merchantId: string;
+    globalUserId: string;
+    dispatchKey: string;
+  }): Promise<boolean> {
+    return this.marketing
+      ? this.marketing.reserveCommercial(
+          input.merchantId,
+          input.globalUserId,
+          input.dispatchKey
+        )
+      : true;
   }
 
-  async getGrantedChannels(input: { merchantId: string; globalUserId: string }): Promise<CampaignContactChannel[]> {
+  async getGrantedChannels(input: {
+    merchantId: string;
+    globalUserId: string;
+  }): Promise<CampaignContactChannel[]> {
     const channels: CampaignContactChannel[] = [];
     for (const channel of ["email", "whatsapp"] as const) {
       if (await this.canContact({ ...input, channel })) channels.push(channel);
@@ -91,10 +232,20 @@ export class CampaignContactConsentService {
     return channels;
   }
 
-  async canContactEmail(input: { merchantId: string; email: string }): Promise<boolean> {
+  async canContactEmail(input: {
+    merchantId: string;
+    email: string;
+  }): Promise<boolean> {
     const buyer = await this.prisma.buyerAccount.findUnique({
-      where: { email: input.email.trim().toLowerCase() }, select: { globalUserId: true },
+      where: { email: input.email.trim().toLowerCase() },
+      select: { globalUserId: true },
     });
-    return buyer ? this.canContact({ merchantId: input.merchantId, globalUserId: buyer.globalUserId, channel: "email" }) : false;
+    return buyer
+      ? this.canContact({
+          merchantId: input.merchantId,
+          globalUserId: buyer.globalUserId,
+          channel: "email",
+        })
+      : false;
   }
 }

@@ -6,6 +6,7 @@ import type { StorefrontCouponPaymentScope } from "../storefront-coupon-payment-
 export const PAYMENT_REPOSITORY = Symbol("PAYMENT_REPOSITORY");
 
 export type SavePaymentIntentInput = {
+  privateReceipt?: import("./crypto-verifier.port.js").PrivateCryptoReceipt;
   intent: PaymentIntentEntity;
 };
 
@@ -43,6 +44,9 @@ export interface PaymentRepository {
   listForSession?(merchantId: string, sessionId: string): Promise<PaymentIntentEntity[]>;
   /** Automatic offers must preserve the quote once payment creation has started. */
   hasCommittedPaymentForSession(merchantId: string, sessionId: string): Promise<boolean>;
+  /** Provider-authenticated original refund observation; private durable fiscal review, no public payment transition. */
+  recordFiscalRefundObservation?(input: { merchantId: string; paymentIntentId: string; providerPaymentId: string; amountCents: number; currency: string; refundedCents: number; providerEventRef: string }): Promise<void>;
+
   saveIntent(input: SavePaymentIntentInput): Promise<void>;
   /**
    * Creates the payment intent and its first ledger snapshot in one atomic

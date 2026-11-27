@@ -3,8 +3,9 @@ import React, { type ReactNode } from "react";
 export interface TabItem {
   key: string;
   label: string;
-  icon?: ReactNode;
+  icon: ReactNode;
   panelId?: string;
+  title?: string;
 }
 
 export interface TabBarProps {
@@ -16,7 +17,13 @@ export interface TabBarProps {
   role?: "tablist" | "group";
 }
 
-export function TabBar({ tabs, activeTab, onTabChange, label, role = "tablist" }: TabBarProps) {
+export function TabBar({
+  tabs,
+  activeTab,
+  onTabChange,
+  label,
+  role = "tablist",
+}: TabBarProps) {
   return (
     <div className="tab-bar" role={role} aria-label={label}>
       {tabs.map((tab, index) => {
@@ -30,21 +37,33 @@ export function TabBar({ tabs, activeTab, onTabChange, label, role = "tablist" }
             aria-selected={role === "tablist" ? active : undefined}
             aria-pressed={role === "group" ? active : undefined}
             aria-controls={tab.panelId}
+            title={tab.title}
             id={tab.panelId ? tab.panelId + "-tab" : undefined}
             tabIndex={role === "tablist" && !active ? -1 : 0}
             onClick={() => onTabChange(tab.key)}
-            onKeyDown={event => {
+            onKeyDown={(event) => {
               if (role !== "tablist") return;
-              const next = event.key === "ArrowRight" ? (index + 1) % tabs.length
-                : event.key === "ArrowLeft" ? (index - 1 + tabs.length) % tabs.length
-                : event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : -1;
+              const next =
+                event.key === "ArrowRight"
+                  ? (index + 1) % tabs.length
+                  : event.key === "ArrowLeft"
+                  ? (index - 1 + tabs.length) % tabs.length
+                  : event.key === "Home"
+                  ? 0
+                  : event.key === "End"
+                  ? tabs.length - 1
+                  : -1;
               if (next < 0) return;
               event.preventDefault();
               onTabChange(tabs[next].key);
-              event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("button")[next]?.focus();
+              event.currentTarget.parentElement
+                ?.querySelectorAll<HTMLButtonElement>("button")
+                [next]?.focus();
             }}
           >
-            {tab.icon ? <span aria-hidden="true">{tab.icon}</span> : null}
+            <span className="tab-bar__icon" aria-hidden="true">
+              {tab.icon}
+            </span>
             {tab.label}
           </button>
         );

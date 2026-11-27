@@ -48,7 +48,12 @@ function runtime(options={}) {
     '@/lib/useCheckoutExperiment':{useCheckoutExperiment:()=>experiment},
     '@/lib/intervention-tracker':{noteActivity(){},canFireTrigger(){return false;},recordTriggerFired(){}},
     '@/lib/analytics':{trackConversationStart(){}},
-    '@/lib/services/conversation.service':{narrateStorefrontBlock:()=> 'updated',trackFunnelEvent(){},restoreConversation:()=>null,saveConversationState:(merchant,key,value)=>storage.set(key(merchant),JSON.stringify(value)),buildWelcomeMessage:()=>({role:'agent',text:'welcome'}),applyThemeToDOM(){},restoreChannelPreference:()=>null,saveChannelPreference(){},restoreThemePreference:()=>null,saveThemePreference(){}},
+    '@zyon/shared-types':{merchantThemeTokens:()=>({})},
+    '@/components/conversation/theme-tokens':{THEME_TOKENS:{light:{},dark:{}}},
+    '@/lib/services/conversation.service':{narrateStorefrontBlock:()=> 'updated',trackFunnelEvent(){},
+      restoreConversation:(merchant,key)=>options.restoreStorage?load('lib/services/conversation.service.ts').restoreConversation(merchant,key):null,
+      saveConversationState:(merchant,key,value)=>options.restoreStorage?load('lib/services/conversation.service.ts').saveConversationState(merchant,key,value):storage.set(key(merchant),JSON.stringify(value)),
+      buildWelcomeMessage:()=>({role:'agent',text:'welcome'}),applyThemeToDOM(){},restoreChannelPreference:()=>null,saveChannelPreference(){},restoreThemePreference:()=>null,saveThemePreference(){}},
     './effects':{useNudgeTriggers(_,__,fire){fireNudge=fire;},useProactiveMode(){},useReturnOrderTracking(){}},
     './conversation-nudge.handlers':{handleFireNudge:params=>{nudges.push(params);if(!options.nudgeAdmission||options.nudgeAdmission(params,nudges.length))params.onAdmitted?.();}},
   };
@@ -77,6 +82,75 @@ test('opening cart or product detail by selecting chat preserves the current tra
  owner.value.selectChannel('chat');const after=owner.render();
  assert.deepEqual(plain(after.messages),before);assert.equal(after.conversationId,id);
  assert.equal(f.sends.length,sends);assert.equal(f.creates.length,creates);owner.unmount();
+});
+
+test('reload sends the real previous buyer and assistant context with the same conversation',async()=>{
+ const comparison='Essencial has 0.5L; Completo has 2L. Which capacity do you need?';
+ const f=runtime({restoreStorage:true,send:async()=>({message:comparison,blocks:[]})}),owner=f.mount();
+ await f.settle();owner.render();await owner.value.sendMessage('Compare Kit Essencial and Kit Completo');owner.render();
+ const id=owner.value.conversationId,creates=f.creates.length;owner.unmount();
+ const reloaded=f.mount();await f.settle();reloaded.render();
+ assert.equal(reloaded.value.conversationId,id);assert.equal(f.creates.length,creates);
+ await reloaded.value.sendMessage('It is too expensive for me');
+ assert.equal(f.sends.at(-1).id,id);
+ assert.deepEqual(plain(f.sends.at(-1).input.history),[
+  {role:'user',content:'Compare Kit Essencial and Kit Completo'},
+  {role:'assistant',content:comparison},
+  {role:'user',content:'It is too expensive for me'},
+ ]);reloaded.unmount();
+});
+
+test('legacy restoration carries buyer context without inventing assistant facts from UI messages',async()=>{
+ const f=runtime({restoreStorage:true});
+ f.storage.set('zyon_conversation_state_merchant-a',JSON.stringify({conversationId:'legacy-a',savedAt:Date.now(),mode:'chat',channel:'chat',messages:[
+  {id:'welcome',role:'agent',text:'Guaranteed cheapest price'},
+  {id:'u-1',role:'user',text:'Compare Kit Essencial and Kit Completo'},
+  {id:'nudge',role:'agent',text:'A discount is ready',ephemeral:true},
+  {id:'a-session',role:'agent',text:'I could not confirm the result'},
+  {id:'a-1',role:'agent',blocks:[{type:'product_card',data:{name:'Invented product'}}]},
+ ]}));
+ const owner=f.mount();await f.settle();owner.render();await owner.value.sendMessage('It is too expensive for me');
+ assert.equal(f.creates.length,0);assert.equal(f.sends.at(-1).id,'legacy-a');
+ assert.deepEqual(plain(f.sends.at(-1).input.history),[
+  {role:'user',content:'Compare Kit Essencial and Kit Completo'},
+  {role:'user',content:'It is too expensive for me'},
+ ]);owner.unmount();
+});
+
+test('restored model context excludes local assistant UI notices and keeps the server response',async()=>{
+ const f=runtime({restoreStorage:true,send:async()=>({message:'The current catalog has Kit Essencial.',blocks:[]})}),owner=f.mount();
+ await f.settle();owner.render();await owner.value.sendMessage('Show organizers');owner.render();
+ owner.value.appendAgentMessage({text:'Local UI notice, not a confirmed commercial condition'});owner.render();owner.unmount();
+ const saved=JSON.parse(f.storage.get('zyon_conversation_state_merchant-a'));
+ assert.ok(saved.messages.some(message=>message.text.startsWith('Local UI notice')));
+ assert.deepEqual(saved.context,{version:1,merchantId:'merchant-a',conversationId:'conversation-merchant-a',history:[
+  {role:'user',content:'Show organizers'},{role:'assistant',content:'The current catalog has Kit Essencial.'},
+ ]});
+ const reload=f.mount();await f.settle();reload.render();await reload.value.sendMessage('What about the smaller one?');
+ assert.deepEqual(plain(f.sends.at(-1).input.history).map(entry=>entry.content),[
+  'Show organizers','The current catalog has Kit Essencial.','What about the smaller one?',
+ ]);reload.unmount();
+});
+
+for(const field of ['merchantId','conversationId'])test(`restoration rejects context bound to a different ${field}`,async()=>{
+ const f=runtime({restoreStorage:true});
+ f.storage.set('zyon_conversation_state_merchant-a',JSON.stringify({conversationId:'current-a',savedAt:Date.now(),mode:'chat',messages:[
+  {id:'u-private',role:'user',text:'Private old scope'},
+ ],context:{version:1,merchantId:'merchant-a',conversationId:'current-a',history:[{role:'user',content:'Private old scope'}],[field]:'foreign'}}));
+ const owner=f.mount();await f.settle();owner.render();await owner.value.sendMessage('Current request');
+ assert.deepEqual(plain(f.sends.at(-1).input.history),[{role:'user',content:'Current request'}]);
+ assert.notEqual(f.sends.at(-1).id,'current-a');owner.unmount();
+});
+
+test('restored history cannot cross a merchant switch or survive an expired snapshot',async()=>{
+ const f=runtime({restoreStorage:true}),owner=f.mount();await f.settle();owner.render();
+ await owner.value.sendMessage('Private preference for merchant A');owner.render();
+ owner.render('merchant-b');await f.settle();owner.render();await owner.value.sendMessage('Only merchant B');owner.render();
+ assert.deepEqual(plain(f.sends.at(-1).input.history),[{role:'user',content:'Only merchant B'}]);owner.unmount();
+ const saved=JSON.parse(f.storage.get('zyon_conversation_state_merchant-a'));saved.savedAt=Date.now()-7*60*60*1000;
+ f.storage.set('zyon_conversation_state_merchant-a',JSON.stringify(saved));
+ const reload=f.mount();await f.settle();reload.render();await reload.value.sendMessage('After expiry');
+ assert.deepEqual(plain(f.sends.at(-1).input.history),[{role:'user',content:'After expiry'}]);reload.unmount();
 });
 
 test('changing between chat and voice preserves a pending buyer turn without replay',async()=>{

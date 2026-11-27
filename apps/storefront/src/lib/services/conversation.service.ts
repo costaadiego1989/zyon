@@ -2,11 +2,29 @@ import { merchantThemeTokens, type MerchantThemeAppearance } from "@zyon/shared-
 import { THEME_TOKENS } from "@/components/conversation/theme-tokens";
 export { THEME_TOKENS } from "@/components/conversation/theme-tokens";
 
-import type { Message, Mode, Channel } from "@/lib/viewmodels/useConversationViewModel/types";
+import type { Message, Mode, Channel, ConversationHistoryMessage } from "@/lib/viewmodels/useConversationViewModel/types";
 import { conversationFetch } from "@/lib/conversation-access";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 export const CONVERSATION_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+
+type ConversationHistoryEntry = { role: "user" | "assistant"; content: string };
+
+function conversationHistory(value: unknown): ConversationHistoryEntry[] {
+  if (!Array.isArray(value)) return [];
+  // Keep room for the next buyer message in the API's 100-entry contract.
+  return value.filter((entry): entry is ConversationHistoryEntry => entry !== null && typeof entry === "object"
+    && (entry.role === "user" || entry.role === "assistant") && typeof entry.content === "string"
+    && entry.content.trim().length > 0 && entry.content.length <= 8000)
+    .slice(-99).map(entry => ({ role: entry.role, content: entry.content }));
+}
+
+function legacyBuyerHistory(messages: Message[]): ConversationHistoryEntry[] {
+  // Old UI snapshots have no assistant provenance. Carry only actual buyer
+  // utterances; never turn cards, greetings, nudges or local errors into facts.
+  return conversationHistory(messages.filter(message => message?.role === "user" && !message.ephemeral)
+    .map(message => ({ role: "user", content: message.text })));
+}
 
 export function trackFunnelEvent(merchantId: string, sessionId: string, event: string) {
   conversationFetch(sessionId, `${API_BASE}/storefront/conversations/${encodeURIComponent(sessionId)}/events`, {
@@ -19,6 +37,7 @@ export function trackFunnelEvent(merchantId: string, sessionId: string, event: s
 export function restoreConversation(merchantId: string | undefined, stateKey: (mid: string) => string): {
   conversationId: string | null;
   messages: Message[];
+  history: ConversationHistoryEntry[];
   mode: Mode | null;
   channel: Channel | null;
 } | null {
@@ -32,15 +51,21 @@ export function restoreConversation(merchantId: string | undefined, stateKey: (m
       mode?: Mode;
       channel?: Channel | null;
       savedAt?: number;
+      context?: { version?: number; merchantId?: string; conversationId?: string | null; history?: unknown };
     };
     if (!Array.isArray(parsed.messages)) return null;
     if (parsed.savedAt && Date.now() - parsed.savedAt > CONVERSATION_MAX_AGE_MS) {
       sessionStorage.removeItem(stateKey(merchantId));
       return null;
     }
+    const conversationId = parsed.conversationId ?? null;
+    if (conversationId !== null && (typeof conversationId !== "string" || !conversationId.trim())) return null;
+    if (parsed.context !== undefined && (parsed.context?.version !== 1 || parsed.context.merchantId !== merchantId
+      || parsed.context.conversationId !== conversationId || !Array.isArray(parsed.context.history))) return null;
     return {
-      conversationId: parsed.conversationId ?? null,
+      conversationId,
       messages: parsed.messages,
+      history: conversationId ? parsed.context ? conversationHistory(parsed.context.history) : legacyBuyerHistory(parsed.messages) : [],
       mode: parsed.mode ?? null,
       channel: parsed.channel ?? null,
     };
@@ -49,12 +74,14 @@ export function restoreConversation(merchantId: string | undefined, stateKey: (m
   }
 }
 
-export function saveConversationState(merchantId: string, stateKey: (mid: string) => string, state: { conversationId: string | null; messages: Message[]; mode: Mode; channel: Channel | null }) {
+export function saveConversationState(merchantId: string, stateKey: (mid: string) => string, state: { conversationId: string | null; messages: Message[]; history?: ConversationHistoryEntry[]; mode: Mode; channel: Channel | null }) {
   if (!merchantId || typeof sessionStorage === "undefined") return;
   try {
+    const { history, ...displayState } = state;
     sessionStorage.setItem(
       stateKey(merchantId),
-      JSON.stringify({ ...state, savedAt: Date.now() }),
+      JSON.stringify({ ...displayState, context: { version: 1, merchantId, conversationId: state.conversationId,
+        history: state.conversationId ? conversationHistory(history ?? legacyBuyerHistory(state.messages)) : [] }, savedAt: Date.now() }),
     );
   } catch {}
 }
@@ -170,4 +197,23 @@ export function saveThemePreference(theme: "dark" | "light") {
   try {
     localStorage.setItem("zyon-theme", theme);
   } catch {}
+}
+
+export function decodeConversationHistory(conversationId: string, value: unknown): Message[] {
+  const transcript=value as {format?:unknown;conversation_id?:unknown;messages?:ConversationHistoryMessage[]} | null;
+  if(transcript?.format==="messages-v1"){
+    if(transcript.conversation_id!==conversationId||!Array.isArray(transcript.messages)||transcript.messages.length>200)throw new Error("invalid_conversation_history");
+    const ids=new Set<string>();let previous=0;
+    return transcript.messages.map(m=>{
+      if(!m||typeof m.id!=="string"||!m.id||m.id.length>128||ids.has(m.id)||!["user","assistant"].includes(m.role)
+        ||typeof m.content!=="string"||m.content.length>(m.role==="user"?4000:8000)||!Number.isSafeInteger(m.sequence)||m.sequence<=previous
+        ||typeof m.timestamp!=="string"||!Number.isFinite(Date.parse(m.timestamp))
+        ||m.client_id!==undefined&&!/^[a-zA-Z0-9_-]{1,128}$/.test(m.client_id))throw new Error("invalid_conversation_history");
+      ids.add(m.id);previous=m.sequence;
+      return {id:m.client_id?`request:${m.client_id}:${m.role}`:m.id,role:m.role==="user"?"user" as const:"agent" as const,text:m.content};
+    });
+  }
+  const data=value as {conversation_id?:unknown;messages?:unknown} | null;
+  if (data?.conversation_id === conversationId && Array.isArray(data.messages) && data.messages.length === 0) return [];
+  throw new Error("invalid_conversation_history");
 }

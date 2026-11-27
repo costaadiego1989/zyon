@@ -35,7 +35,8 @@ export async function createBuyerBrowserJourney(scenario){
           ...(auth?{authorization:'Bearer '+auth.access_token}:{})},...(body===undefined?{}:{body:JSON.stringify(body)})});
       return{status:response.status,body:await response.json()};
     };
-    const company=await request('/auth/register',{merchant_name:'Atendimento comprador local',email:randomUUID()+'@buyer-journey.example.test',
+    const ownerEmail=randomUUID()+'@buyer-journey.example.test';
+    const company=await request('/auth/register',{merchant_name:'Atendimento comprador local',email:ownerEmail,
       password:'SyntheticBrowserMerchant123!',business_mode:mode});assert.equal(company.status,201);
     const auth=company.body,merchantId=auth.merchant_id,slug='buyer-journey-'+randomUUID();
     await db.merchant.update({where:{id:merchantId},data:{plan:'STORE_ONLY',storeSlug:slug,
@@ -76,6 +77,23 @@ export async function createBuyerBrowserJourney(scenario){
     return Object.freeze({origin:next.origin,runId:runtime.db.runId,merchantId,slug,email,buyerId:account.globalUserId,
       date,professionalId,offer,scenario,snapshot,close,evidence:()=>({api:runtime.evidence(),next:next.evidence(),email:runtime.buyerBooking.browserEvidence()}),
       emailCode:()=>runtime.buyerBooking.emailCode(email).code,
+      async prepareServedOwnerDashboard(){
+        // Opt-in T93 setup: the same actual OWNER created above and the same
+        // completed-onboarding/subscription preconditions used by T75/T79.
+        // No session, authorization role or booking result is manufactured.
+        assert.equal(mode,'services');
+        const quote=value=>"'"+String(value).replaceAll("'","''")+"'";
+        const steps=Object.fromEntries(['account','checkout_config','whatsapp','ai_engine'].map(key=>[key,{status:'completed',completedAt:new Date().toISOString()}]));
+        await runtime.db.sql(`UPDATE merchants SET store_settings=coalesce(store_settings,'{}'::jsonb)||'{"registration_pending":false,"oauth_registration_pending":false,"plan_selection_pending":false}'::jsonb WHERE id=${quote(merchantId)};
+          INSERT INTO merchant_onboarding_states(merchant_id,steps,updated_at) VALUES (${quote(merchantId)},${quote(JSON.stringify(steps))}::jsonb,now()) ON CONFLICT(merchant_id) DO UPDATE SET steps=EXCLUDED.steps,updated_at=now();
+          UPDATE merchant_billing_subscriptions SET current_period_end=now()+interval '30 days',trial_ends_at=NULL,updated_at=now() WHERE merchant_id=${quote(merchantId)};
+          INSERT INTO ai_governance_policies(merchant_id,grants,version,updated_by,updated_at) VALUES (${quote(merchantId)},'[]'::jsonb,1,${quote(auth.user_id)},now()) ON CONFLICT(merchant_id) DO UPDATE SET grants=EXCLUDED.grants,updated_by=EXCLUDED.updated_by,updated_at=now();`);
+        const checkout=await request('/checkout-settings',undefined,auth,'GET');assert.equal(checkout.status,200);
+        const profile=await request('/merchants/me',undefined,auth,'GET');assert.equal(profile.status,200);
+        assert.equal((profile.body.data??profile.body).businessMode,'services');
+        assert.equal(String((profile.body.data??profile.body).role).toUpperCase(),'OWNER');
+        return Object.freeze({apiOrigin:runtime.apiOrigin,email:ownerEmail,password:'SyntheticBrowserMerchant123!',merchantId});
+      },
       async expireObservedAccess(observed){
         assert.equal(observed.body.merchant_id,merchantId);assert.equal(observed.body.allowed_origin,BUYER_STOREFRONT_ORIGIN);
         assert.ok(typeof observed.body.cart_ref==='string'&&typeof observed.conversationToken==='string'

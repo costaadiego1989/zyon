@@ -5,6 +5,7 @@ import {
   calculatePurchaseMetrics,
   filterRows,
   formatDate,
+  formatCustomerRepeatRate,
 } from "./customers-page.js";
 import { customerMetricPeriods, toCustomerKpis } from "./useCustomersPage.js";
 import type { TenantCustomer } from "../api-client.js";
@@ -109,6 +110,16 @@ describe("formatDate", () => {
 // ── computeMetrics ──────────────────────────────────────────────────────────
 
 describe("customer KPIs", () => {
+  it.each([undefined, null, NaN, Infinity, -Infinity, -0.1, 1.1])("marks invalid repeat rate %s as unavailable", (repeat_rate) => {
+    const response = { total_customers: 2, new_customers: 1, returning_customers: 1, repeat_rate, period_from: "2026-11-10", period_to: "2026-11-16" };
+    expect(toCustomerKpis(response as any, response as any)).toEqual({ totalCustomers: 2, newCustomersLast7Days: 1, repeatRateLast7Days: null });
+    expect(formatCustomerRepeatRate(toCustomerKpis(response as any, response as any).repeatRateLast7Days)).toBe("—");
+  });
+  it.each([0, 0.625, 1])("preserves valid repeat rate %s", (repeat_rate) => {
+    const response = { total_customers: 2, new_customers: 1, returning_customers: 1, repeat_rate, period_from: "2026-11-10", period_to: "2026-11-16" };
+    expect(toCustomerKpis(response, response).repeatRateLast7Days).toBe(repeat_rate);
+    expect(formatCustomerRepeatRate(toCustomerKpis(response, response).repeatRateLast7Days)).toBe(String(Math.round(repeat_rate * 100)));
+  });
   it("uses stable all-time and seven-day server periods", () => {
     expect(customerMetricPeriods(new Date("2026-09-10T12:00:00Z"))).toEqual({
       allTime: { dateFrom: "1970-01-01", dateTo: "2026-09-10" },

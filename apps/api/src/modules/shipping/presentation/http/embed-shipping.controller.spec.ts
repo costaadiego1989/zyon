@@ -1,4 +1,4 @@
-import test from "node:test";
+import test, { before, after } from "node:test";
 import { embedCheckoutSessionId } from "../../../embed/domain/embed-checkout-session.js";
 import assert from "node:assert/strict";
 import type { CarrierPort } from "../../domain/ports/carrier.port.js";
@@ -12,6 +12,16 @@ import { InMemoryCheckoutRepository } from "../../../checkout/infrastructure/rep
 import { InMemoryMerchantRepository } from "../../../merchant/infrastructure/in-memory-merchant.repository.js";
 import { checkoutSession } from "../../../checkout/__tests__/checkout-test-fixtures.js";
 import type { OwnDeliveryConfig } from "../../domain/ports/own-delivery-config.port.js";
+import { checkoutScopeReader } from "../../../checkout/__tests__/checkout-scope-reader.fixture.js";
+
+const shippingFixtureFetch = globalThis.fetch;
+before(() => {
+  globalThis.fetch = async input => {
+    if (!/^https:\/\/viacep\.com\.br\/ws\/\d{8}\/json\/$/.test(String(input))) throw new Error("unit_shipping_network_forbidden");
+    return Response.json({ logradouro: "Synthetic", bairro: "Centro", localidade: "Synthetic", uf: "SP" });
+  };
+});
+after(() => { globalThis.fetch = shippingFixtureFetch; });
 
 const embedClaims = { typ: "aacp_embed_v1" as const, merchantId: "mrc_1", nonce: "shipping-buyer", issuedAtUnix: 1, expiresAtUnix: 9999999999 };
 const sessionId = embedCheckoutSessionId(embedClaims);
@@ -27,10 +37,11 @@ function makeController(opts?: { withMerchantRepo?: boolean; withSessions?: bool
   const quotesRepo = new InMemoryShippingQuoteRepository(new InMemoryOutboxRepository());
   const carriers = [stubCarrier([{ carrier_key: "pac", label: "PAC", price: 1500, eta_days: 5, is_free: false }])];
   const merchantRepo = withMerchantRepo ? new InMemoryMerchantRepository() : undefined;
+  merchantRepo?.seedRules("mrc_1", { originZip: "01001000" });
   const checkoutRepo = withSessions ? new InMemoryCheckoutRepository() : undefined;
 
-  const quoteUse = new QuoteShippingUseCase(quotesRepo, carriers, merchantRepo as never);
-  const selectUse = new SelectShippingMethodUseCase(quotesRepo, checkoutRepo as never);
+  const quoteUse = new QuoteShippingUseCase(quotesRepo, carriers, merchantRepo as never, undefined, undefined, checkoutScopeReader(checkoutRepo));
+  const selectUse = new SelectShippingMethodUseCase(quotesRepo, checkoutRepo as never, checkoutScopeReader(checkoutRepo));
 
   const controller = new EmbedShippingController(quoteUse, selectUse, merchantRepo, checkoutRepo);
   return { controller, checkoutRepo, merchantRepo, quotesRepo, quoteUse, selectUse };
@@ -93,7 +104,8 @@ function realOwnedQuote(config: OwnDeliveryConfig | null, district = "Centro") {
   const quotes = new InMemoryShippingQuoteRepository(new InMemoryOutboxRepository());
   const configSource = { async getByMerchantId() { configReads++; return config; }, async save(value: OwnDeliveryConfig) { return value; },
     async getNeighborhoodOrigin() { return { kind: "ready" as const, origin: { merchantId: "mrc_1", zip: "01001000", city: "Synthetic", state: "SP" } }; } };
-  const use = new QuoteShippingUseCase(quotes, [carrier], undefined, configSource);
+  const merchantRepo = new InMemoryMerchantRepository(); merchantRepo.seedRules("mrc_1", { originZip: "01001000" });
+  const use = new QuoteShippingUseCase(quotes, [carrier], merchantRepo, configSource, undefined, checkoutScopeReader(sessions));
   const controller = new EmbedShippingController(use, {} as never, undefined, sessions);
   return { sessions, session, controller, use, quotes, configSource, stats: () => ({ carrierCalls, configReads }) };
 }
@@ -144,7 +156,7 @@ test("selection refuses a previously quoted district after the owned city change
   const quote = await f.controller.quote({ embedClaims }, ownedQuoteBody as never);
   f.session.customer!.address!.city = "Another city"; f.sessions.saveSession(f.session);
   const before = structuredClone(f.sessions.getSession("mrc_1", sessionId));
-  const select = new SelectShippingMethodUseCase(f.quotes, f.sessions, undefined, undefined, f.configSource);
+  const select = new SelectShippingMethodUseCase(f.quotes, f.sessions, checkoutScopeReader(f.sessions), undefined, f.configSource);
   await assert.rejects(select.execute({ merchant_id: "mrc_1", session_id: sessionId, carrier_key: quote.results[0]!.carrier_key }), /shipping_quote_review_required/);
   assert.equal((await f.quotes.findById(quote.id, "mrc_1"))!.snapshot().selected_carrier_key, null);
   assert.deepEqual(f.sessions.getSession("mrc_1", sessionId), before);
@@ -155,7 +167,7 @@ test("configuration failure does not turn missing parcel dimensions into manual 
   let carrierCalls = 0;
   const use = new QuoteShippingUseCase(new InMemoryShippingQuoteRepository(new InMemoryOutboxRepository()),
     [{ carrierKey: "pac", async fetchQuotes() { carrierCalls++; return []; } }], undefined,
-    { async getByMerchantId() { throw new Error("synthetic_config_failure"); }, async save(value) { return value; } });
+    { async getByMerchantId() { throw new Error("synthetic_config_failure"); }, async save(value) { return value; } }, undefined, checkoutScopeReader(sessions));
   const controller = new EmbedShippingController(use, {} as never, undefined, sessions);
   await assert.rejects(controller.quote({ embedClaims }, ownedQuoteBody as never), /synthetic_config_failure/);
   assert.equal(carrierCalls, 0);

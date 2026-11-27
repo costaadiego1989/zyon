@@ -19,6 +19,7 @@ const ACTIONS = new Map([
   ["encontrar produto", "find"], ["selecionar produto", "select"],
   ["filtrar produtos", "filter"], ["tirar dúvidas", "questions"],
   ["prazo de entrega", "shipping"],
+  ["categorias", "categories"],
 ] as const);
 
 /** These are complete application-owned navigation labels, not semantic matches.
@@ -56,6 +57,14 @@ export async function resolveSupportNavigation(
     ["Meus Dados", "Falar com Humano", "FAQ", "Voltar ao Início"]);
   try {
     const handlers = getHandlers();
+    if (action === "categories") {
+      const checked = await callStorefrontTool("list_categories", {}, () => handlers.listCategories());
+      if (!checked.ok) return output("Não consegui consultar as categorias agora. Tente novamente em instantes.", ["Ver Produtos", "Voltar ao Início"]);
+      const built = buildConversationBlocks({ merchantId: input.merchantId, userMessage: input.userMessage,
+        finalContent: "", toolResults: { list_categories: checked.data } });
+      return { ...output(built.blocks.length ? "Escolha uma categoria:" : "A loja ainda não cadastrou categorias. Você pode consultar os produtos.",
+        ["Ver Produtos", "Voltar ao Início"]), blocks: built.blocks };
+    }
     if (orderNumber) {
       const args = { orderId: orderNumber };
       const checked = await callStorefrontTool("track_order", args, () => handlers.trackOrder(args));

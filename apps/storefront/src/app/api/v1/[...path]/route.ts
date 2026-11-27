@@ -7,6 +7,15 @@ const API_KEY = process.env.AACP_SERVICE_API_KEY || "";
 const ALLOWED_PREFIXES = ["storefront/", "buyer/", "embed/", "checkout-settings/widget-config"];
 
 function isPathAllowed(pathSegments: string[], method: string): boolean {
+  const fiscalOrder = [6, 9].includes(pathSegments.length) &&
+    pathSegments[0] === "buyer" && pathSegments[1] === "me" &&
+    pathSegments[2] === "orders" && pathSegments[5] === "fiscal" &&
+    (pathSegments.length === 6 || pathSegments[7] === "documents" && ["xml", "danfe"].includes(pathSegments[8]!));
+  if (fiscalOrder) {
+    return method === "GET" && pathSegments.every((segment, index) => index === 4
+      ? !!segment && segment.length <= 191 && !/[\u0000-\u001f]/.test(segment) && ![".", ".."].includes(segment)
+      : /^[A-Za-z0-9_-]{1,200}$/.test(segment));
+  }
   const path = pathSegments.join("/");
   if (path === "support/faq/public") return method === "GET";
   if (pathSegments.length === 3 && pathSegments[0] === "support" && pathSegments[1] === "attachments") {
@@ -65,7 +74,7 @@ async function proxyRequest(
   pathSegments: string[],
   method: string,
 ) {
-  const path = pathSegments.join("/");
+  const path = pathSegments.map(encodeURIComponent).join("/");
   const searchParams = request.nextUrl.searchParams.toString();
   const url = `${API_BASE_URL}/v1/${path}${searchParams ? `?${searchParams}` : ""}`;
 
@@ -109,13 +118,15 @@ async function proxyRequest(
       cache: "no-store",
     });
 
+    const fiscalDocument = pathSegments[0] === "buyer" && pathSegments[5] === "fiscal" && pathSegments[7] === "documents";
     const responseBody = response.status === 204 || response.status === 304 ? null : await response.arrayBuffer();
 
     return new NextResponse(responseBody, {
       status: response.status,
       headers: {
         "Content-Type": response.headers.get("Content-Type") || "application/json",
-        "Cache-Control": path.startsWith("support/attachments/") ? "private, no-store" : "no-store",
+        "Cache-Control": fiscalDocument || path.startsWith("support/attachments/") ? "private, no-store" : "no-store",
+        ...(fiscalDocument && response.headers.get("Content-Disposition") ? { "Content-Disposition": response.headers.get("Content-Disposition")! } : {}),
         "Referrer-Policy": "no-referrer",
         "X-Content-Type-Options": "nosniff",
         ...(response.headers.get("X-RateLimit-Limit") && {

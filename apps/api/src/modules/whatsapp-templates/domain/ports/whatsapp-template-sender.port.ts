@@ -21,6 +21,11 @@ export interface TemplateSendInput {
   language?: string;
   /** position → value ("1" → "Ana"). */
   contentVariables: Record<string, string>;
+  /** Server-only durable notification binding, never values accepted from HTTP/model payloads. */
+  expectedConnection?:{configId:string;wabaId:string;phoneNumberId:string};
+  expectedTemplate?:{revision:number;bodyDigest:string};
+  /** A failed guard guarantees that the physical provider POST has not started. */
+  assertDispatchAuthorized?:()=>Promise<void>;
 }
 
 export interface TemplateSendResult {

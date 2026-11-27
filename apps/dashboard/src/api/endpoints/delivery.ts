@@ -24,6 +24,28 @@ export interface DeliveryConfig {
   ownDelivery: OwnDeliveryConfig;
 }
 
+export interface ShippingWalletAlertSettings {
+  enabled: boolean;
+  thresholdCents: number;
+  emailEnabled: boolean;
+}
+
+export interface ShippingWallet {
+  status: "ready" | "pending" | "unavailable" | "disconnected" | "inactive";
+  environment: "test" | "live";
+  rechargeUrl: string;
+  balanceCents: number | null;
+  reservedCents: number | null;
+  debtsCents: number | null;
+  checkedAt: string | null;
+  errorCode: string | null;
+  stale: boolean;
+  alert: ShippingWalletAlertSettings;
+  emailRecipient: string | null;
+  emailDeliveryFailed: boolean;
+  lowBalance: boolean;
+}
+
 export interface Shipment {
   id: string;
   externalOrderId?: string;
@@ -43,6 +65,13 @@ export interface ShipmentsPage {
 
 export function deliveryEndpoints(base: string, f: typeof fetch) {
   return {
+    getShippingWallet(refresh = false): Promise<ShippingWallet> {
+      return dashboardJson(base, `/merchants/me/delivery/melhor-envio/wallet${refresh ? "?refresh=1" : ""}`, { method: "GET" }, f);
+    },
+
+    updateShippingWalletAlert(settings: ShippingWalletAlertSettings): Promise<ShippingWallet> {
+      return dashboardJson(base, "/merchants/me/delivery/melhor-envio/wallet/alert", { method: "PUT", jsonBody: settings }, f);
+    },
     async getDeliveryConfig(): Promise<DeliveryConfig> {
       const raw = await dashboardJson<Record<string, any>>(
         base,

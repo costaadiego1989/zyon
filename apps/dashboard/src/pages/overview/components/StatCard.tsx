@@ -85,7 +85,7 @@ export function StatCard({
       } as React.CSSProperties}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, position: "relative", zIndex: 1 }}>
-        <span
+        <span className="stat-card__label"
           style={{
             font: "600 10px var(--font-mono)",
             color: "var(--color-text-faint)",

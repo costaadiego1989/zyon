@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cashback — validação local</title></head>
+<body><div id="root"></div><script type="module">
+import React from "react";
+import { createRoot } from "react-dom/client";
+import { ApiContext } from "/src/hooks/useApi.ts";
+import { createDashboardApi } from "/src/api-client.ts";
+import { CashbackPage } from "/src/pages/cashback/CashbackPage.tsx";
+import "/src/styles.css";
+const api = createDashboardApi({ baseUrl: location.origin + "/cashback-test-api" });
+createRoot(document.getElementById("root")).render(React.createElement(ApiContext.Provider, { value: api }, React.createElement("main", { className: "console-content", style: { padding: 16, minWidth: 0, maxWidth: "100%" } }, React.createElement(CashbackPage))));
+</script></body></html>

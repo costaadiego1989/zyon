@@ -4,6 +4,7 @@ import { requiresWeeklyReview } from "../../application/weekly-experiment-govern
 import { PromptExperimentEntity, type PromptExperimentSnapshot } from "../../domain/entities/prompt-experiment.entity.js";
 import type { PromptVariantSnapshot } from "../../domain/entities/prompt-variant.entity.js";
 import type { ExperimentRepositoryPort } from "../../domain/ports/experiment-repository.port.js";
+import { fingerprintVariants } from "../../domain/services/measurement-plan.js";
 
 export class PrismaExperimentRepository implements ExperimentRepositoryPort {
   constructor(private readonly prisma: PrismaClient) {}
@@ -11,10 +12,13 @@ export class PrismaExperimentRepository implements ExperimentRepositoryPort {
   async save(experiment: PromptExperimentEntity): Promise<void> {
     const snapshot = experiment.snapshot();
     await this.prisma.$transaction(async tx => {
+      if (snapshot.status === "running") {
+        await tx.$queryRaw`SELECT id FROM merchants WHERE id = ${snapshot.merchant_id} FOR UPDATE`;
+      }
       const [current] = await tx.$queryRaw<{ id: string; merchant_id: string; status: string }[]>`
         SELECT id, merchant_id, status FROM prompt_experiments WHERE id = ${snapshot.id} FOR UPDATE`;
       if (current && current.merchant_id !== snapshot.merchant_id) throw new Error("EXPERIMENT_NOT_FOUND");
-      const transitions: Record<string, string[]> = { draft: ["running"], running: ["completed"], completed: ["archived"], archived: [] };
+      const transitions: Record<string, string[]> = { draft: ["running", "archived"], running: ["completed"], completed: ["archived"], archived: [] };
       if (current && current.status !== snapshot.status && !transitions[current.status]?.includes(snapshot.status)) {
         throw new ConflictException("EXPERIMENT_STATE_CHANGED");
       }
@@ -25,6 +29,10 @@ export class PrismaExperimentRepository implements ExperimentRepositoryPort {
         // Measurement registration is not versioned merchant approval. RI-07/09
         // will provide a separate transactional activation path and faithful baseline.
         throw new ConflictException("EXPERIMENT_VERSIONED_APPROVAL_REQUIRED");
+      }
+      if (snapshot.status === "running" && current?.status !== "running"
+        && await tx.promptExperiment.count({ where: { merchantId: snapshot.merchant_id, status: "running", id: { not: snapshot.id } } })) {
+        throw new ConflictException("MERCHANT_ALREADY_HAS_RUNNING_EXPERIMENT");
       }
       const data = {
         name: snapshot.name,
@@ -89,9 +97,12 @@ export class PrismaExperimentRepository implements ExperimentRepositoryPort {
   async findRunning(merchantId: string): Promise<PromptExperimentEntity | null> {
     const row = await this.prisma.promptExperiment.findFirst({
       where: { merchantId, status: "running" },
-      include: { variants: true },
+      include: { variants: true, activationApproval: true },
     });
     if (!row) return null;
+    const approval = row.activationApproval;
+    if (approval && (approval.merchantId !== merchantId || (approval.endsAt && approval.endsAt <= new Date())
+      || approval.variantFingerprint !== fingerprintVariants(row.variants))) return null;
     return PromptExperimentEntity.rehydrate(this.toSnapshot(row));
   }
 

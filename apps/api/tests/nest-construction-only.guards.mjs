@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { Socket } from "node:net";
 import { nativePrismaWorkerEnvironment } from "./native-prisma-admission-guards.mjs";
 import { readOwnedWindowsTcpRows } from "./windows-owned-tcp.mjs";
+import { readOwnedLinuxTcpRows } from "./linux-owned-tcp.mjs";
 
 const flags = ["--local-disposable", "--prisma-loopback-exec", "--construction-only"];
 const disabled = ["DATA_RETENTION_ENABLED", "BILLING_PROMOTIONS_ENABLED", "BILLING_ADMIN_NOTIFICATION_ENABLED",
@@ -104,8 +105,11 @@ export function createConstructionRedisSocketProof(port) {
       const missingPeers = entries.filter(({ socket }) => !socket?.remoteAddress || !socket?.remotePort);
       let rows;
       if (missingPeers.length) {
-        assert.equal(process.platform, "win32", "construction_native_tcp_evidence_windows_only");
-        rows = await readOwnedWindowsTcpRows();
+        if (process.platform === "linux") rows = await readOwnedLinuxTcpRows();
+        else {
+          assert.equal(process.platform, "win32", "construction_native_tcp_evidence_windows_only");
+          rows = await readOwnedWindowsTcpRows();
+        }
       }
       for (const { owner, socket } of entries) {
         if (captured.has(owner)) assert.equal(captured.get(owner), socket, "construction_redis_socket_identity_required");

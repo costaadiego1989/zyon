@@ -36,7 +36,16 @@ process.on('message',async raw=>{
     // the same server credential used by the canonical local AppModule.
     const require=createRequire(resolve(directory,'package.json')),loaded=require('next'),next=loaded.default??loaded;
     app=next({dev:false,dir:directory,hostname:'127.0.0.1',port:5188});await app.prepare();const handle=app.getRequestHandler();
-    server=createServer((request,response)=>{Promise.resolve(handle(request,response)).catch(()=>{response.statusCode=500;response.end('owned_next_request_failed');});});
+    server=createServer((request,response)=>{Promise.resolve().then(async()=>{
+      // The productive Next handler/CSP is unchanged. This fixed private route
+      // lets T93 execute this worktree's exact built widget library in the same
+      // allowed origin, with the original real issuer/read capability.
+      if(request.url?.startsWith('/__service/release-widget/')){
+        const {serveOwnedReleaseWidget}=await import('./service-served-widget-artifact.mjs');
+        if(await serveOwnedReleaseWidget(request,response))return;
+      }
+      await handle(request,response);
+    }).catch(()=>{response.statusCode=500;response.end('owned_next_request_failed');});});
     server.on('connection',socket=>{sockets.add(socket);socket.once('close',()=>sockets.delete(socket));});
     await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(5188,'127.0.0.1',resolve);});
     clearTimeout(deadline);process.send({type:'buyer_storefront_ready',runId:message.runId,origin:BUYER_STOREFRONT_ORIGIN,

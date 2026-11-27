@@ -1,6 +1,7 @@
+import { CheckCircle2, CircleAlert, Clock3, FileVideo, MessageSquare, MessageSquareQuote, Star, Video, XCircle } from "lucide-react";
 import { PageHeader } from "../../components/PageHeader.js";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, CircleAlert, Clock3, FileVideo, MessageSquare, Star, XCircle } from "lucide-react";
+
 import type { MerchantProfile } from "../../api-client.js";
 import type { Product } from "../../api/endpoints/catalog.js";
 import { dashboardJson } from "../../api/http/client.js";
@@ -307,8 +308,8 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
         <div className="reviews-filter-panel__toolbar">
           <TabBar
             tabs={[
-              { key: "testimonial", label: "Avaliações escritas", panelId: "reviews-testimonial-list" },
-              { key: "video", label: "Vídeos", panelId: "reviews-video-list" },
+              { key: "testimonial", label: "Avaliações escritas", panelId: "reviews-testimonial-list", icon: <MessageSquareQuote size={16} /> },
+              { key: "video", label: "Vídeos", panelId: "reviews-video-list", icon: <Video size={16} /> },
             ]}
             activeTab={kind}
             onTabChange={(next) => resetPage(() => setKind(next as ReviewKind))}

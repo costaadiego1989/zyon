@@ -7,6 +7,7 @@ import {
   SESSION_EXPIRED_EVENT,
   resolveDashboardApiBaseUrl
 } from "./api-client.js";
+import {ProspectProposalBinding,readProspectProposal,clearProspectProposal} from "./auth/ProspectProposalBinding.js";
 import { AuthScreen, type AuthMode } from "./auth/AuthScreen.js";
 import type { SignupWizardProps } from "./auth/SignupWizard.js";
 import { OAuthCallback, type OAuthCallbackResult } from "./auth/OAuthCallback.js";
@@ -79,10 +80,14 @@ export function App({ api }: AppProps) {
   const [contributionRemediationOpen, setContributionRemediationOpen] = useState(() => window.location.hash === "#marketplace-contributions");
   const [sellerFeeRemediationOpen, setSellerFeeRemediationOpen] = useState(() => window.location.hash === "#marketplace-fees");
   const [hostFeeRemediationOpen, setHostFeeRemediationOpen] = useState(() => window.location.hash === "#marketplace-host-fees");
+  const [proposalToken,setProposalToken]=useState(readProspectProposal);
   const [subscriptionIntent, setSubscriptionIntent] = useState(readSubscriptionIntent);
   const onboardingRedirectedRef = useRef(false);
   function setAuthMode(mode: AuthMode) {
-    window.history.replaceState(window.history.state, "", authUrlForMode(window.location.href, mode));
+    const fiscalReturn = /^#fiscal-(?:settings|invoices|detail)(?:\?|$)/.test(window.location.hash) ? window.location.hash : "";
+    const authUrl = new URL(authUrlForMode(window.location.href, mode));
+    if (fiscalReturn) authUrl.hash = fiscalReturn;
+    window.history.replaceState(window.history.state, "", authUrl.href);
     conversationNavigation.reset();
     setCurrentAuthMode(mode);
     setCaptchaToken(null);
@@ -103,6 +108,14 @@ export function App({ api }: AppProps) {
     try {
       const profile = await api.merchantProfile();
       if (generation !== sessionGeneration.current) return;
+      if (profile.role === "STAFF") {
+        setMe(profile);
+        setAuthHint(null);
+        setPlanSelectionPending(false);
+        setSubscriptionRequired(false);
+        setOnboardingCompleted(true);
+        return;
+      }
       const settings = await api.getStoreSettings();
       if (generation !== sessionGeneration.current) return;
       const choosingPlan = settings.plan_selection_pending === true;
@@ -298,6 +311,14 @@ export function App({ api }: AppProps) {
   }
 
   if (checkingSession) return <LoadingSplash />;
+  if (me && proposalToken) return <ProspectProposalBinding token={proposalToken} name={me.name} bind={api.bindProspectProposal} done={next=>{
+    clearProspectProposal();setProposalToken(null);
+    if(next==="manage_subscription"){
+      clearSubscriptionIntent();setSubscriptionIntent(null);setPlanSelectionPending(false);
+      const url=new URL(window.location.href);url.searchParams.delete("plan");url.searchParams.delete("cycle");url.hash="billing-plans";
+      window.history.replaceState(window.history.state,"",url.href);setInitialTab("billing-plans");
+    }
+  }}/>;
 
   if (staffContext) return <WhatsAppStaffWorkspace context={staffContext} apiBaseUrl={API_BASE_URL} onLogout={logout} busy={busy} navigation={conversationNavigation} />;
 

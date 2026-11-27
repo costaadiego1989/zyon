@@ -25,3 +25,7 @@ export interface WhatsAppSenderPort {
   sendText(msg: WhatsAppOutboundMessage): Promise<WhatsAppSendResult>;
   sendMedia?(msg: WhatsAppOutboundMessage & { mediaUrl: string; mimetype: string }): Promise<WhatsAppSendResult>;
 }
+
+export interface StrictWhatsAppBinding { merchantId: string; configId: string; accountId: string; statusCallbackUrl?: string; credentialFingerprint?: string }
+export interface StrictWhatsAppResult { messageId: string; status: "sent" | "uncertain" | "failed" | "skipped"; acceptance?: "not_accepted" }
+export interface StrictWhatsAppSenderPort { sendTextStrict(message: WhatsAppOutboundMessage, binding: StrictWhatsAppBinding): Promise<StrictWhatsAppResult> }

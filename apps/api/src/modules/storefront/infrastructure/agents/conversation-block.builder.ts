@@ -47,6 +47,8 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
   const blocks: ConversationBlock[] = [];
   let finalContent = input.finalContent;
   const toolResults = input.toolResults;
+  const invoice = toolResults["get_invoice"] as { orderId?: string; invoices?: Array<{ intentId: string; sellerMerchantId: string; environment: "production" | "homologation"; state: string; documentState: string; number?: string; options?: Array<{ label: string; action: string; href: string }> }> } | undefined;
+  if (invoice?.orderId && Array.isArray(invoice.invoices)) blocks.push({ type: "fiscal_invoices", data: { orderId: invoice.orderId, invoices: invoice.invoices.map(row => ({ intentId: row.intentId, sellerMerchantId: row.sellerMerchantId, environment: row.environment, state: row.state, documentState: row.documentState, ...(row.number ? { number: row.number } : {}), options: (row.options ?? []).filter(o => o.action === "navigate" && /^\/store\/[^?]+\?/.test(o.href)).map(o => ({ label: o.label, action: "navigate", href: o.href })) })) } });
   const addItemResult = toolResults["add_item_to_cart"] as any;
   const userMessage = input.userMessage;
 

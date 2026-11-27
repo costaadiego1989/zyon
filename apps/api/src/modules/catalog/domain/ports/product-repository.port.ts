@@ -86,6 +86,8 @@ export interface ProductRepositoryPort {
   }>;
   create(input: CreateProductInput): Promise<ProductEntity>;
   findById(merchantId: string, productId: string): Promise<ProductEntity | null>;
+  /** Tenant-scoped canonical reads for an explicitly selected variant list. */
+  findByVariantIds?(merchantId: string, variantIds: string[]): Promise<ProductEntity[]>;
   search(input: SearchProductsInput): Promise<SearchProductsResult>;
   findExistingVariantSkus(merchantId: string, skus: string[], excludeProductId?: string): Promise<string[]>;
   update(merchantId: string, productId: string, data: Partial<{ name: string; description: string; type: string; metadata: Record<string, unknown>; categoryId: string; isActive: boolean; seoTitle: string; metaDescription: string; slug: string; ogTitle: string; ogDescription: string; twitterCard: string; keywords: string[] }>): Promise<ProductEntity>;

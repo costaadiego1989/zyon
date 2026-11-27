@@ -20,6 +20,7 @@ import { AcceptCrossSellFromWidgetUseCase } from "./application/use-cases/accept
 import { NormalCheckoutCrossSellUseCase } from "./application/use-cases/normal-checkout-cross-sell.use-case.js";
 import { NORMAL_CHECKOUT_CROSS_SELL } from "./domain/ports/normal-checkout-cross-sell.port.js";
 import { PrismaNormalCheckoutCrossSellAdapter } from "./infrastructure/repositories/prisma-normal-checkout-cross-sell.adapter.js";
+import { CheckoutCommercialBenefitsService } from "../cashback/application/checkout-commercial-benefits.service.js";
 import { DeclineCrossSellSuggestionUseCase } from "./application/use-cases/decline-cross-sell-suggestion.use-case.js";
 import { CheckoutCrossSellRecommender } from "./application/services/checkout-cross-sell-recommender.js";
 import { CrossSellContextResolverService } from "./application/services/cross-sell-context-resolver.service.js";
@@ -39,8 +40,8 @@ import { CrossSellOfferAuditHandler } from "./infrastructure/event-handlers/cros
   providers: [
     {
       provide: NORMAL_CHECKOUT_CROSS_SELL,
-      useFactory: (prisma: PrismaClient) => new PrismaNormalCheckoutCrossSellAdapter(prisma),
-      inject: [PRISMA_CLIENT]
+      useFactory: (prisma: PrismaClient, benefits?: CheckoutCommercialBenefitsService) => new PrismaNormalCheckoutCrossSellAdapter(prisma, benefits),
+      inject: [PRISMA_CLIENT, { token: CheckoutCommercialBenefitsService, optional: true }]
     },
     // Repository ports
     {

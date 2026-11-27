@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { execFileSync } from "node:child_process";
 
 export function nativePrismaWorkerEnvironment(source) {
   const allowed = ["PATH", "Path", "PATHEXT", "SystemRoot", "SYSTEMROOT", "WINDIR", "ComSpec", "TEMP", "TMP", "TZ"];
@@ -61,8 +62,27 @@ export function assertGeneratedPrismaEnvironment({ source, generatedDirectory, w
   return { relativeEnvPaths: metadata, checkedCount: checked.size };
 }
 
+/** The additional Linux target is the actual Debian 12/x64/OpenSSL3 release
+ * image. Unknown engines, musl, other architectures and other distributions
+ * are rejected; this never downloads or guesses a compatible native engine. */
+export function nativePrismaEngineForPlatform(facts) {
+  if (facts.platform === "win32") return { file: "query_engine-windows.dll.node", nativeEngine: "windows-library" };
+  assert.equal(facts.platform, "linux", "native_prisma_fixture_platform_unsupported");
+  assert.equal(facts.arch, "x64", "native_prisma_linux_x64_required");
+  assert.equal(typeof facts.osRelease, "string", "native_prisma_linux_release_required");
+  assert.match(facts.osRelease, /^ID=(?:debian|"debian")\s*$/m, "native_prisma_debian_release_required");
+  assert.match(facts.osRelease, /^VERSION_ID=(?:12|"12")\s*$/m, "native_prisma_debian12_required");
+  assert.match(facts.glibc ?? "", /^\d+\.\d+(?:\.\d+)?$/, "native_prisma_glibc_required");
+  assert.match(facts.openssl ?? "", /^3\.0\.\d+(?:[+.-].*)?$/, "native_prisma_openssl30_required");
+  return { file: "libquery_engine-debian-openssl-3.0.x.so.node", nativeEngine: "debian-openssl-3.0.x-library" };
+}
+
 export function inspectNativePrismaClient(apiRoot) {
-  assert.equal(process.platform, "win32", "native_windows_prisma_fixture_required");
+  const systemOpenSsl = process.platform === "linux"
+    ? execFileSync("/usr/bin/openssl", ["version"], { encoding: "utf8", timeout: 10_000, maxBuffer: 4096 }).match(/^OpenSSL (\S+)/)?.[1] : undefined;
+  const engine = nativePrismaEngineForPlatform({ platform: process.platform, arch: process.arch,
+    ...(process.platform === "linux" ? { osRelease: readFileSync("/etc/os-release", "utf8"),
+      glibc: process.report.getReport().header.glibcVersionRuntime, openssl: systemOpenSsl } : {}) });
   const workspaceRoot = path.resolve(apiRoot, "../..");
   const require = createRequire(path.join(apiRoot, "package.json"));
   const clientEntry = require.resolve("@prisma/client");
@@ -70,6 +90,7 @@ export function inspectNativePrismaClient(apiRoot) {
   const generatedEntry = createRequire(clientEntry).resolve(".prisma/client/default");
   const generatedDirectory = path.dirname(generatedEntry);
   const safety = assertGeneratedPrismaEnvironment({ source: readFileSync(path.join(generatedDirectory, "index.js"), "utf8"), generatedDirectory, workspaceRoot, apiRoot });
-  assert.ok(existsSync(path.join(generatedDirectory, "query_engine-windows.dll.node")), "cached_windows_prisma_engine_required_no_download");
-  return { ...safety, nativeEngine: "windows-library", clientEntry };
+  assert.ok(existsSync(path.join(generatedDirectory, engine.file)), process.platform === "win32"
+    ? "cached_windows_prisma_engine_required_no_download" : "cached_debian_prisma_engine_required_no_download");
+  return { ...safety, nativeEngine: engine.nativeEngine, clientEntry };
 }

@@ -117,3 +117,29 @@ test("Buyer login preserves independent complete account snapshots across passwo
     });
   }
 });
+
+
+test("Buyer login rejects empty, wrong-length and noncanonical scrypt keys without a JWT or account changes", async t => {
+  const hash = await new PasswordHasher().hash(password);
+  const [algorithm, salt, key] = hash.split(":");
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+  const aliasedLastByte = key!.slice(0, -1) + alphabet[alphabet.indexOf(key!.at(-1)!) + 1];
+  const cases = [
+    ["ignored punctuation decodes to an empty key", "scrypt:synthetic-salt:!"],
+    ["one-byte key", `scrypt:synthetic-salt:${Buffer.alloc(1).toString("base64url")}`],
+    ["63-byte key", `scrypt:synthetic-salt:${Buffer.alloc(63).toString("base64url")}`],
+    ["65-byte key", `scrypt:synthetic-salt:${Buffer.alloc(65).toString("base64url")}`],
+    ["padded key", `${hash}=`],
+    ["key with ignored punctuation", `${hash}!`],
+    ["key with ignored whitespace", `${hash}\n`],
+    ["key with nonzero unused bits", `${algorithm}:${salt}:${aliasedLastByte}`],
+  ];
+  for (const [name, passwordHash] of cases) {
+    await t.test(name!, async () => {
+      const saved = account(passwordHash!), before = structuredClone(saved), f = await fixture(saved);
+      await denied(f);
+      assert.deepEqual(f.buyers.emails, [email]);
+      assert.deepEqual(structuredClone(await f.buyers.findByGlobalUserId(saved.globalUserId)), before);
+    });
+  }
+});

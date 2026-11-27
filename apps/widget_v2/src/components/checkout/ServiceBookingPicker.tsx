@@ -167,8 +167,15 @@ export function ServiceBookingPicker({ data, access, readAccess, cartRef, buyerI
   const changeProfessional = (p: ServiceProfessional) => { continuation.current = null; const reader = client ?? browse; const privateRead = reader === client; void perform(async signal => { const result = await reader.dates(context, p.id, fromDate, windowEnd(fromDate), signal); if (result.professional_version !== p.version) throw new ServiceBookingRequestError(409, "service_professional_changed"); return { professional: p, dates: result.dates }; }, { ...clearChoice, readPrivateKey: privateRead ? privateKey : undefined, professional: undefined, dates: [], date: undefined, slots: [], slotPage: 0 }, privateRead); };
   const changeDate = (date: string) => { if (!state.professional) return; continuation.current = null; const reader = client ?? browse; const privateRead = reader === client; const p = state.professional; void perform(async signal => { const result = await reader.slots(context, p.id, date, signal); if (result.selections.some(row => row.professionalVersion !== p.version)) throw new ServiceBookingRequestError(409, "service_professional_changed"); return { date, slots: result.selections, slotPage: 0 }; }, { ...clearChoice, readPrivateKey: privateRead ? privateKey : undefined, date: undefined, slots: [] }, privateRead); };
   const chooseSlot = (slot: ServiceSelection) => {
-    continuation.current = null; ++epoch.current; pending.current?.abort(); pendingPrivate.current = false;
-    setView(old => ({ ...visible(old), ...clearChoice, selected: slot, busy: false, busyPrivate: false, error: undefined, errorPrivate: false }));
+    continuation.current = null;
+    const reader = client ?? browse, privateRead = reader === client;
+    void perform(async signal => {
+      const result = await reader.slots(context, slot.professionalId, slot.date, signal);
+      const fresh = result.selections.find(row => row.slotId === slot.slotId
+        && Object.keys(row).every(key => row[key as keyof ServiceSelection] === slot[key as keyof ServiceSelection]));
+      if (!fresh) throw new ServiceBookingRequestError(409, "service_slot_unavailable");
+      return { selected: fresh };
+    }, { ...clearChoice, readPrivateKey: privateRead ? privateKey : undefined }, privateRead);
   };
   const continueSelection = () => {
     const selected = state.selected;

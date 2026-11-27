@@ -125,11 +125,11 @@ export type PromotionDiscountType = "percent" | "fixed";
 export interface CreatePromotionPayload {
   variantId?: string;
   categoryId?: string;
-  couponId?: string;
-  discountType?: PromotionDiscountType;
+  couponId?: string | null;
+  discountType?: PromotionDiscountType | null;
   /** For "fixed" this is in CENTS; for "percent" it is 0-100. */
-  discountValue?: number;
-  promoPriceInCents?: number;
+  discountValue?: number | null;
+  promoPriceInCents?: number | null;
   isActive?: boolean;
   startsAt: string;
   endsAt: string;

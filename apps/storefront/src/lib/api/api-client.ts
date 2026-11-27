@@ -22,7 +22,7 @@ import { parsePostAddCartResponse } from '../post-cart-suggestions';
 import { conversationFetch, rememberConversationAccess } from "../conversation-access";
 import { currentStorefrontCheckoutToken } from "../checkout-session-access";
 import { cloneStorefrontReadUiAction, rememberStorefrontReadUiActionCapability, storefrontReadUiActionRequest } from "../storefront-read-ui-action";
-import type { StorefrontReadUiAction } from "@zyon/shared-types";
+import type { StorefrontPublicUiAction as StorefrontReadUiAction } from "@zyon/shared-types";
 import { readCartLineSelection, type CartLineSelection } from "../cart-line-selection";
 import { apiCall } from "@/lib/services/http";
 import type { ConversationAttachment } from "@/lib/viewmodels/useConversationViewModel/types";
@@ -115,6 +115,13 @@ export const settingsApi = {
 
 const conversationStarts = new Map<string, Promise<any>>();
 export const checkoutApi = {
+  async getHistory(conversationId:string) {
+    return safeFetch(`${API_BASE}/storefront/conversations/${encodeURIComponent(conversationId)}`,{cache:"no-store"},conversationId);
+  },
+  async identify(conversationId:string,buyerToken:string) {
+    return safeFetch(`${API_BASE}/storefront/conversations/${encodeURIComponent(conversationId)}/identity`,{
+      method:"POST",headers:{"X-Buyer-Authorization":`Bearer ${buyerToken}`},body:"{}"},conversationId);
+  },
   async create(data: {
     merchantId: string;
     customerId?: string;
@@ -160,6 +167,8 @@ export const checkoutApi = {
     attachment?: ConversationAttachment;
     uiAction?: StorefrontReadUiAction;
     voiceTurnToken?: string;
+    messageId?:string;
+    marketingConsent?:"granted"|"declined";
   }): Promise<any> {
     const hasUiAction = options?.uiAction !== undefined;
     // Reject malformed commands before IO. The transport prepares the body only
@@ -175,6 +184,7 @@ export const checkoutApi = {
       history: options?.history, variant_id: options?.variantId || undefined,
       attachment: options?.attachment,
       voice_turn_token: options?.voiceTurnToken,
+      message_id:options?.messageId,marketing_consent:options?.marketingConsent,
     }));
     return safeFetch(`${API_BASE}/storefront/conversations/${checkoutId}/messages`, () => ({
       method: "POST",

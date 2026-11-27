@@ -7,12 +7,16 @@ import type { Role } from "./roles.js";
  * OWNER is implicit — no need to add OWNER to a list.
  */
 export const PERMISSIONS: Partial<Record<TabKey, ReadonlyArray<Role>>> = {
+  "fiscal-settings": ["OWNER", "ADMIN"],
+  "fiscal-invoices": ["OWNER", "ADMIN"],
+  "fiscal-detail": ["OWNER", "ADMIN"],
   // Diário
   "cart-recovery": ["OWNER", "ADMIN"],
   finance: ["OWNER", "ADMIN"],
   // Vendas (configurações)
   settings: ["OWNER", "ADMIN"],
   coupons: ["OWNER", "ADMIN"],
+  cashback: ["OWNER", "ADMIN"],
   "cross-sell": ["OWNER", "ADMIN"],
   experiments: ["OWNER", "ADMIN"],
   "negotiation-policy": ["OWNER", "ADMIN"],
@@ -36,6 +40,7 @@ export const PERMISSIONS: Partial<Record<TabKey, ReadonlyArray<Role>>> = {
   "erp-integrations": ["OWNER", "ADMIN"],
   // Inteligência IA
   "revenue-manager": ["OWNER", "ADMIN"],
+  "meta-ads-agent": ["OWNER", "ADMIN"],
   "revenue-lift": ["OWNER", "ADMIN"],
   "intent-memory": ["OWNER", "ADMIN"],
   "post-sale": ["OWNER", "ADMIN"],
@@ -55,6 +60,8 @@ export const PERMISSIONS: Partial<Record<TabKey, ReadonlyArray<Role>>> = {
   "service-attendance": ["OWNER", "ADMIN"],
   "service-appointments": ["OWNER", "ADMIN"],
   customers: ["OWNER", "ADMIN", "STAFF"],
+  conversations: ["OWNER", "ADMIN", "STAFF"],
+  marketing: ["OWNER", "ADMIN", "STAFF"],
   marketplace: ["OWNER", "ADMIN", "STAFF"],
   "marketplace-payments": ["OWNER", "ADMIN"],
   "marketplace-shipments": ["OWNER", "ADMIN"],
@@ -66,7 +73,7 @@ export const PERMISSIONS: Partial<Record<TabKey, ReadonlyArray<Role>>> = {
 };
 
 export function canAccessTab(role: Role | undefined, tab: TabKey): boolean {
-  if (!role) return true; // defensive — pre-session should not 403
+  if (!role) return !["fiscal-settings", "fiscal-invoices", "fiscal-detail", "conversations", "marketing"].includes(tab); // sensitive features require a resolved merchant role
   if (role === "OWNER") return true;
   const allow = PERMISSIONS[tab];
   if (!allow) return true; // unrestricted

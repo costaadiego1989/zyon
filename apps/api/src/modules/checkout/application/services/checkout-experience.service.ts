@@ -18,6 +18,8 @@ import { DEFAULT_PLATFORM_FEE_BRL } from "../../../../shared/config/platform-fee
 import { checkoutShippingLabel } from "../../domain/services/checkout-shipping-label.js";
 import { commercialNoticesSchema } from "../../../storefront/domain/contracts/commercial-notice.schemas.js";
 import { commercialNotice } from "../../../storefront/domain/services/commercial-notice.js";
+import { requiresPhysicalDelivery } from "../../domain/services/cart-fulfillment.js";
+import { isMarketplaceCheckoutSession } from "../../infrastructure/marketplace-checkout-scope.js";
 
 export interface ExperienceInputs {
   merchant_id: string;
@@ -34,7 +36,10 @@ function publicCommercialNotices(value: unknown): Pick<CheckoutExperienceSnapsho
 }
 
 export interface ExperienceDeps {
+  marketplace?: boolean;
   policies?: MerchantRules["policies"];
+  /** Obtain from the cashback service, never from public cart input. */
+  cashbackCents?: number;
   merchantName?: string;
   theme?: MerchantTheme;
   agent?: AgentContext;
@@ -222,11 +227,14 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
   const theme = deps.theme ?? DEFAULT_MERCHANT_THEME;
   const chatStage = deps.chatStage ?? "data_collection";
   const items = input.cart.items.map(toItemSnapshot);
+  const marketplace = deps.marketplace ?? input.cart.items.some(item => Boolean(item.marketplace));
   // Only include shipping cost when a method has been explicitly selected (session.shipping exists)
-  const shipping = input.shipping ? input.shipping.customerPrice : 0;
+  const shipping = requiresPhysicalDelivery(input.cart) ? (input.shipping?.customerPrice ?? 0) : 0;
   const discount = input.cart.currentDiscount ?? 0;
   const subtotal = input.cart.total;
-  const total = Math.max(0, roundMoney(subtotal + shipping - discount));
+  const cashbackCents = Number.isSafeInteger(deps.cashbackCents) && (deps.cashbackCents ?? 0) > 0
+    ? Math.min(deps.cashbackCents!, Math.max(0, Math.round((subtotal - discount) * 100))) : 0;
+  const total = Math.max(0, roundMoney(subtotal + shipping - discount - cashbackCents / 100));
   const serviceFee = readPlatformServiceFee(deps);
   const totalToPay = roundMoney(total + serviceFee);
   const agentIdentity = deps.agent?.agent;
@@ -255,6 +263,9 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
   };
 
   return {
+    ...(marketplace ? { shipping_mode: "marketplace" as const } : {}),
+    ...(Number.isSafeInteger(input.cart.commercialBenefitsVersion) && (input.cart.commercialBenefitsVersion ?? 0) > 0
+      ? { commercial_benefits_version: input.cart.commercialBenefitsVersion } : {}),
     stage: chatStage,
     brand: {
       merchant_id: input.merchant_id,
@@ -279,6 +290,7 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
       subtotal: roundMoney(subtotal),
       shipping: roundMoney(shipping),
       discount: roundMoney(discount),
+      ...(cashbackCents > 0 ? { cashback_cents: cashbackCents } : {}),
       service_fee: serviceFee,
       total_to_pay: totalToPay,
       total
@@ -344,7 +356,7 @@ export function buildExperienceFromSession(session: CheckoutSession, deps: Exper
       customer: session.customer,
       shipping: session.shipping
     },
-    { ...deps, chatStage, missingFieldsPreview }
+    { ...deps, marketplace: isMarketplaceCheckoutSession(session), chatStage, missingFieldsPreview }
   );
   const shippingOptionReplies =
     chatStage === "shipping" && missingFieldsPreview[0] === "frete" && session.shippingOptions?.length

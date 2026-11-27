@@ -1,3 +1,4 @@
+import { RecoveryResumeOriginService } from "../application/services/recovery-resume-origin.service.js";
 import test from "node:test";
 import { GenerateRecoveryLinkUseCase } from "../application/use-cases/generate-recovery-link.use-case.js";
 import { RecoveryLinkTokenService } from "../domain/recovery-link-token.service.js";
@@ -72,7 +73,8 @@ for (const strategy of strategies) for (const scenario of scenarios) {
       updateMeta: async () => { throw new Error("Routing must not invent template approval"); },
     };
     const tokens = new RecoveryLinkTokenService("test-only-recovery-secret-at-least-32-characters");
-    const links = new GenerateRecoveryLinkUseCase({ merchant: { findUnique: async () => ({ storeSlug: "test-shop" }) } } as never, sessions, tokens);
+    const linkPrisma = { checkoutEvent: { findFirst: async () => null }, merchant: { findUnique: async () => ({ storeSlug: "test-shop" }) }, whatsAppSession: { findFirst: async () => null } } as never;
+    const links = new GenerateRecoveryLinkUseCase(linkPrisma, sessions, tokens, new RecoveryResumeOriginService(linkPrisma));
     const recoveryLink = await links.execute({ merchantId: session.merchantId, sessionId: session.sessionId });
     assert.equal(tokens.verify(new URL(recoveryLink).searchParams.get("recovery")).sessionId, session.sessionId);
     let whatsapp = 0;
@@ -140,7 +142,8 @@ for (const strategy of strategies) for (const scenario of scenarios) {
 
 test("Prisma persists the actual channel and uncertain status on update", async () => {
   const writes: { update: { channel: string; status: string; sentAt: Date | null } }[] = [];
-  const prisma = { recoveryAttempt: { upsert: async (args: typeof writes[number]) => { writes.push(args); } } } as unknown as PrismaClient;
+  const transaction = { recoveryAttempt: { upsert: async (args: typeof writes[number]) => { writes.push(args); } } };
+  const prisma = { $transaction: async (run: (tx: typeof transaction) => Promise<void>) => run(transaction) } as unknown as PrismaClient;
   const repo = new PrismaRecoveryAttemptRepository(prisma);
   const attempt = new RecoveryAttempt({
     id: "attempt", merchantId: "merchant", sessionId: "session", globalUserId: "buyer",

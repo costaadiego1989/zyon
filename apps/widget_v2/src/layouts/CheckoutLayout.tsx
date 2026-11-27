@@ -5,6 +5,7 @@ import { useCheckoutStore } from "@/store/checkout-store";
 import { ChannelGate } from "@/components/ChannelGate";
 import { ChatPanel } from "@/components/ChatPanel";
 import { SmartCart } from "@/components/SmartCart";
+import { MerchantTrustBadges } from "@/components/MerchantTrustBadges";
 import { DiscountBanner } from "@/components/DiscountBanner";
 import { PulseAgentOrb } from "@/components/PulseAgentOrb";
 import SupportPanel from "@/components/SupportPanel";
@@ -523,6 +524,7 @@ export function CheckoutLayout({ forcedTheme, onClose }: CheckoutLayoutProps = {
       <SupportPanel open={supportOpen} onClose={() => setSupportOpen(false)} />
 
       <CheckoutPolicies />
+      <MerchantTrustBadges badges={brand.trustBadges} />
       {/* Whitelabel badge — free-plan merchants only. Accent background per brand. */}
       {showBranding && (
         <div

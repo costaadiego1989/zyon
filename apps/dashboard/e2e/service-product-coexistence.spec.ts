@@ -1,6 +1,9 @@
 import {test,expect} from '@playwright/test';
 import {mkdir} from 'node:fs/promises';
 import {resolve} from 'node:path';
+import {createBuyerBrowserJourney} from '../../api/tests/service-buyer-browser.fixture.mjs';
+import {openGuest} from './service-buyer-storefront-helpers.js';
+import {attachServedArtifact,createServedDashboard,installServedReleaseTransport,releaseWidgetBytes,servedFrontendDigest,servedReleaseIdentity} from './service-served-artifact-observation.mjs';
 
 test('T10',async({browser,request})=>{
   const captures=resolve(process.cwd(),'../../.specs/features/whatsapp-service-booking-business-rag/captures');
@@ -116,4 +119,80 @@ test('T3',async({page,context,request})=>{
   const outside=await page.evaluate(async()=>{try{await fetch('https://example.invalid/forbidden');return 'allowed';}catch{return 'blocked';}});
   expect(outside).toBe('blocked');expect(blocked).toContain('https://example.invalid');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);
+});
+
+type ReleaseJourney=Awaited<ReturnType<typeof createBuyerBrowserJourney>>;
+const servedTest=test.extend<{}, {releaseJourney:ReleaseJourney}>({
+  releaseJourney:[async({},use)=>{
+    const journey=await createBuyerBrowserJourney('local');
+    try{await use(journey);}finally{await journey.close();}
+  },{scope:'worker',timeout:600_000}],
+});
+servedTest('T93 measured Linux/Windows frontend artifacts are actually served and exercised without a booking write',async({browser,releaseJourney:journey},testInfo)=>{
+  const before={runtime:servedReleaseIdentity(),frontends:{dashboard:servedFrontendDigest('dashboard'),widget:servedFrontendDigest('widget'),storefront:servedFrontendDigest('storefront')}};
+  const dashboard=await createServedDashboard();
+  const context=await browser.newContext({viewport:{width:1440,height:1000}});
+  try{
+    const page=await context.newPage();
+    const navigation=page.waitForResponse(response=>response.request().isNavigationRequest()&&new URL(response.url()).pathname==='/store/'+journey.slug);
+    const message=page.waitForResponse(response=>new URL(response.url()).pathname.endsWith('/messages')&&response.request().method()==='POST');
+    const issued=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/checkout-token'&&response.request().method()==='POST');
+    for(const pending of [navigation,message,issued])void pending.catch(()=>{});
+    const panel=await openGuest(page,journey);await expect(panel.getByRole('button',{name:'Profissional Ana',exact:true})).toBeVisible();
+    const nextResponse=await navigation;await attachServedArtifact(testInfo,'storefront',nextResponse,before);
+    await page.screenshot({path:testInfo.outputPath('served-storefront.running.png'),fullPage:false});
+    const messageResponse=await message;expect(messageResponse.status()).toBe(201);
+    const data=(await messageResponse.json()).blocks.find((block:any)=>block.type==='service_booking'&&block.data.kind==='professionals')?.data;
+    expect(data?.context).toMatchObject(journey.offer);
+    const issuedResponse=await issued;expect(issuedResponse.ok()).toBe(true);const embedToken=(await issuedResponse.json()).embed_session_token;
+    expect(typeof embedToken).toBe('string');expect(embedToken.length).toBeGreaterThan(1);
+    const snapshot=await journey.snapshot();
+    const owner=await journey.prepareServedOwnerDashboard();
+    const loggedIn=await context.request.post(owner.apiOrigin+'/auth/login',{data:{email:owner.email,password:owner.password}});
+    expect(loggedIn.status()).toBe(201);expect((await loggedIn.json()).merchant_id).toBe(journey.merchantId);
+    await context.unroute('**/*');
+    const allowed=new Set([journey.origin,dashboard.origin,'http://127.0.0.1:5187']);
+    const forwarded=await installServedReleaseTransport(context,allowed,owner.apiOrigin);
+    const prefix=journey.origin+'/__service/release-widget/';
+    await page.addScriptTag({type:'importmap',content:JSON.stringify({imports:{react:prefix+'react.mjs','react-dom':prefix+'react-dom.mjs','react-dom/client':prefix+'react-dom-client.mjs','react/jsx-runtime':prefix+'jsx-runtime.mjs'}})});
+    const styleResponse=await page.request.get(prefix+'asset-list.json');expect(styleResponse.status()).toBe(200);
+    for(const name of (await styleResponse.json()).css)await page.addStyleTag({url:prefix+name});
+    const library=page.waitForResponse(response=>response.url()===prefix+'index.js');void library.catch(()=>{});
+    await page.evaluate(async({prefix,data,merchantId,embedToken,date})=>{
+      const React=await import(prefix+'react.mjs');(globalThis as any).__zyonReleaseReact=React.default;
+      const renderer=await import(prefix+'react-dom-client.mjs'),widget=await import(prefix+'index.js');
+      const host=document.createElement('section');host.id='served-widget-release-proof';host.setAttribute('aria-label','Widget compilado da versao');document.body.append(host);
+      renderer.createRoot(host).render(React.createElement(widget.ServiceBookingPicker,{data,access:null,
+        readAccess:{merchantId,embedToken,apiBaseUrl:location.origin+'/api/v1',embedApiBaseUrl:location.origin+'/api'},initialFromDate:date}));
+    },{prefix,data,merchantId:journey.merchantId,embedToken,date:journey.date});
+    const widgetHost=page.locator('#served-widget-release-proof');
+    await expect(widgetHost.getByRole('button',{name:'Profissional Ana',exact:true})).toBeEnabled();
+    const dates=page.waitForResponse(response=>new URL(response.url()).pathname.endsWith('/service-booking/dates')&&response.request().method()==='GET');
+    await widgetHost.getByRole('button',{name:'Profissional Ana',exact:true}).click();const datesResponse=await dates;
+    expect(datesResponse.status()).toBe(200);expect((await datesResponse.json()).dates).toContain(journey.date);
+    await expect(widgetHost.getByRole('button',{name:/\d{4}/}).first()).toBeVisible();
+    await attachServedArtifact(testInfo,'widget',await library,before,releaseWidgetBytes());
+    await widgetHost.scrollIntoViewIfNeeded();await page.screenshot({path:testInfo.outputPath('served-widget-library.running.png'),fullPage:false});
+    expect(await journey.snapshot()).toEqual(snapshot);expect(journey.evidence().api.providerCalls).toBe(0);
+    const admin=await context.newPage();
+    const profile=admin.waitForResponse(response=>new URL(response.url()).pathname.endsWith('/merchants/me'));
+    const adminResponse=await admin.goto(dashboard.origin+'/#service-attendance?tab=professionals');expect(adminResponse).not.toBeNull();
+    const profileResponse=await profile;expect(profileResponse.status()).toBe(200);
+    const profileBody=await profileResponse.json(),me=profileBody.data??profileBody;
+    expect(me.id).toBe(journey.merchantId);expect(me.businessMode).toBe('services');expect(String(me.role).toUpperCase()).toBe('OWNER');
+    await expect(admin.getByRole('heading',{name:'Atendimento',exact:true})).toBeVisible();
+    await expect(admin.getByRole('tabpanel',{name:'Profissionais',exact:true}).getByText('Profissional Ana',{exact:true})).toBeVisible();
+    await admin.getByRole('tab',{name:'Disponibilidade',exact:true}).click();
+    await admin.getByLabel('Profissional',{exact:true}).selectOption(journey.professionalId);
+    const gradePath='/v1/merchants/'+journey.merchantId+'/service-professionals/'+journey.professionalId+'/availability';
+    const grade=admin.waitForResponse(response=>new URL(response.url()).pathname===gradePath&&response.request().method()==='GET');
+    await admin.getByRole('button',{name:'Consultar grade',exact:true}).click();const gradeResponse=await grade;expect(gradeResponse.status()).toBe(200);
+    const actualGrade=await gradeResponse.json();expect(actualGrade.professionalId).toBe(journey.professionalId);
+    expect(actualGrade.timeZone).toBe('America/Sao_Paulo');expect(actualGrade.rows).toHaveLength(7);
+    expect(forwarded.some(row=>row.method==='GET'&&row.path===gradePath&&row.status===200)).toBe(true);
+    expect(forwarded.every(row=>row.targetOrigin===owner.apiOrigin)).toBe(true);
+    expect(await journey.snapshot()).toEqual(snapshot);expect(journey.evidence().api.providerCalls).toBe(0);
+    await attachServedArtifact(testInfo,'dashboard',adminResponse!,before,dashboard.indexBytes);
+    await admin.screenshot({path:testInfo.outputPath('served-dashboard.running.png'),fullPage:false});
+  }finally{await context.close();await dashboard.close();}
 });

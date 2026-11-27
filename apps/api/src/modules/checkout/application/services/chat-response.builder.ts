@@ -13,6 +13,7 @@ import { CHECKOUT_CROSS_SELL_RECOMMENDER, type CheckoutCrossSellRecommenderPort 
 import { BUYER_CONVERSATION_REPOSITORY, type BuyerConversationRepository } from "../../../buyer-account/domain/ports/buyer-conversation.port.js";
 import type { ProductRepositoryPort } from "../../../catalog/domain/ports/product-repository.port.js";
 import { buildExperienceFromSession } from "./checkout-experience.service.js";
+import { CashbackService } from "../../../cashback/application/cashback.service.js";
 import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../domain/checkout-experience.config.js";
 import { resolveCrossSellProduct } from "../../../cross-sell/application/services/cross-sell-product-resolver.js";
 import { SafeAuthorizedOffer } from "../../domain/types/safe-authorized-offer.js";
@@ -50,7 +51,8 @@ export class ChatResponseBuilder {
     @Optional() private readonly _createPaymentIntent?: CreatePaymentIntentUseCase,
     @Optional() @Inject(BUYER_CONVERSATION_REPOSITORY) private readonly conversationRepo?: BuyerConversationRepository,
     @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: DEFAULT_PLATFORM_FEE_BRL },
-    @Optional() @Inject("ProductRepositoryPort") private readonly productRepo?: ProductRepositoryPort
+    @Optional() @Inject("ProductRepositoryPort") private readonly productRepo?: ProductRepositoryPort,
+    @Optional() private readonly cashback?: CashbackService,
   ) {}
 
   async build(input: ChatReplyInput & { merchantId: string; sessionId: string }): Promise<ChatMessageResponse> {
@@ -72,6 +74,7 @@ export class ChatResponseBuilder {
     });
 
     const experience = buildExperienceFromSession(updated, {
+      cashbackCents: await this.cashback?.checkoutCashbackCents(updated),
       merchantName: input.merchant?.name,
       theme: (input.merchant as any)?.theme,
       couponBoxEnabled: input.rules.couponBoxEnabled,

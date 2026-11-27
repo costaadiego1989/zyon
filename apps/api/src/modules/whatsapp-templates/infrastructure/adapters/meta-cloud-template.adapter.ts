@@ -15,15 +15,20 @@ const GRAPH = "https://graph.facebook.com/v23.0";
 const TIMEOUT_MS = 15_000;
 const SNAPSHOT_TTL_MS = 5 * 60_000;
 const RATE_LIMIT_BACKOFF_MS = 60 * 60_000;
-type MetaTemplate = { name?: string; status?: string; category?: string; rejected_reason?: string; language?: string; components?: Array<{ type: string; text?: string; buttons?: Array<{ type?: string; otp_type?: string; url?: string }> }> };
-type ExpectedTemplate = { language: string; body: string; category?: string };
+type MetaTemplate = { name?: string; status?: string; category?: string; rejected_reason?: string; language?: string; components?: Array<{ type: string; text?: string; code_expiration_minutes?: number; buttons?: Array<{ type?: string; otp_type?: string; url?: string }> }> };
+type ExpectedTemplate = { language: string; body: string; category?: string; authenticationExpirationMinutes?: 5 | 10 };
 
-function authenticationComponents() {
-  return [{ type: "BODY", add_security_recommendation: true }, { type: "FOOTER", code_expiration_minutes: 10 },
+function authenticationComponents(expirationMinutes = 10) {
+  return [{ type: "BODY", add_security_recommendation: true }, { type: "FOOTER", code_expiration_minutes: expirationMinutes },
     { type: "BUTTONS", buttons: [{ type: "OTP", otp_type: "COPY_CODE", text: "Copiar código" }] }];
 }
 
-function matchesAuthenticationPreset(template: MetaTemplate): boolean {
+function matchesAuthenticationPreset(template: MetaTemplate, expirationMinutes?: number): boolean {
+  if (expirationMinutes !== undefined) {
+    const footer = template.components?.find(c => c.type === "FOOTER");
+    const reported = footer?.code_expiration_minutes ?? Number(footer?.text?.match(/\b(\d+)\s*(?:minutos?|minutes?)\b/i)?.[1]);
+    if (reported !== expirationMinutes) return false;
+  }
   const body = template.components?.find(c => c.type === "BODY")?.text ?? "";
   if (!body.includes("{{1}}") || body.replace(/\{\{1\}\}/g, "").includes("{{")) return false;
   return !!template.components?.some(c => c.type === "BUTTONS" && c.buttons?.some(button => {
@@ -48,7 +53,7 @@ function status(value: unknown): TemplateSubmissionStatus["status"] {
 function templateName(input: SubmitTemplateInput): string {
   const readable = input.friendlyName.toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "") || "template";
   const digest = createHash("sha256")
-    .update(`${input.language}|${input.category}|${input.metaBody}`)
+    .update(`${input.language}|${input.category}|${input.metaBody}${input.authenticationExpirationMinutes === undefined ? "" : `|${input.authenticationExpirationMinutes}`}`)
     .digest("hex")
     .slice(0, 10);
   return `zyon_${readable.slice(0, 48)}_${digest}`.slice(0, 512);
@@ -86,7 +91,7 @@ export class MetaCloudTemplateAdapter implements TemplateSubmissionPort {
         method: "POST", redirect: "error", signal: AbortSignal.timeout(TIMEOUT_MS),
         headers: { Authorization: `Bearer ${credentials.accessToken}`, "Content-Type": "application/json" },
         body: JSON.stringify({ name, language: input.language, category: String(input.category || "UTILITY").toUpperCase(),
-          components: input.category === "AUTHENTICATION" ? authenticationComponents() : [bodyComponent(input)] }),
+          components: input.category === "AUTHENTICATION" ? authenticationComponents(input.authenticationExpirationMinutes) : [bodyComponent(input)] }),
       });
     } catch {
       return { contentSid: name, status: "submission_unknown", rejectionReason: "create_outcome_unknown" };
@@ -94,7 +99,7 @@ export class MetaCloudTemplateAdapter implements TemplateSubmissionPort {
     if (!response.ok) {
       if (await this.markRateLimit(response, credentials.wabaId)) return { contentSid: "", status: "draft", rejectionReason: "provider_rate_limited", retryAfterMs: this.retryAfter(credentials.wabaId) };
       if (response.status >= 400 && response.status < 500 && response.status !== 408) {
-        const existing = await this.findByName(credentials.accessToken, credentials.wabaId, name, { language: input.language, body: input.metaBody, category: input.category });
+        const existing = await this.findByName(credentials.accessToken, credentials.wabaId, name, { language: input.language, body: input.metaBody, category: input.category, authenticationExpirationMinutes: input.authenticationExpirationMinutes });
         if (existing) return existing;
         return { contentSid: "", status: "draft", rejectionReason: `create_failed_${response.status}` };
       }
@@ -125,7 +130,7 @@ export class MetaCloudTemplateAdapter implements TemplateSubmissionPort {
       const item = templates?.find(template => template.name === name && (!expected || template.language === expected.language));
       if (!item) return null;
       if (expected?.category && item.category !== expected.category) return { contentSid: name, status: "disabled", rejectionReason: "template_category_mismatch" };
-      if (expected && !(expected.category === "AUTHENTICATION" ? matchesAuthenticationPreset(item)
+      if (expected && !(expected.category === "AUTHENTICATION" ? matchesAuthenticationPreset(item, expected.authenticationExpirationMinutes)
         : item.components?.find(c => c.type === "BODY")?.text === expected.body)) return { contentSid: name, status: "disabled", rejectionReason: "template_content_mismatch" };
       return {
         contentSid: name,

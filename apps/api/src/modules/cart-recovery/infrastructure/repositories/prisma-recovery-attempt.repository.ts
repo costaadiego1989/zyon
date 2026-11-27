@@ -1,15 +1,17 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import type { ListRecoveryAttemptsOptions, RecoveryAttemptRepositoryPort } from "../../domain/ports/recovery-attempt-repository.port.js";
-import { RecoveryAttempt, type RecoveryAttemptProps, type RecoveryAttemptStatus, type RecoveryChannel } from "../../domain/entities/recovery-attempt.entity.js";
+import { RecoveryAttempt, type RecoveryAttemptProps, type RecoveryAttemptStatus, type RecoveryChannel, type RecoveryDeliveryMetadata } from "../../domain/entities/recovery-attempt.entity.js";
 import type { RecoveryStrategy } from "../../domain/values/recovery-strategy.js";
 import type { AbandonmentReason } from "../../domain/values/abandonment-reason.js";
+import { recoveryFollowUpSchedule } from "../../domain/recovery-follow-up-policy.js";
 
-type RecoveryAttemptRow = Omit<RecoveryAttemptProps, "strategy" | "status" | "channel" | "abandonmentReason"> & {
+type RecoveryAttemptRow = Omit<RecoveryAttemptProps, "strategy" | "status" | "channel" | "abandonmentReason" | "deliveryMetadata"> & {
   strategyJson: unknown;
   status: string;
   channel: string;
   abandonmentReason: string;
+  deliveryMetadata?: unknown;
 };
 
 @Injectable()
@@ -36,16 +38,41 @@ export class PrismaRecoveryAttemptRepository implements RecoveryAttemptRepositor
   }
 
   async save(attempt: RecoveryAttempt): Promise<void> {
-    await this.prisma.recoveryAttempt.upsert({
-      where: { id: attempt.id },
-      create: this.toCreateData(attempt),
-      update: {
-        status: attempt.status,
-        channel: attempt.channel,
-        sentAt: attempt.sentAt,
-        recoveredAt: attempt.recoveredAt,
-        recoveredOrderId: attempt.recoveredOrderId,
-      },
+    await this.prisma.$transaction(async tx => {
+      await tx.recoveryAttempt.upsert({
+        where: { id: attempt.id },
+        create: this.toCreateData(attempt),
+        update: {
+          status: attempt.status,
+          channel: attempt.channel,
+          sentAt: attempt.sentAt,
+          recoveredAt: attempt.recoveredAt,
+          recoveredOrderId: attempt.recoveredOrderId,
+          deliveryMetadata: attempt.deliveryMetadata ? attempt.deliveryMetadata as Prisma.InputJsonValue : Prisma.JsonNull,
+        },
+      });
+      if (attempt.status === "sent" && attempt.sentAt && attempt.lastBuyerActivityAt) {
+        const schedule = recoveryFollowUpSchedule(attempt.sentAt);
+        await tx.recoveryFollowUp.createMany({ skipDuplicates: true, data: schedule.map(step => ({
+          ...step, merchantId: attempt.merchantId, sessionId: attempt.sessionId, attemptId: attempt.id,
+        })) });
+        // Storefront carts normally expire after 72h, before a +72h reminder
+        // following the five-minute quiet period. Retain only this live cart
+        // through the final contact window; never recreate an expired cart.
+        const checkout = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: {
+          merchantId: attempt.merchantId, sessionId: attempt.sessionId,
+        } }, select: { cart: true, conversationId: true } });
+        const storedRef = (checkout?.cart as { cart_ref?: unknown } | null)?.cart_ref;
+        const cartRef = typeof storedRef === "string" && storedRef.trim() ? storedRef : checkout?.conversationId;
+        if (cartRef) await tx.storefrontCart.updateMany({ where: {
+          merchantId: attempt.merchantId, sessionId: cartRef,
+          expiresAt: { gt: attempt.sentAt, lt: schedule[1]!.expiresAt },
+        }, data: { expiresAt: schedule[1]!.expiresAt } });
+      }
+      if (attempt.status === "recovered" || attempt.status === "expired") {
+        await tx.recoveryFollowUp.updateMany({ where: { attemptId: attempt.id, merchantId: attempt.merchantId, status: "pending" },
+          data: { status: "cancelled", reason: attempt.status === "recovered" ? "purchase_completed" : "recovery_expired" } });
+      }
     });
   }
 
@@ -128,6 +155,8 @@ export class PrismaRecoveryAttemptRepository implements RecoveryAttemptRepositor
       recoveredAt: row.recoveredAt,
       recoveredOrderId: row.recoveredOrderId,
       createdAt: row.createdAt,
+      lastBuyerActivityAt: row.lastBuyerActivityAt,
+      deliveryMetadata: row.deliveryMetadata as RecoveryDeliveryMetadata | null | undefined,
     });
   }
 
@@ -145,6 +174,8 @@ export class PrismaRecoveryAttemptRepository implements RecoveryAttemptRepositor
       status: attempt.status,
       recoveredAt: attempt.recoveredAt,
       recoveredOrderId: attempt.recoveredOrderId,
+      lastBuyerActivityAt: attempt.lastBuyerActivityAt,
+      deliveryMetadata: attempt.deliveryMetadata ? attempt.deliveryMetadata as Prisma.InputJsonValue : Prisma.JsonNull,
     };
   }
 }

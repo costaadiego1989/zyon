@@ -27,6 +27,7 @@ export interface CheckoutSessionConfig {
 }
 
 export interface BrandConfig {
+  trustBadges?: string[];
   name?: string;
   subtitle?: string;
   logoUrl?: string;
@@ -65,6 +66,7 @@ export interface CryptoPaymentsConfig {
 }
 
 export interface BrandTheme {
+  trustBadges?: string[];
   name?: string;
   logoUrl?: string;
   accentColor?: string;
@@ -149,11 +151,14 @@ export interface CommercialNudge {
 }
 
 export interface Experience {
+  /** Server-authored benefit origin revision. */
+  commercial_benefits_version?: number;
+  shipping_mode?: "marketplace";
   commercial_notices?: CommercialNotice[];
   policies?: { privacyUrl?: string; termsUrl?: string; refundUrl?: string; shippingUrl?: string };
   items?: Array<{ sku: string; name: string; quantity: number; unit_price: number; original_unit_price?: number; image_url?: string; variant?: string; variant_label?: string;
     productType?:NormalCheckoutProductType;fulfillmentStrategy?:NormalCheckoutFulfillmentStrategy }>;
-  totals?: { subtotal: number; shipping?: number; discount: number; service_fee?: number; total_to_pay?: number; total: number };
+  totals?: { subtotal: number; shipping?: number; discount: number; cashback_cents?: number; service_fee?: number; total_to_pay?: number; total: number };
   shipping?: {
     carrier?: string;
     carrierKey?: string;
@@ -192,21 +197,33 @@ export interface StartResponse {
   chat_protocol?: "durable_v2";
   session_id: string;
   experience?: Experience;
+  fiscal?: FiscalRecipientPreparation;
 }
+
+export interface FiscalRecipientPreparation { active: boolean; mode: "buyer" | "other"; fields: string[]; recipient: Record<string, unknown> }
 
 export type CrossSellAcceptResponse = Exclude<NormalCheckoutCrossSellHttpAcceptanceResponse, { projection_status: "available" }>
   | (Omit<Extract<NormalCheckoutCrossSellHttpAcceptanceResponse, { projection_status: "available" }>, "experience"> & { experience: Experience });
 
-export function cartFromExperience(experience: Experience | undefined): { items: CartItem[]; total: number; discount: number; serviceFee: number; totalToPay?: number; shipping?: { key: string; label: string; cost: number }; benefits?: Experience["applied_benefits"]; commercialNotices: CommercialNotice[] } {
+export function commercialBenefitsVersionFromExperience(experience: Pick<Experience, "commercial_benefits_version"> | undefined): number | undefined {
+  const version = experience?.commercial_benefits_version;
+  if (version !== undefined && (!Number.isSafeInteger(version) || version < 0)) throw new Error("checkout_commercial_benefits_version_invalid");
+  return version;
+}
+
+export function cartFromExperience(experience: Experience | undefined): { items: CartItem[]; total: number; discount: number; cashbackCents?: number; commercialBenefitsVersion?: number; serviceFee: number; totalToPay?: number; shipping?: { key: string; label: string; cost: number }; benefits?: Experience["applied_benefits"]; commercialNotices: CommercialNotice[] } {
   if (!experience?.items || !experience.totals) throw new Error("checkout_cart_snapshot_missing");
   const shipping = checkoutShippingFromExperience(experience.shipping);
   const notices = commercialNoticesSchema.safeParse(experience.commercial_notices);
+  const commercialBenefitsVersion = commercialBenefitsVersionFromExperience(experience);
   return {
     commercialNotices: notices.success ? notices.data : [],
     items: experience.items.map(item => ({ sku: item.sku, name: item.name, quantity: item.quantity, price: item.unit_price, originalPrice: item.original_unit_price, imageUrl: item.image_url, variant: item.variant, variantLabel: item.variant_label,
       ...(item.productType===undefined?{}:{productType:item.productType}),...(item.fulfillmentStrategy===undefined?{}:{fulfillmentStrategy:item.fulfillmentStrategy}) })),
     total: experience.totals.subtotal,
     discount: experience.totals.discount,
+    ...(commercialBenefitsVersion !== undefined ? { commercialBenefitsVersion } : {}),
+    ...(experience.totals.cashback_cents !== undefined ? { cashbackCents: Number.isSafeInteger(experience.totals.cashback_cents) && experience.totals.cashback_cents >= 0 ? experience.totals.cashback_cents : 0 } : {}),
     serviceFee: typeof experience.totals.service_fee === "number" && Number.isFinite(experience.totals.service_fee) && experience.totals.service_fee >= 0
       ? experience.totals.service_fee
       : 0,
@@ -410,7 +427,7 @@ export class CheckoutSession {
     return data;
   }
 
-  async fetchCart(): Promise<{ items: CartItem[]; total: number; discount: number; serviceFee: number; totalToPay?: number }> {
+  async fetchCart(): Promise<{ items: CartItem[]; total: number; discount: number; cashbackCents?: number; commercialBenefitsVersion?: number; serviceFee: number; totalToPay?: number }> {
     return cartFromExperience(this.experience);
   }
 
@@ -965,6 +982,40 @@ export class CheckoutSession {
     });
     if (!res.ok) throw new Error(`embed_customer_failed: ${res.status}`);
     return res.json();
+  }
+
+  async updateFiscalRecipient(recipient: Record<string, unknown>): Promise<{ recipient: Record<string, unknown>; personal?: { cpf?: string; fullName?: string } }> {
+    this.assertSession();
+    this.assertCommercialReconciled();
+    const sessionId = this.sessionId;
+    const response = await fetch(`${this.embedBaseUrl}/embed/customer/fiscal`, { method: "POST", headers: this.headers(),
+      body: JSON.stringify({ session_id: sessionId, recipient }), signal: AbortSignal.timeout(15_000) });
+    if (!response.ok) throw await CheckoutApiError.fromResponse("fiscal_recipient", response);
+    const result = await response.json();
+    if (this.sessionId !== sessionId || result?.ok !== true || !result.recipient || typeof result.recipient !== "object") throw new Error("fiscal_recipient_response_invalid");
+    return { recipient: result.recipient, ...(result.personal ? { personal: result.personal } : {}) };
+  }
+
+  async prepareFiscalRecipient(mode?: "buyer" | "other"): Promise<FiscalRecipientPreparation> {
+    this.assertSession(); const sessionId = this.sessionId;
+    this.assertCommercialReconciled();
+    const response = await fetch(`${this.embedBaseUrl}/embed/customer/fiscal/prepare`, { method: "POST", headers: this.headers(),
+      body: JSON.stringify({ session_id: sessionId, ...(mode ? { mode } : {}) }), signal: AbortSignal.timeout(15_000) });
+    if (!response.ok) throw await CheckoutApiError.fromResponse("fiscal_recipient", response);
+    const result = await response.json();
+    if (this.sessionId !== sessionId || typeof result.active !== "boolean" || !["buyer", "other"].includes(result.mode)
+      || !Array.isArray(result.fields) || !result.recipient || typeof result.recipient !== "object") throw new Error("fiscal_recipient_response_invalid");
+    return result;
+  }
+
+  async lookupFiscalAddress(postalCode: string): Promise<Record<string, string>> {
+    this.assertSession(); const sessionId = this.sessionId;
+    const response = await fetch(`${this.embedBaseUrl}/embed/customer/fiscal/address`, { method: "POST", headers: this.headers(),
+      body: JSON.stringify({ session_id: sessionId, postal_code: postalCode }), signal: AbortSignal.timeout(15_000) });
+    if (!response.ok) throw await CheckoutApiError.fromResponse("fiscal_address", response);
+    const result = await response.json();
+    if (this.sessionId !== sessionId || !/^\d{7}$/.test(result?.address?.cityCode ?? "")) throw new Error("fiscal_address_response_invalid");
+    return result.address;
   }
 
   private assertSession(): void {

@@ -24,17 +24,36 @@ export async function migrationCli(db,args){
     {cwd:apiRoot,env:{...constructionOnlyEnvironment(process.env),DATABASE_URL:db.prismaUrl},windowsHide:true,timeout:90_000,maxBuffer:8_000_000});
 }
 export async function bootstrapPriorServiceSchema(db){
+  const provenance=JSON.parse(readFileSync(resolve(apiRoot,'tests/fixtures/service-business/baseline-provenance.json'),'utf8'));
+  assert.equal(provenance.version,1);
+  assert.equal(provenance.kind,'identified-prisma-baseline-not-historical-replay');
+  assert.equal(provenance.sourceRevision,'432d147a3c24001c4bb02aff4706e7dd7dd5f59a','service_fixture_live_baseline_revision_changed');
+  const canonical=bytes=>Buffer.from(bytes.toString('utf8').replaceAll('\r\n','\n'));
+  const schema=readFileSync(resolve(apiRoot,'tests/fixtures/service-business/schema-before-services.prisma'));
+  assert.equal(sha(canonical(schema)),provenance.canonicalSchemaSha256,'service_fixture_live_baseline_schema_changed');
+  const baseline=provenance.baselineMigrations,execute=provenance.executeMigrations;
+  assert.equal(baseline.length,47);assert.equal(new Set(baseline.map(row=>row.id)).size,47);
+  assert.deepEqual(execute,['20261114000000_service_business_capability','20261116000000_support_notification_settings',
+    '20261118000000_service_appointment_original_lease','20261118010000_service_reschedule_receipt','20261118020000_service_order_authority']);
+  assert.ok(baseline.every(row=>!execute.includes(row.id)),'service_fixture_must_not_resolve_service_migration');
+  const migrationRoot=resolve(apiRoot,'prisma/deploy-migrations');
+  const managed=readdirSync(migrationRoot,{withFileTypes:true}).filter(row=>row.isDirectory()).map(row=>row.name).sort();
+  assert.deepEqual(managed,[...baseline.map(row=>row.id),...execute].sort(),'service_fixture_unreviewed_managed_migration');
+  // The complete deployed schema is represented by an identified Prisma
+  // snapshot; these are explicit already-incorporated IDs, never a date fence.
+  // SQL checksums remain the exact current bytes, including the reviewed
+  // environment-specific historical LF/CRLF materialization.
+  const rows=baseline.map(row=>{
+    assert.match(row.id,/^[a-zA-Z0-9_]+$/);assert.match(row.canonicalSha256,/^[a-f0-9]{64}$/);
+    const bytes=readFileSync(resolve(migrationRoot,row.id,'migration.sql'));
+    assert.equal(sha(canonical(bytes)),row.canonicalSha256,'service_fixture_baseline_migration_changed:'+row.id);
+    return `('${randomUUID()}','${sha(bytes)}',now(),'${row.id}',1)`;
+  });
   const ddl=await migrationCli(db,['migrate','diff','--from-empty','--to-schema-datamodel','tests/fixtures/service-business/schema-before-services.prisma','--script']);
   await db.sql(ddl.stdout);
   await installCheckoutSessionVersionTrigger(db);
-  // Identified already-deployed fixture ledger, not a claim of historical replay.
-  // Later migrations are deliberately NOT marked applied: deploy executes them.
-  const rows=readdirSync(resolve(apiRoot,'prisma/deploy-migrations'),{withFileTypes:true})
-    .filter(dir=>dir.isDirectory()&&dir.name<migrationName).map(dir=>{
-      assert.match(dir.name,/^[a-zA-Z0-9_]+$/);
-      const hash=sha(readFileSync(resolve(apiRoot,'prisma/deploy-migrations',dir.name,'migration.sql')));
-      return `('${randomUUID()}','${hash}',now(),'${dir.name}',1)`;
-    });
+  // Exactly five SERVICE migrations are absent from this fixture ledger and
+  // remain pending so the original migrate deploy executes their real SQL.
   await db.sql(`CREATE TABLE "_prisma_migrations" (id VARCHAR(36) PRIMARY KEY,checksum VARCHAR(64) NOT NULL,finished_at TIMESTAMPTZ,
     migration_name VARCHAR(255) NOT NULL,logs TEXT,rolled_back_at TIMESTAMPTZ,started_at TIMESTAMPTZ NOT NULL DEFAULT now(),applied_steps_count INTEGER NOT NULL DEFAULT 0);
     INSERT INTO "_prisma_migrations" (id,checksum,finished_at,migration_name,applied_steps_count) VALUES ${rows.join(',')};`);

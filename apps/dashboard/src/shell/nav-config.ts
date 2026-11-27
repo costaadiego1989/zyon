@@ -1,4 +1,5 @@
 import {
+  BookOpenCheck,
   Activity,
   CalendarDays,
   Landmark,
@@ -47,11 +48,16 @@ export type TabKey =
   | "overview"
   | "finance"
   | "integrations"
+  | "fiscal-settings"
+  | "fiscal-invoices"
+  | "fiscal-detail"
   | "integrations-api"
   | "crm-integrations"
   | "erp-integrations"
   | "shipments"
   | "customers"
+  | "conversations"
+  | "marketing"
   | "returns"
   | "funnel"
   | "embed"
@@ -79,6 +85,7 @@ export type TabKey =
   | "agent-config-checkout"
   | "experiments"
   | "coupons"
+  | "cashback"
   | "stories"
   | "team"
   | "account-settings"
@@ -98,6 +105,7 @@ export type TabKey =
   | "negotiation-policy"
   | "revenue-lift"
   | "revenue-manager"
+  | "meta-ads-agent"
   | "cart-recovery"
   | "inventory"
   | "chargebacks"
@@ -144,6 +152,8 @@ export interface NavItem {
 const STORE = ["STORE_ONLY", "BOTH"] as MerchantPlan[];
 
 export const NAV_ITEMS: NavItem[] = [
+  { key: "fiscal-invoices", label: "Notas fiscais", section: "sales", icon: BookOpenCheck, keywords: ["nf-e", "fiscal", "notas", "invoice"] },
+  { key: "fiscal-settings", label: "Emissão fiscal", section: "integrations", icon: BookOpenCheck, keywords: ["emissor", "focus", "nf-e", "fiscal", "contador"] },
   // ─── Início (não numa seção — sempre no topo quando presente) ───
   { key: "onboarding", label: "Primeiros passos", section: "daily", icon: Rocket, keywords: ["onboarding", "começar", "setup", "início"] },
 
@@ -154,6 +164,8 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "service-appointments", label: "Agendamentos", section: "daily", icon: CalendarDays, keywords: ["agenda", "agendamentos", "serviços", "consultas", "kanban"] },
   { key: "service-attendance", label: "Atendimento", section: "daily", icon: CalendarDays, keywords: ["profissionais", "serviços", "horários", "disponibilidade"] },
   { key: "customers", label: "Clientes", section: "daily", icon: UsersRound, requiredPlan: STORE, keywords: ["clientes", "customers", "compradores"] },
+  { key: "conversations", label: "Conversas", section: "daily", icon: MessageSquare, keywords: ["conversas", "whatsapp", "site", "chat", "handoff", "atendimento humano"] },
+  { key: "marketing", label: "Marketing", section: "sales", icon: UsersRound, keywords: ["marketing", "crm", "leads", "contatos", "campanhas", "promoções", "funil de relacionamento"] },
   { key: "cart-recovery", label: "Recuperação de carrinho", section: "daily", icon: ShoppingCart, requiredPlan: STORE, badgeKey: "cart-recovery", keywords: ["carrinho", "cart", "recovery", "abandonado", "recuperação"] },
   { key: "support", label: "Suporte", section: "daily", icon: MessageSquare, badgeKey: "messages", keywords: ["suporte", "support", "atendimento", "chamados", "tickets", "mensagens"] },
 
@@ -161,6 +173,7 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "funnel", label: "Funil de conversão", section: "sales", icon: BarChart3, requiredPlan: STORE, keywords: ["funil", "funnel", "conversão", "conversion"] },
   { key: "settings", label: "Checkout", section: "sales", icon: Settings2, requiredPlan: STORE, keywords: ["checkout", "configurações checkout", "widget config"] },
   { key: "coupons", label: "Cupons", section: "sales", icon: Tag, requiredPlan: STORE, keywords: ["cupons", "coupons", "desconto", "discount", "promoção"] },
+  { key: "cashback", label: "Cashback", section: "sales", icon: Undo2, keywords: ["cashback", "fidelidade", "saldo", "recompra", "crédito"] },
   { key: "cross-sell", label: "Produtos complementares", section: "sales", icon: Sparkles, requiredPlan: STORE, keywords: ["cross-sell", "cross sell", "venda cruzada", "sugestões"] },
   { key: "experiments", label: "Testes A/B", section: "sales", icon: Zap, requiredPlan: STORE, keywords: ["testes", "experimentos", "a/b", "experiments", "ab test"] },
   { key: "negotiation-policy", label: "Limites de negociação", section: "sales", icon: Handshake, requiredPlan: STORE, keywords: ["negociação", "negotiation", "barganha", "oferta"] },
@@ -186,11 +199,12 @@ export const NAV_ITEMS: NavItem[] = [
   // ─── INTEGRAÇÕES ─── conexões técnicas
   { key: "payment-connections", label: "Pagamentos", section: "integrations", icon: CreditCard, keywords: ["pagamentos", "payments", "asaas", "stripe", "mercado pago", "gateway"] },
   { key: "integrations", label: "API e webhooks", section: "integrations", icon: Webhook, keywords: ["api", "webhooks", "chaves", "keys", "desenvolvedor", "integração", "shopify", "woocommerce", "vtex"] },
-  { key: "crm-integrations", label: "CRM e marketing", section: "integrations", icon: Plug, keywords: ["crm", "marketing", "hubspot", "pipedrive", "rd station"] },
+  { key: "crm-integrations", label: "Integrações com CRM", section: "integrations", icon: Plug, keywords: ["crm", "marketing", "hubspot", "pipedrive", "rd station"] },
   { key: "erp-integrations", label: "ERP e marketplaces", section: "integrations", icon: Package, requiredPlan: STORE, keywords: ["erp", "estoque", "bling", "tiny", "omie", "mercado livre", "shopee", "tiktok shop"] },
 
   // ─── INTELIGÊNCIA IA ─── features avançadas/analytics
   { key: "revenue-manager", label: "Otimização com IA", section: "intelligence", icon: Brain, requiredPlan: STORE, keywords: ["otimizador", "revenue manager", "ia", "hipóteses", "otimização"] },
+  { key: "meta-ads-agent", label: "Anúncios com IA", section: "intelligence", icon: Sparkles, requiredPlan: STORE, keywords: ["anúncios", "meta", "facebook", "instagram", "tráfego", "campanhas", "criativos"] },
   { key: "revenue-lift", label: "Impacto na receita", section: "intelligence", icon: TrendingUp, requiredPlan: STORE, keywords: ["revenue lift", "impacto", "incremento", "holdout", "atribuição"] },
   { key: "intent-memory", label: "Memória de intenção", section: "intelligence", icon: Brain, requiredPlan: STORE, keywords: ["intent", "intenção", "memória", "memory", "perfil"] },
   { key: "post-sale", label: "Pós-venda", section: "intelligence", icon: Brain, requiredPlan: STORE, keywords: ["pós-venda", "post-sale", "follow-up", "reviews", "nps", "engajamento"] },

@@ -182,23 +182,10 @@ export function useExperimentsPage(props: { me: MerchantProfile | null }) {
     }
   }
 
-  async function handleStartExperiment(experimentId: string) {
-    setSaving(true);
-    try {
-      const updated = (await api.startExperiment?.(experimentId)) as Experiment | undefined;
-      if (updated) {
-        setExperiments((prev) => prev.map((e) => (e.id === experimentId ? updated : e)));
-        if (selectedId === experimentId) {
-          setSelectedExperiment(updated);
-        }
-        showToast("success", "Experimento iniciado");
-      }
-    } catch (e) {
-      reportError({ source: "experiments.start", error: e });
-      showToast("error", e instanceof Error ? e.message : "Erro ao iniciar experimento");
-    } finally {
-      setSaving(false);
-    }
+  function applyActivatedExperiment(updated: Experiment) {
+    setExperiments(prev => prev.map(item => item.id === updated.id ? updated : item));
+    if (selectedId === updated.id) setSelectedExperiment(updated);
+    showToast("success", updated.status === "running" ? "Experimento iniciado com aprovação registrada" : "Estado do teste atualizado");
   }
 
   async function handleStopExperiment(experimentId: string) {
@@ -378,7 +365,7 @@ export function useExperimentsPage(props: { me: MerchantProfile | null }) {
     handleCreateExperiment,
 
     // Actions
-    handleStartExperiment,
+    applyActivatedExperiment,
     handleStopExperiment,
     handlePromoteVariant,
     handleArchiveExperiment,

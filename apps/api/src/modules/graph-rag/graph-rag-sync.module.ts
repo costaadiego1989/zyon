@@ -8,6 +8,8 @@ import { GRAPH_CATALOG_SOURCES, GRAPH_KNOWLEDGE_SOURCES, type GraphCatalogSource
 import { DOMAIN_EVENT_BUS, type DomainEventBus } from "../../shared/events/domain-event-bus.port.js";
 import { TenantContextService } from "../../shared/tenant/tenant-context.service.js";
 import { GraphRagModule, GraphRagRuntime } from "./graph-rag.module.js";
+import { MerchantAssistantModule } from "../merchant-assistant/merchant-assistant.module.js";
+import { MERCHANT_GUIDE_SOURCES, type MerchantGuideSourcesPort } from "./domain/merchant-guide-sources.port.js";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { PrismaPublicBusinessSources } from "./infrastructure/prisma-public-business.sources.js";
@@ -16,7 +18,7 @@ import { PrismaPublicBusinessIndexAdapter } from "./infrastructure/prisma-public
 import { PublicBusinessIndexWorker } from "./application/public-business-index.worker.js";
 import type { PreparedPublicBusinessProjection } from "./application/public-business-projection.service.js";
 
-@Module({ imports: [CatalogModule, KnowledgeBaseModule, GraphRagModule], providers: [
+@Module({ imports: [CatalogModule, KnowledgeBaseModule, GraphRagModule, MerchantAssistantModule], providers: [
   { provide: PrismaPublicBusinessSources,
     useFactory: (prisma: PrismaClient, tenant: TenantContextService) => new PrismaPublicBusinessSources(prisma, tenant),
     inject: [PRISMA_CLIENT, TenantContextService] },
@@ -40,6 +42,6 @@ import type { PreparedPublicBusinessProjection } from "./application/public-busi
   { provide: GraphRagSynchronization,
   useFactory: (runtime: GraphRagRuntime, catalog: GraphCatalogSourcesPort, knowledge: GraphKnowledgeSourcesPort,
     events: DomainEventBus, tenant: TenantContextService, publicBusiness: PublicBusinessReconciler,
-    publicIndexer: PublicBusinessIndexWorker<PreparedPublicBusinessProjection>) => new GraphRagSynchronization(runtime, catalog, knowledge, events, tenant, publicBusiness, publicIndexer),
-  inject: [GraphRagRuntime, GRAPH_CATALOG_SOURCES, GRAPH_KNOWLEDGE_SOURCES, DOMAIN_EVENT_BUS, TenantContextService, PublicBusinessReconciler, PublicBusinessIndexWorker] }] })
+    publicIndexer: PublicBusinessIndexWorker<PreparedPublicBusinessProjection>, guides: MerchantGuideSourcesPort) => new GraphRagSynchronization(runtime, catalog, knowledge, events, tenant, publicBusiness, publicIndexer, guides),
+  inject: [GraphRagRuntime, GRAPH_CATALOG_SOURCES, GRAPH_KNOWLEDGE_SOURCES, DOMAIN_EVENT_BUS, TenantContextService, PublicBusinessReconciler, PublicBusinessIndexWorker, MERCHANT_GUIDE_SOURCES] }] })
 export class GraphRagSyncModule {}

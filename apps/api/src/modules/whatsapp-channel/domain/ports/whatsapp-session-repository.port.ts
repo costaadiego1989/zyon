@@ -34,6 +34,7 @@ export interface WhatsAppSessionRepository {
   withRoutingLock?<T>(identity: { merchantId: string; buyerPhone: string; deviceId: string }, work: (repository: WhatsAppSessionRepository, checkout: WhatsAppRoutingCheckoutWriter) => Promise<T>): Promise<T>;
   findActiveByPhone(merchantId: string, buyerPhone: string, deviceId?: string): Promise<WhatsAppSessionEntity | null>;
   create(data: Omit<WhatsAppSessionEntity, "id" | "createdAt">): Promise<WhatsAppSessionEntity>;
+  renewExpiredNative(expected: WhatsAppSessionEntity): Promise<{ session: WhatsAppSessionEntity; renewed: boolean }>;
   update(id: string, data: Partial<WhatsAppSessionEntity>): Promise<WhatsAppSessionEntity>;
   expire(id: string): Promise<void>;
   updateMenuState(id: string, currentOptions: string[], previousOptions: string[], page: number): Promise<void>;

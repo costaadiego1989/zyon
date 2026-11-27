@@ -1,3 +1,4 @@
+import { RecoveryResumeOriginService } from "../services/recovery-resume-origin.service.js";
 import { BadRequestException, ForbiddenException, GoneException, Inject, Injectable, UnauthorizedException } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
@@ -15,6 +16,7 @@ export class ResumeRecoveryCheckoutUseCase {
     private readonly tokens: RecoveryLinkTokenService,
     private readonly buyers: ResolveEmbedBuyerService,
     private readonly issueEmbed: IssueEmbedSessionUseCase,
+    private readonly origins: RecoveryResumeOriginService,
   ) {}
   async execute(input: { slug: string; token: unknown; buyerToken?: unknown; origin?: string }) {
     const claims = this.tokens.verify(input.token);
@@ -22,12 +24,14 @@ export class ResumeRecoveryCheckoutUseCase {
     if (!merchant?.storeSlug || merchant.storeSlug !== input.slug) throw new ForbiddenException("recovery_store_mismatch");
     if (input.origin !== recoveryStoreUrl(merchant.storeSlug).origin) throw new ForbiddenException("recovery_origin_not_allowed");
     const session = await this.sessions.getSession(claims.merchantId, claims.sessionId);
-    if (!session || !session.cart?.items?.length) throw new GoneException("recovery_purchase_unavailable");
+    if (!session || session.merchantId !== claims.merchantId || session.sessionId !== claims.sessionId || !session.cart?.items?.length) throw new GoneException("recovery_purchase_unavailable");
     const [order, payment] = await Promise.all([
       this.prisma.completedOrder.findFirst({ where: { merchantId: claims.merchantId, sessionId: claims.sessionId }, select: { id: true } }),
       this.prisma.paymentIntent.findFirst({ where: { merchantId: claims.merchantId, sessionId: claims.sessionId, status: "approved" }, select: { id: true } }),
     ]);
     if (order || payment) throw new GoneException("recovery_purchase_completed");
+    const origin = await this.origins.resolve(session);
+    if (origin.channel === "whatsapp") return { version: 1, merchant_id: claims.merchantId, resume_channel: "whatsapp" as const, whatsapp_resume_url: origin.url };
     let buyer;
     try { buyer = await this.buyers.resolve(claims.merchantId, input.buyerToken); }
     catch { throw new UnauthorizedException("recovery_buyer_login_required"); }

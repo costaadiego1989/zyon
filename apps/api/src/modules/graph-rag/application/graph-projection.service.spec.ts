@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { GraphProjectionService, catalogProjectionHash, documentProjectionHash } from "./graph-projection.service.js";
+import { GraphProjectionService, catalogProjectionHash, documentProjectionHash, merchantGuideProjectionHash } from "./graph-projection.service.js";
 import type { GraphProjectionTransactions } from "../domain/graph-rag.port.js";
 
 const now = 1_790_000_000_000, embedding = [1, ...Array(383).fill(0)];
@@ -25,6 +25,49 @@ function fixture() {
   return { roots, writes, projector: new GraphProjectionService(transactions, { modelId: "model-v1", dimensions: 384,
     generate: async () => [...embedding] }, () => now) };
 }
+
+const guide = { kind: "merchant_help", merchantId: "a", audience: "merchant", context: "cashback", sourceType: "merchant_guide",
+  id: "cashback-use", version: now - 1000, active: true, chunks: [{ id: "cashback-use-main", content: "Uso depende das regras publicadas da loja." }] };
+test("merchant guide projection carries tenant audience context version and hashes on dedicated entities", async () => {
+  const f = fixture(); const result = await f.projector.projectMerchantGuide(guide);
+  assert.deepEqual(result, { status: "applied", sourceHash: merchantGuideProjectionHash(guide) });
+  assert.equal(f.writes.length, 3);
+  for (const w of f.writes) {
+    assert.equal(w.parameters.merchantId, "a"); assert.equal(w.parameters.audience, "merchant");
+    assert.equal(w.parameters.context, "cashback"); assert.equal(w.parameters.sourceType, "merchant_guide");
+    assert.ok(!w.text.includes(":ZyonGraphDocument")); assert.ok(!w.text.includes(":ZyonGraphChunk"));
+    assert.match(w.text, /audience: \$audience, context: \$context/);
+  }
+  const chunks = f.writes[2]!.parameters.chunks as any[];
+  assert.equal(chunks[0].id, "cashback-use-main"); assert.deepEqual(chunks[0].embedding, embedding);
+  assert.match(chunks[0].contentHash, /^[a-f0-9]{64}$/);
+  assert.match(f.writes[2]!.text, /c\.sourceHash = \$sourceHash/);
+});
+test("merchant guide projection rejects wrong audience context private fields and future versions", async () => {
+  const f = fixture();
+  for (const patch of [{ audience: "buyer" }, { context: "meta_ads" }, { sourceType: "faq" },
+    { buyerEmail: "private@example.test" }, { version: now + 30001 }, { chunks: [] }])
+    assert.deepEqual(await f.projector.projectMerchantGuide({ ...guide, ...patch }), { status: "unavailable", reason: "invalid_source" });
+  assert.equal(f.writes.length, 0);
+});
+test("merchant guide tombstones remove embeddings and older versions cannot revive them", async () => {
+  const f = fixture(); await f.projector.projectMerchantGuide(guide);
+  assert.equal((await f.projector.projectMerchantGuide({ ...guide, active: false, version: now, chunks: [] })).status, "applied");
+  assert.match(f.writes.at(-1)!.text, /REMOVE c\.embedding, c\.normalizedText/);
+  assert.equal((await f.projector.projectMerchantGuide(guide)).status, "ignored");
+});
+test("merchant guide hash ignores ordering and version but changes with reviewed content", () => {
+  const two = { ...guide, chunks: [...guide.chunks, { id: "second", content: "A carteira vale na mesma loja." }] };
+  assert.equal(merchantGuideProjectionHash(two), merchantGuideProjectionHash({ ...two, version: now, chunks: [...two.chunks].reverse() }));
+  assert.notEqual(merchantGuideProjectionHash(guide), merchantGuideProjectionHash({ ...guide, chunks: [{ ...guide.chunks[0], content: "Outra regra" }] }));
+});
+test("merchant guide embedding failure writes no partial reviewed source", async () => {
+  let writes = 0;
+  const projector = new GraphProjectionService({ withProjection: async () => { writes++; throw Error("no write"); } },
+    { modelId: "model-v1", dimensions: 384, generate: async () => null }, () => now);
+  assert.deepEqual(await projector.projectMerchantGuide(guide), { status: "unavailable", reason: "embedding_unavailable" });
+  assert.equal(writes, 0);
+});
 
 test("RAG03 public provenance", async () => {
   const f = fixture();const result = await f.projector.projectCatalog(source);

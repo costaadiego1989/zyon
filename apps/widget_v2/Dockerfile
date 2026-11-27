@@ -5,7 +5,7 @@
 #   docker build -f apps/widget_v2/Dockerfile -t zyon-widget-v2 .
 #
 # Design:
-#   - Builder: node:20-alpine + pnpm via corepack + BuildKit cache mounts
+#   - Builder: node:22-alpine + pnpm via corepack + BuildKit cache mounts
 #   - Runner:  nginx:1.27-alpine (~40 MB base) — static files only
 #   - SPA routing: try_files fallback to /index.html (so React Router works)
 #   - Healthcheck: HEAD / to detect dead containers
@@ -15,7 +15,7 @@
 # =============================================================================
 # Stage 1 — builder
 # =============================================================================
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 ENV PNPM_HOME=/pnpm \
     PNPM_VERSION=9.15.0 \

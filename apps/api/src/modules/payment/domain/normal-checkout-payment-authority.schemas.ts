@@ -7,9 +7,11 @@ import { crossSellAcceptedLineIntentSchema } from "../../cross-sell/domain/contr
 import { commercialNoticesSchema } from "../../storefront/domain/contracts/commercial-notice.schemas.js";
 import { normalCheckoutCouponDiscountOwnerSchema } from "../../coupons/domain/contracts/normal-checkout-coupon-owner.schema.js";
 import { normalCheckoutPolicyDiscountOwnerSchema,normalCheckoutAcceptedOfferDiscountOwnerSchema } from "../../checkout/domain/contracts/normal-commercial-benefit-proof.schemas.js";
+import { normalCheckoutCashbackCombinationOwnerSchema } from "../../checkout/domain/contracts/normal-checkout-cashback-owner.schemas.js";
 
-export const normalCheckoutDiscountOwnerSchema=z.discriminatedUnion("kind",[
+const legacyDiscountOwnerSchema=z.discriminatedUnion("kind",[
   normalCheckoutCouponDiscountOwnerSchema,normalCheckoutPolicyDiscountOwnerSchema,normalCheckoutAcceptedOfferDiscountOwnerSchema]);
+export const normalCheckoutDiscountOwnerSchema=z.union([legacyDiscountOwnerSchema,normalCheckoutCashbackCombinationOwnerSchema]);
 export type NormalCheckoutDiscountOwner=z.infer<typeof normalCheckoutDiscountOwnerSchema>;
 
 const ref=z.string().min(1).max(200).refine(value=>value.trim()===value&&!/[\u0000-\u001f\u007f]/.test(value));
@@ -43,7 +45,7 @@ const cart=z.strictObject({currency:z.literal("BRL"),total:money,currentDiscount
     ||new Set(value.items.map(item=>JSON.stringify([item.variantId,item.variant]))).size!==value.items.length
     ||(value.source==="storefront")!==(value.cart_ref!==undefined))ctx.addIssue({code:"custom",message:"normal_payment_projection_inconsistent"});
 });
-export const normalCheckoutFrozenProjectionSchema=z.strictObject({globalUserId:ref,cart,
+const legacyFrozenProjectionSchema=z.strictObject({globalUserId:ref,cart,
   shipping:z.strictObject({customerPrice:money,carrier:z.string().min(1).max(300),method:z.string().min(1).max(300),deliveryDays:z.number().int().positive(),
     destinationZip:z.string().regex(/^\d{8}$/),region:z.string().length(2)}).optional(),
   customer:z.strictObject({fullName:z.string().trim().min(1).max(200),email:z.email().max(254),cpf:z.string().regex(/^\d{11}$/),phone:z.string().regex(/^\d{10,15}$/),
@@ -55,23 +57,37 @@ export const normalCheckoutFrozenProjectionSchema=z.strictObject({globalUserId:r
       ctx.addIssue({code:"custom",message:"normal_payment_physical_delivery_required"});
   }else if(value.shipping!==undefined)ctx.addIssue({code:"custom",message:"normal_payment_virtual_delivery_forbidden"});
 });
+const cashbackCart = cart.safeExtend({ commercialBenefitsVersion: cents.positive().optional(), cashbackCents: cents.optional() });
+const cashbackFrozenProjectionSchema = legacyFrozenProjectionSchema.safeExtend({ cart: cashbackCart });
+export const normalCheckoutFrozenProjectionSchema = z.union([legacyFrozenProjectionSchema, cashbackFrozenProjectionSchema]);
 const breakdown=z.strictObject({version:z.literal(1),currency:z.literal("BRL"),cartFingerprint:hash,confirmedCartFingerprint:hash.optional(),
   itemsSubtotalCents:cents,discountCents:cents,shippingCents:cents,platformFeeCents:cents,totalCents:cents.positive()});
-export const normalCheckoutPaymentAuthoritySchema=z.strictObject({version:z.literal(1),origin:z.literal("normal_checkout_cross_sell"),
+const legacyAuthority = z.strictObject({version:z.literal(1),origin:z.literal("normal_checkout_cross_sell"),
   paymentId:ref,merchantId:ref,checkoutSessionId:ref,buyerId:ref,checkoutVersion:z.number().int().min(1).max(2_147_483_647),
   strategyContextVersion:z.number().int().min(0).max(2_147_483_647),acceptanceEventIds:z.array(ref).min(1).max(200).refine(ids=>new Set(ids).size===ids.length),
   contextHash:hash,basisHash:hash,method:z.enum(["pix","card","boleto","crypto"]),currency:z.literal("BRL"),amountCents:cents.positive(),
-  admittedAt:z.iso.datetime({offset:true}),amountBreakdown:breakdown,frozenProjection:normalCheckoutFrozenProjectionSchema,
-  discountOwner:normalCheckoutDiscountOwnerSchema.optional(),
-}).superRefine((value,ctx)=>{
+  admittedAt:z.iso.datetime({offset:true}),amountBreakdown:breakdown,frozenProjection:legacyFrozenProjectionSchema,
+  discountOwner:legacyDiscountOwnerSchema.optional(),
+});
+const cashbackBreakdown = breakdown.extend({ cashbackCents: cents.optional(), cashbackReservationId: ref.optional(), cashbackEarningQuoteId: ref.optional() });
+const cashbackAuthority = legacyAuthority.extend({ version: z.literal(2), amountBreakdown: cashbackBreakdown,
+  frozenProjection: cashbackFrozenProjectionSchema, discountOwner: normalCheckoutDiscountOwnerSchema.optional() });
+export const normalCheckoutPaymentAuthoritySchema = z.union([legacyAuthority, cashbackAuthority]).superRefine((value,ctx)=>{
   const projection=value.frozenProjection,amounts=value.amountBreakdown;
+  const cashbackCents=value.version===2?value.amountBreakdown.cashbackCents??0:0;
   if(value.buyerId!==projection.globalUserId||paymentCartFingerprint(projection)!==amounts.cartFingerprint
     ||moneyCents(projection.cart.total)!==amounts.itemsSubtotalCents||moneyCents(projection.cart.currentDiscount)!==amounts.discountCents
     ||moneyCents(projection.shipping?.customerPrice??0)!==amounts.shippingCents||amounts.totalCents!==value.amountCents
-    ||BigInt(amounts.itemsSubtotalCents)-BigInt(amounts.discountCents)+BigInt(amounts.shippingCents)+BigInt(amounts.platformFeeCents)!==BigInt(value.amountCents)
+    ||BigInt(amounts.itemsSubtotalCents)-BigInt(amounts.discountCents)-BigInt(cashbackCents)+BigInt(amounts.shippingCents)+BigInt(amounts.platformFeeCents)!==BigInt(value.amountCents)
+    ||value.version===2&&cashbackCents>0&&!value.amountBreakdown.cashbackReservationId
+    ||value.version===2&&value.frozenProjection.cart.cashbackCents!==undefined&&value.frozenProjection.cart.cashbackCents!==cashbackCents
     ||value.discountOwner&&(value.discountOwner.merchantId!==value.merchantId||value.discountOwner.checkoutSessionId!==value.checkoutSessionId
       ||value.discountOwner.buyerId!==value.buyerId||value.discountOwner.discountCents!==amounts.discountCents)
     ||!value.discountOwner&&amounts.discountCents>0&&projection.cart.source!=="storefront")
+    ctx.addIssue({code:"custom",message:"normal_payment_authority_inconsistent"});
+  if(value.discountOwner?.kind==="cashback_combination"&&(value.version!==2
+    ||value.version===2&&value.frozenProjection.cart.commercialBenefitsVersion!==value.discountOwner.commercialBenefitsVersion
+    ||value.discountOwner.coupon?.kind==="storefront_coupon"&&value.discountOwner.coupon.cartId!==projection.cart.cart_ref))
     ctx.addIssue({code:"custom",message:"normal_payment_authority_inconsistent"});
 });
 export type NormalCheckoutPaymentAuthority=z.infer<typeof normalCheckoutPaymentAuthoritySchema>;

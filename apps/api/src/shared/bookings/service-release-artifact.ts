@@ -38,10 +38,11 @@ export function measureServiceReleaseRuntime(apiRoot: string, sourceRevision: st
   const repoRoot = resolve(apiRoot, "../.."), apiPackage = JSON.parse(readFileSync(resolve(apiRoot, "package.json"), "utf8"));
   const packages = Object.keys(apiPackage.dependencies ?? {}).filter(name => name.startsWith("@zyon/"))
     .map(name => { if (!/^@zyon\/[a-z0-9-]+$/.test(name)) throw new Error("service_release_package_name"); return "packages/" + name.slice(6); }).sort(sort);
-  const config = ["package.json", "pnpm-lock.yaml", "tsconfig.base.json", "apps/api/package.json", "apps/api/tsconfig.json", "apps/api/tsconfig.build.json", "apps/api/prisma/schema.prisma"];
-  const source = inventory(repoRoot, ["apps/api/src", ...packages.map(path => path + "/src")], [".ts", ".tsx", ".mts", ".cts", ".json"],
+  const config = ["package.json", "pnpm-lock.yaml", "tsconfig.base.json", "apps/api/package.json", "apps/api/tsconfig.json", "apps/api/tsconfig.build.json",
+    "apps/api/prisma.config.ts", "apps/api/prisma/schema.prisma", "apps/api/prisma.company-directory.config.ts", "apps/api/prisma/company-directory.prisma"];
+  const source = inventory(repoRoot, ["apps/api/src", ...packages.map(path => path + "/src")], [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs", ".json"],
     [...config, ...packages.map(path => path + "/package.json")]);
-  const emitted = inventory(repoRoot, ["apps/api/dist", ...packages.map(path => path + "/dist"), "apps/api/assets"], [".js", ".json", ".gif", ".webp", ".mp4", ".png", ".svg"], config);
+  const emitted = inventory(repoRoot, ["apps/api/dist", ...packages.map(path => path + "/dist"), "apps/api/assets"], [".js", ".jsx", ".mjs", ".cjs", ".json", ".gif", ".webp", ".mp4", ".png", ".svg"], config);
   const migrations = inventory(repoRoot, ["apps/api/prisma/deploy-migrations"], ["migration.sql"]);
   if (!source.length || !emitted.some(value => value.path === "apps/api/dist/app.module.js") || !migrations.length) throw new Error("service_release_payload_incomplete");
   const writers = SERVICE_RELEASE_WRITERS.map(writer => {

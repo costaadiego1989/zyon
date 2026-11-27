@@ -16,6 +16,7 @@ import { PrismaCouponRepository } from "../../infrastructure/repositories/prisma
 import { PrismaCouponTransactionRepository } from "../../infrastructure/repositories/prisma-coupon-transaction.repository.js";
 import { checkoutWithCoupon } from "../services/checkout-coupon.js";
 import { applyIncentiveCoupon } from "../../../revenue-manager/infrastructure/incentive-execution-ledger.js";
+import { executionClock } from "../../../revenue-manager/infrastructure/strategy-execution-ledger.js";
 import { toCheckoutSession } from "../../../checkout/infrastructure/prisma/checkout-session.mapper.js";
 import { lockCheckoutSessionAnchor } from "../../../../shared/persistence/checkout-session-lock.js";
 import { applyStorefrontCheckoutCouponInTransaction } from "../../../../shared/persistence/storefront-coupon/checkout-application.js";
@@ -23,6 +24,7 @@ import { NORMAL_CHECKOUT_COUPON_READER, type NormalCheckoutCouponReader } from "
 import { paymentCartFingerprint } from "../../../checkout/domain/services/payment-cart-fingerprint.js";
 import { isDeepStrictEqual } from "node:util";
 import { commercialNotice } from "../../../storefront/domain/services/commercial-notice.js";
+import { CheckoutCommercialBenefitsService } from "../../../cashback/application/checkout-commercial-benefits.service.js";
 
 export type ApplyCouponInput = {
   merchant_id: string;
@@ -45,12 +47,16 @@ export type CheckoutCouponInput = {
 
 @Injectable()
 export class ApplyCouponUseCase {
+  private combinationTx?: Prisma.TransactionClient;
+  private combinationSessionId?: string;
+  private combinationOccurredAt?: Date;
   constructor(
     @Inject(COUPON_REPOSITORY) private readonly coupons: CouponRepository,
     @Inject(COUPON_TRANSACTION_REPOSITORY) private readonly transactions: CouponTransactionRepository,
     @Inject(DISCOUNT_RULES_ENGINE) private readonly discountEngine: DiscountRulesEnginePort,
     @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
     @Optional() @Inject(NORMAL_CHECKOUT_COUPON_READER) private readonly normalReader?:NormalCheckoutCouponReader<Prisma.TransactionClient>,
+    @Optional() private readonly benefits?: CheckoutCommercialBenefitsService,
   ) {}
 
   /** Checkout callers supply only scope, code and their server-read version.
@@ -64,6 +70,7 @@ export class ApplyCouponUseCase {
   /** Internal composition only: the caller owns commit/rollback and must acquire
    * configuration locks before any session lock. Never starts a nested transaction. */
   async executeForCheckoutInTransaction(tx: Prisma.TransactionClient, input: CheckoutCouponInput) {
+    await this.benefits?.lockInTransaction(tx, input.merchant_id);
     // Configuration before session before coupon. Matches strategy publication.
     await tx.$queryRaw`SELECT id FROM merchants WHERE id = ${input.merchant_id} FOR UPDATE`;
     await tx.$queryRaw`SELECT id FROM merchant_rules WHERE merchant_id = ${input.merchant_id} FOR UPDATE`;
@@ -87,10 +94,21 @@ export class ApplyCouponUseCase {
       throw new ConflictException("CHECKOUT_COUPON_SESSION_NOT_MUTABLE");
     }
     const code = input.code.toUpperCase().trim();
+    // Authority readers compare stage evidence with the database clock. Keep
+    // this command's persisted events on that same clock, after its locks.
+    const occurredAt = await executionClock(tx);
+    await this.benefits?.assertCanApplyCouponInTransaction(tx, session, code);
     if (session.cart.source === "storefront") {
-      const scoped = new ApplyCouponUseCase(new PrismaCouponRepository(tx), new PrismaCouponTransactionRepository(tx, true), this.discountEngine);
+      const scoped = this.scopedToTransaction(tx, input.session_id, occurredAt);
+      const rules = await sessions.getRules(input.merchant_id);
+      const combined = await this.benefits?.hasCombinationInTransaction(tx, session);
+      const effectiveRules = combined ? await this.benefits!.couponRulesInTransaction(tx, session, rules) : rules;
       return applyStorefrontCheckoutCouponInTransaction(tx, { merchantId: input.merchant_id, checkoutSessionId: input.session_id,
-        code, expectedVersion: input.expectedVersion! }, command => scoped.execute(command),this.normalReader);
+        code, expectedVersion: input.expectedVersion! }, command => scoped.execute({ ...command, merchantRules: effectiveRules }),this.normalReader,
+        combined ? { rules: effectiveRules,
+          canCombineExisting: await this.benefits!.allowCouponAfterExistingBenefitInTransaction(tx, input.merchant_id, input.session_id),
+          compose: async (before, result) => (await this.benefits!.applyCouponInTransaction(tx, before, result,
+            { persistSession: false, redemptionSessionId: before.cart.cart_ref })) ?? checkoutWithCoupon(before, result) } : undefined);
     }
     const normal=session.cart.items.some(item=>item.crossSellIntent!==undefined);
     if(normal){
@@ -127,7 +145,7 @@ export class ApplyCouponUseCase {
       if (!await tx.checkoutEvent.findFirst({ where: { merchantId: input.merchant_id,
         sessionId: input.session_id, eventName: "coupon_applied" }, select: { id: true } })) {
         await tx.checkoutEvent.create({ data: { merchantId: input.merchant_id,
-          sessionId: input.session_id, eventName: "coupon_applied", occurredAt: new Date() } });
+          sessionId: input.session_id, eventName: "coupon_applied", occurredAt } });
       }
       return { result: { redemption_id: next.cart.commercialNudge.ruleId,
         discount_applied: next.cart.currentDiscount, shipping_discount_applied: 0, coupon: snap }, session: next, rules };
@@ -146,15 +164,17 @@ export class ApplyCouponUseCase {
     const applied = await tx.couponRedemption.findFirst({ where: {
       merchantId: input.merchant_id, sessionId: input.session_id, status: { not: "cancelled" },
     }, select: { id: true } });
-    const scoped = new ApplyCouponUseCase(coupons, new PrismaCouponTransactionRepository(tx, true), this.discountEngine);
+    const scoped = this.scopedToTransaction(tx, input.session_id, occurredAt);
+    const effectiveRules = this.benefits ? await this.benefits.couponRulesInTransaction(tx, session, rules) : rules;
     const result = await scoped.execute({
       merchant_id: input.merchant_id, session_id: input.session_id, code,
-      cart: session.cart, merchantRules: rules, shipping: session.shipping,
+      cart: session.cart, merchantRules: effectiveRules, shipping: session.shipping,
       buyer_global_user_id: session.globalUserId?.trim() || undefined, buyer_region: region,
       has_existing_commercial_benefit: !!applied || !!session.cart.commercialNudge || (session.cart.currentDiscount ?? 0) > 0,
       source: "manual",
     });
-    const next = checkoutWithCoupon(session, result);
+    const composed = await this.benefits?.applyCouponInTransaction(tx, session, result, { persistSession: false });
+    const next = composed ?? checkoutWithCoupon(session, result);
     await sessions.saveSession(next);
     if(normal){
       const canonical=await this.normalReader!(tx,{merchantId:input.merchant_id,sessionId:input.session_id});
@@ -165,9 +185,18 @@ export class ApplyCouponUseCase {
     if (!await tx.checkoutEvent.findFirst({ where: { merchantId: input.merchant_id,
       sessionId: input.session_id, eventName: "coupon_applied" }, select: { id: true } })) {
       await tx.checkoutEvent.create({ data: { merchantId: input.merchant_id,
-        sessionId: input.session_id, eventName: "coupon_applied", occurredAt: new Date() } });
+        sessionId: input.session_id, eventName: "coupon_applied", occurredAt } });
     }
     return { result, session: next, rules };
+  }
+
+  private scopedToTransaction(tx: Prisma.TransactionClient, sessionId: string, occurredAt: Date): ApplyCouponUseCase {
+    const scoped = new ApplyCouponUseCase(new PrismaCouponRepository(tx), new PrismaCouponTransactionRepository(tx, true), this.discountEngine,
+      undefined, undefined, this.benefits);
+    scoped.combinationTx = tx;
+    scoped.combinationSessionId = sessionId;
+    scoped.combinationOccurredAt = occurredAt;
+    return scoped;
   }
 
   async execute(input: ApplyCouponInput) {
@@ -181,7 +210,13 @@ export class ApplyCouponUseCase {
     const validity = validateCoupon(snap, input.cart, input.buyer_region);
     if (validity.valid === false) throw new BadRequestException(validity.reason);
 
-    if (input.has_existing_commercial_benefit) {
+    const combinationScope = this.combinationSessionId ?? input.session_id;
+    const combinationAllowed = input.has_existing_commercial_benefit && this.benefits
+      ? this.combinationTx
+        ? await this.benefits.allowCouponAfterExistingBenefitInTransaction(this.combinationTx, input.merchant_id, combinationScope)
+        : await this.benefits.allowCouponAfterExistingBenefit(input.merchant_id, combinationScope)
+      : false;
+    if (input.has_existing_commercial_benefit && !combinationAllowed) {
       throw new ConflictException("CHECKOUT_COMMERCIAL_BENEFIT_ALREADY_APPLIED");
     }
 
@@ -245,6 +280,13 @@ export class ApplyCouponUseCase {
       discountApplied = combined.cartDiscountCents / 100;
       if(combined.remainingDiscountCents===0&&combined.totalDiscountCents>0)commercialNotices=[commercialNotice("discount_limit_reached")];
     }
+    if (this.benefits) {
+      const preflight = { merchantId: input.merchant_id, sessionId: combinationScope,
+        discount_applied: discountApplied, shipping_discount_applied: shippingDiscountApplied,
+        coupon: { id: snap.id, code: snap.code } };
+      if (this.combinationTx) await this.benefits.assertCouponResultAllowedInTransaction(this.combinationTx, preflight);
+      else await this.benefits.assertCouponResultAllowed(preflight);
+    }
     const redemption = CouponRedemptionEntity.create({
       coupon_id: coupon.id,
       merchant_id: input.merchant_id,
@@ -253,10 +295,7 @@ export class ApplyCouponUseCase {
       discount_applied: discountApplied,
       source: input.source ?? "manual"
     });
-    const reservation = await this.transactions.reserve({
-      coupon: snap,
-      redemption,
-      event: createCouponEventEnvelope({
+    const event = createCouponEventEnvelope({
         eventType: "coupon.applied",
         merchantId: input.merchant_id,
         payload: {
@@ -266,7 +305,12 @@ export class ApplyCouponUseCase {
           discount_applied: discountApplied,
           source: redemption.snapshot().source
         }
-      })
+      });
+    if (this.combinationOccurredAt) event.occurred_at = this.combinationOccurredAt.toISOString();
+    const reservation = await this.transactions.reserve({
+      coupon: snap,
+      redemption,
+      event
     });
 
     if (reservation.status === "coupon_missing") throw new NotFoundException("COUPON_NOT_FOUND");

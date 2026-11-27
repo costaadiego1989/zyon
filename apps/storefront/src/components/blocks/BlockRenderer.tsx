@@ -1,7 +1,7 @@
 "use client";
 
 import type { ConversationBlock } from "@/lib/types";
-import type { StorefrontReadUiAction } from "@zyon/shared-types";
+import type { StorefrontPublicUiAction as StorefrontReadUiAction } from "@zyon/shared-types";
 import type { CrossSellDisplayProduct } from "@/lib/storefront-cross-sell-flow";
 import ProductCardBlock from "./ProductCardBlock";
 import ProductCarouselBlock from "./ProductCarouselBlock";
@@ -20,6 +20,8 @@ import MarketplaceProductsBlock from "./MarketplaceProductsBlock";
 import CrossSellBlock from "./CrossSellBlock";
 import CouponListBlock from "./CouponListBlock";
 import ProductContentBlock from "./ProductContentBlock";
+import ProductQuestions from "./ProductQuestionsBlock";
+import FiscalInvoicesBlock from "./FiscalInvoicesBlock";
 import ServiceBookingBlock, { type StorefrontServiceBookingBinding } from "./ServiceBookingBlock";
 
 export default function BlockRenderer({
@@ -39,6 +41,14 @@ export default function BlockRenderer({
   serviceBooking?: StorefrontServiceBookingBinding;
 }) {
   switch (block.type) {
+    case "fiscal_invoices":
+      return <FiscalInvoicesBlock block={block} />;
+    case "product_questions":
+    case "buyer_product_questions":
+    case "product_question_input":
+    case "question_submission":
+    case "review_submission":
+      return <ProductQuestions block={block} onQuickReply={onQuickReply} />;
     case "service_booking":
       return <ServiceBookingBlock data={block.data} binding={serviceBooking} onRefresh={() => onQuickReply?.("Quero consultar os serviços e os horários disponíveis")} />;
     case "product_card":

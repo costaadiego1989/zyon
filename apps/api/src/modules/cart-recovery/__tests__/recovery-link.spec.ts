@@ -1,3 +1,4 @@
+import { RecoveryResumeOriginService } from "../application/services/recovery-resume-origin.service.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { RecoveryLinkTokenService, RECOVERY_LINK_TTL_SECONDS } from "../domain/recovery-link-token.service.js";
@@ -35,13 +36,15 @@ async function fixture() {
   await sessions.saveSession(session);
   const state = { buyer: { globalUserId: session.globalUserId, customer: { email: session.customer!.email!, email_verified: true } } as any, paid: false, ordered: false };
   const prisma = {
+    checkoutEvent: { findFirst: async () => null },
+    whatsAppSession: { findFirst: async () => null },
     merchant: { findUnique: async ({ where }: any) => where.id === session.merchantId ? { storeSlug: "test-store" } : null },
     completedOrder: { findFirst: async ({ where }: any) => { assert.equal(where.merchantId, session.merchantId); return state.ordered ? { id: "order" } : null; } },
     paymentIntent: { findFirst: async ({ where }: any) => { assert.equal(where.sessionId, session.sessionId); return state.paid ? { id: "payment" } : null; } },
   } as any;
   const buyers = { resolve: async (_merchant: string, token: unknown) => token === "buyer-proof" ? state.buyer : undefined };
-  const generate = new GenerateRecoveryLinkUseCase(prisma, sessions, tokens);
-  const resume = new ResumeRecoveryCheckoutUseCase(prisma, sessions, tokens, buyers as never, new IssueEmbedSessionUseCase(embedTokens));
+  const generate = new GenerateRecoveryLinkUseCase(prisma, sessions, tokens, new RecoveryResumeOriginService(prisma));
+  const resume = new ResumeRecoveryCheckoutUseCase(prisma, sessions, tokens, buyers as never, new IssueEmbedSessionUseCase(embedTokens), new RecoveryResumeOriginService(prisma));
   const link = new URL(await generate.execute({ merchantId: session.merchantId, sessionId: session.sessionId }));
   return { tokens, embedTokens, sessions, session, state, generate, resume, link, buyers,
     input: { slug: "test-store", token: link.searchParams.get("recovery"), origin: link.origin, buyerToken: "buyer-proof" } };

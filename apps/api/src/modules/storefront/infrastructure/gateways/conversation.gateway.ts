@@ -92,7 +92,7 @@ export class StorefrontConversationGateway implements OnGatewayConnection, OnGat
   }
 
   @SubscribeMessage("message")
-  async handleMessage(@ConnectedSocket() socket: Socket, @MessageBody() data: { conversationId: string; text: string; cartId?: string }) {
+  async handleMessage(@ConnectedSocket() socket: Socket, @MessageBody() data: { conversationId: string; text: string; cartId?: string; messageId?:string; marketingConsent?:"granted"|"declined" }) {
     let room: string | undefined;
     let connection: Connection | undefined;
     let acquired = false;
@@ -124,10 +124,12 @@ export class StorefrontConversationGateway implements OnGatewayConnection, OnGat
         merchant_id: claims.merchantId, conversation_id: claims.resourceId,
         user_message: data.text.trim(), cart_id: claims.resourceId,
         history: history.messages.map((message) => ({ role: message.role, content: message.content })),
+        global_user_id:connection.userId?.startsWith("buyer:")?connection.userId.slice(6):undefined,
+        message_id:data.messageId,marketing_consent:data.marketingConsent,
       }, undefined, undefined, connection.serviceBooking);
       this.server.to(room).emit("agent_response", {
         conversationId: claims.resourceId, role: "assistant", text: result.message,
-        blocks: result.blocks, cartId: result.cart_id,
+        blocks: result.blocks, cartId: result.cart_id, handoff:result.handoff,
       });
       return { success: true };
     } catch {

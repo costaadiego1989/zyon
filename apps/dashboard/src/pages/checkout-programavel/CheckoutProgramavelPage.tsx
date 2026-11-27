@@ -1,5 +1,6 @@
+import { Activity, Bot, Clock, Globe, History, Plus, Settings2, Shield, Zap } from "lucide-react";
 import React from "react";
-import { Bot, Shield, Activity, Zap, Globe, Clock, Plus } from "lucide-react";
+
 import { TabBar } from "../../components/TabBar.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
 import { StatCard, StatCardGroup } from "../overview/components/StatCard.js";
@@ -12,9 +13,9 @@ import { AuditTab } from "./tabs/AuditTab.js";
 import type { MerchantProfile } from "../../api-client.js";
 
 const TABS = [
-  { key: "config" as const, label: "Configuração" },
-  { key: "agents" as const, label: "Agentes" },
-  { key: "audit" as const, label: "Auditoria" },
+  { key: "config" as const, label: "Configuração", icon: <Settings2 size={16} /> },
+  { key: "agents" as const, label: "Agentes", icon: <Bot size={16} /> },
+  { key: "audit" as const, label: "Auditoria", icon: <History size={16} /> },
 ] as const;
 
 export function CheckoutProgramavelPage({ me }: { apiBaseUrl: string; me: MerchantProfile | null }) {
@@ -65,7 +66,7 @@ export function CheckoutProgramavelPage({ me }: { apiBaseUrl: string; me: Mercha
 
       {/* Tabs */}
       <TabBar
-        tabs={TABS.map((t) => ({ key: t.key, label: t.label }))}
+        tabs={TABS.map((t) => ({ key: t.key, label: t.label, icon: t.icon }))}
         activeTab={vm.tab}
         onTabChange={(k) => vm.setTab(k as any)}
       />

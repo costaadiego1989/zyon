@@ -50,7 +50,11 @@ export class PrismaPlatformBillingSubscriptionRepository implements PlatformBill
       items: page.map(toSubscription),
       summary: {
         totalRecords,
-        recordsByStatus: Object.fromEntries(statuses.map(entry => [entry.status, entry._count._all])),
+        recordsByStatus: statuses.reduce<Record<string, number>>((counts, entry) => {
+          const key = status(entry.status);
+          counts[key] = (counts[key] ?? 0) + entry._count._all;
+          return counts;
+        }, {}),
         activeLocalRecords,
         activeTrials,
         pastDueLocalStateRecords,
@@ -100,7 +104,7 @@ type BillingSubscriptionRow = Prisma.MerchantBillingSubscriptionGetPayload<{
 
 function subscriptionsWhere(input: PlatformBillingSubscriptionQuery): Prisma.MerchantBillingSubscriptionWhereInput {
   return {
-    ...(input.status ? { status: input.status } : {}),
+    ...(input.status ? { status: input.status === "cancelled" ? { in: ["cancelled", "canceled"] } : input.status } : {}),
     ...(input.provider ? input.provider === "unknown" ? { provider: null } : { provider: input.provider } : {}),
   };
 }
@@ -131,6 +135,7 @@ function provider(value: string | null): LocalBillingProvider {
 }
 
 function status(value: string): PlatformBillingSubscription["status"] {
+  if (value === "canceled") return "cancelled";
   if (["trialing", "starter", "active", "past_due", "unpaid", "paused", "cancelled", "incomplete"].includes(value)) {
     return value as PlatformBillingSubscription["status"];
   }

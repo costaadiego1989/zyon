@@ -68,6 +68,7 @@ export interface ProductVideo {
 }
 
 export interface ProductContentSurface {
+  visibility?: { enabled: boolean; testimonialsVisible: boolean };
   blocks: ProductContentBlock[];
   faqs: ProductFaq[];
   testimonials: ProductTestimonial[];
@@ -128,6 +129,10 @@ export interface UpsertVideoPayload {
 
 export function productContentEndpoints(base: string, f: typeof fetch) {
   return {
+    updateContentVisibility(merchantId: string, productId: string, flags: { enabled?: boolean; testimonialsVisible?: boolean }): Promise<{ enabled: boolean; testimonialsVisible: boolean }> {
+      return dashboardJson(base, `/merchants/${encodeURIComponent(merchantId)}/products/${encodeURIComponent(productId)}/content/visibility`,
+        { method: "PUT", jsonBody: flags }, f);
+    },
     // ── Content blocks ──────────────────────────────────────────────
     listContent(merchantId: string, productId: string): Promise<ProductContentSurface> {
       // GET per dashboard convention; falls back to POST in controller if the

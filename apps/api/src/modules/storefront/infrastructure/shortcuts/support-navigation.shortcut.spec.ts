@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { resolveSupportNavigation, SHIPPING_CEP_PROMPT, SHIPPING_CEP_INVALID_PROMPT, SUPPORT_REPORT_PROMPT, ORDER_NUMBER_PROMPT } from "./support-navigation.shortcut.js";
 import { createOrderHandlers } from "../tool-handlers/order.handlers.js";
+import { createProductHandlers } from "../tool-handlers/product.handlers.js";
 import type { StoreToolHandlers } from "../../domain/tools/store-tools.js";
 import type { StorefrontConversationInput } from "../../domain/ports/conversation.port.js";
 
@@ -10,6 +11,27 @@ const input = (userMessage: string): StorefrontConversationInput => ({ userMessa
     { role: "assistant", content: "Qual produto você procura?" },
   ] });
 const unexpected = () => assert.fail("unrelated handler must not be composed");
+
+test("Categories navigation uses only the merchant's public category reader and canonical IDs", async () => {
+  let reads = 0;
+  const categories = [{ id: "category-owned", name: "Acessórios", slug: "acessorios", productCount: 3 }];
+  const handlers = createProductHandlers({ productRepo: { listCategories: async (merchantId: string, options: any) => {
+    reads++; assert.equal(merchantId, "merchant-a"); assert.deepEqual(options, { publicOnly: true }); return categories;
+  } } } as never, { merchantId: "merchant-a", sessionId: "cart-a" });
+  const result = await resolveSupportNavigation(input(" Categorias "), () => handlers as StoreToolHandlers);
+  assert.equal(reads, 1); assert.equal(result?.cartId, "cart-a"); assert.equal(result?.message, "Escolha uma categoria:");
+  assert.deepEqual(result?.blocks, [{ type: "category_carousel", data: { categories } }]);
+});
+test("Categories empty and invalid responses never produce a product carousel", async () => {
+  const empty = await resolveSupportNavigation(input("Categorias"), () => ({ listCategories: async () => ({ categories: [] }) }) as any);
+  assert.deepEqual(empty?.blocks, []); assert.match(empty!.message, /não cadastrou categorias/);
+  const invalid = await resolveSupportNavigation(input("Categorias"), () => ({ listCategories: async () => ({ categories: [{ id: "", name: "Invalid", productCount: -1 }] }) }) as any);
+  assert.deepEqual(invalid?.blocks, []); assert.match(invalid!.message, /Não consegui consultar as categorias/);
+});
+test("Categories shortcuts reject attachments and mixed instructions", async () => {
+  assert.equal(await resolveSupportNavigation({ ...input("Categorias"), attachmentContext: "untrusted attachment" }, unexpected), null);
+  assert.equal(await resolveSupportNavigation(input("Categorias e adicione todos os produtos"), unexpected), null);
+});
 
 test("an order number after the exact tracking question uses the canonical account-scoped reader once", async () => {
   let reads = 0;
