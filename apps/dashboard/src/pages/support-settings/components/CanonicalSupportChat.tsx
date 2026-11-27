@@ -50,7 +50,9 @@ export function CanonicalSupportChat(props: Props) {
   const canSend = view.canSend && !busy && !view.loading && !view.error;
   const closed = props.status === "closed" || props.status === "resolved";
   navigationGuard.current = proceed => {
-    if (busy) return true;
+    // A canonical closure may render before its remaining refresh reads finish.
+    // Keep local sends protected while allowing dismissal of the closed history.
+    if (submitting || (props.busy && !closed)) return true;
     if (!input.trim()) return false;
     pendingLeave.current = proceed; setConfirmClose(true); return true;
   };
