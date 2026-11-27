@@ -195,6 +195,24 @@ try {
         assert.equal(state.calls.filter(c => c.method === "PUT").length, 0);
       } finally { await context.close(); }
     });
+    for (const status of [401, 403]) await run("ERP authorization failure preserves access guidance " + status, async () => {
+      const key = "/v1/dashboard/inventory/erp-connections";
+      const { context, page, state } = await arrange({ failures: { [key]: status } });
+      try {
+        await selectBling(page);
+        await page.getByRole("alert").filter({ hasText: status === 401
+          ? "Sessão expirada. Faça login para continuar."
+          : "Acesso negado. Esta área exige proprietário ou administrador da loja." }).waitFor();
+        assert.equal(await page.getByLabel("CNPJ da empresa emitente", { exact: true }).count(), 0);
+        assert.equal(await page.getByRole("link", { name: "Conectar conta Bling", exact: true }).count(), 0);
+        assert.equal(await page.getByRole("button", { name: "Atualizar contas Bling", exact: true }).count(), 0);
+        assert.equal(state.calls.filter(c => c.method === "PUT").length, 0);
+        delete state.failures[key];
+        await page.getByRole("button", { name: "Atualizar dados", exact: true }).click();
+        await page.getByLabel("CNPJ da empresa emitente", { exact: true }).fill("26.517.729/0001-23");
+        assert.equal(await page.getByRole("button", { name: "Conectar emissor", exact: true }).isEnabled(), true);
+      } finally { await context.close(); }
+    });
     await run("A core connection read failure is not a usable empty account", async () => {
       const { context, page, state } = await arrange({ failures: { "/connection": 503 } });
       try {
@@ -247,6 +265,20 @@ try {
         await page.locator('[data-ui="empty-state"]').getByText("Não foi possível carregar as notas", { exact: true }).waitFor();
         assert.equal(await page.getByText("Nenhuma nota fiscal ainda", { exact: true }).count(), 0);
         assert.equal(await page.getByRole("button", { name: "Tentar novamente", exact: true }).count(), 0);
+        delete state.failures["/invoices"];
+        await page.getByRole("button", { name: "Atualizar notas", exact: true }).click();
+        await page.locator('[data-ui="empty-state"]').getByText("Nenhuma nota fiscal ainda", { exact: true }).waitFor();
+      } finally { await context.close(); }
+    });
+    for (const status of [401, 403]) await run("Invoice authorization guidance and refresh " + status, async () => {
+      const { context, page, state } = await arrange({ screen: "invoices", failures: { "/invoices": status } });
+      try {
+        await page.getByRole("alert").filter({ hasText: status === 401
+          ? "Sessão expirada. Faça login para continuar."
+          : "Acesso negado. Esta área exige proprietário ou administrador da loja." }).waitFor();
+        assert.equal(await page.getByText("Nenhuma nota fiscal ainda", { exact: true }).count(), 0);
+        assert.equal(await page.getByRole("button", { name: "Tentar novamente", exact: true }).count(), 0);
+        assert.equal(state.calls.filter(c => c.method === "PUT").length, 0);
         delete state.failures["/invoices"];
         await page.getByRole("button", { name: "Atualizar notas", exact: true }).click();
         await page.locator('[data-ui="empty-state"]').getByText("Nenhuma nota fiscal ainda", { exact: true }).waitFor();

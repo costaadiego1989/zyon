@@ -13,6 +13,7 @@ import type {
   FiscalOwner,
 } from "../../api/fiscal.js";
 import { FiscalApiError, fiscalPaymentSourceLabel } from "../../api/fiscal.js";
+import { DashboardHttpError } from "../../api/http/error.js";
 import type { ErpConnectionDTO } from "../../api/endpoints/inventory.js";
 import { PageHeader } from "../../components/PageHeader.js";
 import { SetupGuide } from "../../components/SetupGuide.js";
@@ -176,9 +177,15 @@ export function FiscalSettingsPage({
           provider === "bling" ? api.getErpConnections(merchantId) : Promise.resolve([] as ErpConnectionDTO[]),
         ]);
         if (current !== generation.current) return;
-        const authFailure = results.find(result => result.status === "rejected" && result.reason instanceof FiscalApiError &&
-          ["unauthenticated", "forbidden"].includes(result.reason.kind));
-        if (authFailure?.status === "rejected") throw authFailure.reason;
+        const authFailure = results.find(result => result.status === "rejected" && (
+          result.reason instanceof FiscalApiError && ["unauthenticated", "forbidden"].includes(result.reason.kind) ||
+          result.reason instanceof DashboardHttpError && [401, 403].includes(result.reason.status)));
+        if (authFailure?.status === "rejected") {
+          const reason = authFailure.reason;
+          throw reason instanceof DashboardHttpError
+            ? new FiscalApiError(reason.status, reason.status === 401 ? "unauthenticated" : "forbidden", "fiscal_access_denied")
+            : reason;
+        }
         const [catalogResult, connectionResult, profileResult, templateResult, sourceResult, erpResult] = results;
         const c = connectionResult.status === "fulfilled" ? connectionResult.value : null;
         const p = profileResult.status === "fulfilled" ? profileResult.value : null;
