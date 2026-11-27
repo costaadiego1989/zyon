@@ -812,7 +812,12 @@ export default function ConversationShell({
     if (messages.length === 0) return;
     scrollToBottom();
     if (!isLoading && inputRef.current) {
-      setTimeout(() => inputRef.current?.focus(), 80);
+      const timer = setTimeout(() => {
+        const input = inputRef.current;
+        if (input?.isConnected && !input.disabled && !input.closest("[inert]")
+          && (document.activeElement === document.body || document.activeElement === input)) input.focus();
+      }, 80);
+      return () => clearTimeout(timer);
     }
   }, [messages, isLoading, pendingAgentBlocks]);
   useEffect(() => {
