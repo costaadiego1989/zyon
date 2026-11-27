@@ -3,6 +3,14 @@
   gap: 24px;
   min-width: 0;
 }
+.fiscal-form-field { min-width: 0; }
+.fiscal-form-field .form-field > label { order: 0; }
+.fiscal-form-field .form-field-hint { order: 1; }
+.fiscal-form-field .form-field > :is(input, select, textarea) { order: 2; }
+.fiscal-form-field .form-field-error { order: 3; }
+.fiscal-check-field { margin: 12px 0; }
+.fiscal-check-field .fiscal-check { margin-bottom: 4px; }
+.fiscal-check-field > .form-field-hint { display: block; margin-left: 26px; line-height: 1.5; }
 .fiscal-page :is(h1, h2, h3) {
   font-family: var(--font-sans);
 }

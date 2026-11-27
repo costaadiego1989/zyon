@@ -8,8 +8,8 @@ const requireDashboard = createRequire(new URL("../package.json", import.meta.ur
 const { createServer } = await import(pathToFileURL(requireDashboard.resolve("vite")).href);
 const { default: react } = await import(pathToFileURL(requireDashboard.resolve("@vitejs/plugin-react")).href);
 const group = process.argv[2] ?? "all";
-assert.ok(["settings", "invoices", "all"].includes(group));
-const artifacts = fileURLToPath(new URL("../../../.specs/features/fiscal-ui-review-20261127/browser/", import.meta.url));
+assert.ok(["settings", "invoices", "help", "all"].includes(group));
+const artifacts = fileURLToPath(new URL(`../../../.specs/features/${group === "help" ? "fiscal-field-help-20261127" : "fiscal-ui-review-20261127"}/browser/`, import.meta.url));
 mkdirSync(artifacts, { recursive: true });
 // Vite treats port: 0 as its shared default. Reserve a real ephemeral port.
 const portProbe = net.createServer();
@@ -39,7 +39,7 @@ try {
   await server.waitForRequestsIdle();
   const base = `http://127.0.0.1:${server.httpServer.address().port}`;
   browser = await chromium.launch({ channel: "msedge", headless: true });
-  async function arrange({ screen = "settings", width = 1586, erps = [eligibleAccount], failures = {}, existing = null } = {}) {
+  async function arrange({ screen = "settings", width = 1586, erps = [eligibleAccount], failures = {}, existing = null, rich = false } = {}) {
     const context = await browser.newContext({ viewport: { width, height: 757 } });
     const page = await context.newPage();
     page.setDefaultTimeout(5000);
@@ -57,9 +57,17 @@ try {
       if (path === "/providers") body = { environment: "production", providers: ["focus", "bling", "omie", "tiny"].map(id => ({ id, label: { focus: "Focus NF-e", bling: "Bling", omie: "Omie", tiny: "Tiny/Olist" }[id], capabilities: {} })) };
       else if (path === "/connection" && request.method() === "PUT") body = state.connection = connection(input);
       else if (path === "/connection") body = state.connection;
-      else if (path === "/profiles") body = { profile: null, confirmedProfile: null, supportedContract: null };
+      else if (path === "/profiles") body = rich ? {
+        profile: { id: "profile-a", version: 1, confirmedAt: null, issuerRegime: "simples_nacional", itemRules: {
+          policyVersion: "revisao-contador", operation: { products: { "SKU-A": { productId: 7, naturezaOperacaoId: 8 } } },
+          items: { "SKU-A": { ncm: "61091000", cfop: "5102", origin: "0", unit: "UN", taxes: { cst: "102" } } },
+          paymentMappings: { "17": { id: 7, meioPagamentoId: 7, formaRecebimentoId: 8 } },
+        } }, confirmedProfile: null, supportedContract: { sourceContractVersion: "ui-help-fixture", issuerRegimes: ["simples_nacional"], operations: ["sale"], currencies: ["BRL"], productTypes: ["physical"], minimumRecipientRequirements: ["name", "taxId"] },
+      } : { profile: null, confirmedProfile: null, supportedContract: null };
       else if (path === "/templates") body = { email: { subject: "Sua nota fiscal", body: "Consulte sua nota" }, whatsapp: { body: "Sua nota", status: "DRAFT", revision: 1, approvedVersions: [] }, whatsappConnected: false };
-      else if (path === "/payment-sources") body = [];
+      else if (path === "/payment-sources") body = rich ? [{ paymentIntentId: "payment-a", provider: "stripe", method: "card", status: "succeeded", createdAt: "2026-11-27T12:00:00Z" }] : [];
+      else if (path === "/olist/oauth/configuration") body = { redirectUri: base + "/v1/merchants/me/fiscal/olist/oauth/callback" };
+      else if (path.endsWith("/notifications")) body = { configured: true, notificationUrl: base + "/v1/webhooks/fiscal/olist/synthetic-private-reference" };
       else if (path.endsWith("/setup")) body = { companyId: null, fiscalTimeZone: null, focusWebhookConfigured: false, paymentConfigurations: [], accountEvidence: null };
       else if (path === "/invoices") body = { items: state.invoices, total: state.total, counts: state.counts, page: Number(url.searchParams.get("page") ?? 1), pageSize: 20 };
       else if (path.endsWith("/erp-connections")) body = state.erps;
@@ -82,7 +90,7 @@ try {
     await page.getByLabel("Emissor fiscal", { exact: true }).selectOption("bling");
     await page.getByText("Carregando configuração fiscal…", { exact: true }).waitFor({ state: "hidden" });
   }
-  if (group !== "invoices") {
+  if (group === "settings" || group === "all") {
     for (const width of [390, 1586]) await run("Bling selected account submits production and renders saved connection " + width, async () => {
       const { context, page, state } = await arrange({ width });
       try {
@@ -235,7 +243,7 @@ try {
       } finally { await context.close(); }
     });
   }
-  if (group !== "settings") {
+  if (group === "invoices" || group === "all") {
     for (const width of [390, 1586]) await run("Invoice first-use EmptyState opens configuration " + width, async () => {
       const { context, page } = await arrange({ screen: "invoices", width });
       try {
@@ -290,6 +298,51 @@ try {
         delete state.failures["/invoices"];
         await page.getByRole("button", { name: "Atualizar notas", exact: true }).click();
         await page.locator('[data-ui="empty-state"]').getByText("Nenhuma nota fiscal ainda", { exact: true }).waitFor();
+      } finally { await context.close(); }
+    });
+  }
+  if (group === "help" || group === "all") {
+    for (const provider of ["focus", "bling", "omie", "tiny"]) for (const width of [390, 1586]) await run(`Every ${provider} fiscal field and checkbox explains its meaning ${width}`, async () => {
+      const { context, page, state } = await arrange({ width, rich: true, existing: connection({ provider, environment: "production", issuerTaxId: "26517729000123", erpConnectionId: provider === "bling" ? eligibleAccount.id : null }) });
+      try {
+        await page.waitForFunction(p => document.querySelector('select')?.value === p && document.querySelectorAll('.fiscal-item').length === 1, provider);
+        if (provider === "tiny") await page.waitForFunction(() => [...document.querySelectorAll('input')].some(input => input.readOnly && input.value.includes('/olist/oauth/callback')));
+        await page.getByRole("button", { name: "Adicionar produto fiscal", exact: true }).click();
+        await page.getByRole("button", { name: "Adicionar tributo ao produto 2", exact: true }).click();
+        if (["bling", "tiny"].includes(provider)) await page.getByRole("button", { name: "Adicionar forma de pagamento ERP", exact: true }).click();
+        const report = await page.evaluate(() => {
+          const root = document.querySelector('.fiscal-page');
+          const fields = [...root.querySelectorAll('.form-field')].map(field => {
+            const label = field.querySelector('label'), control = field.querySelector('input,select,textarea');
+            const help = control?.getAttribute('aria-describedby') && document.getElementById(control.getAttribute('aria-describedby'));
+            const a = label?.getBoundingClientRect(), b = help?.getBoundingClientRect(), c = control?.getBoundingClientRect();
+            return { label: label?.textContent, text: help?.textContent, ordered: !!a && !!b && !!c && b.top >= a.bottom - 1 && b.bottom <= c.top + 1, associated: !!help && field.contains(help) };
+          });
+          const checks = [...root.querySelectorAll('input[type="checkbox"]')].map(input => ({ checked: input.checked,
+            label: root.querySelector(`label[for="${input.id}"]`)?.textContent,
+            text: document.getElementById(input.getAttribute('aria-describedby'))?.textContent }));
+          return { fields, checks, overflow: document.documentElement.scrollWidth > innerWidth };
+        });
+        assert.ok(report.fields.length >= 25, `Expected full configuration for ${provider}, got ${report.fields.length}`);
+        assert.deepEqual(report.fields.filter(field => !field.text || !field.associated || !field.ordered), []);
+        assert.ok(report.checks.length >= (provider === "focus" ? 2 : 12));
+        assert.deepEqual(report.checks.filter(check => !check.text || !check.label || check.checked), []);
+        const expectedChecks = ["Revisei esta configuração como responsável pela empresa ou contabilidade.", "Conferi a classificação da conta de pagamento."];
+        if (provider !== "focus") expectedChecks.push("Conferi estes efeitos no painel do ERP com o responsável fiscal.",
+          "Baixa estoque ao salvar pedido", "Baixa estoque ao autorizar nota", "Estorna estoque ao cancelar nota",
+          "Gera financeiro ao salvar pedido", "Gera financeiro ao autorizar nota", "Estorna financeiro ao cancelar nota",
+          "ERP envia e-mail automaticamente", "ERP gera nota automaticamente", "ERP autoriza nota automaticamente");
+        assert.deepEqual(report.checks.map(check => check.label).sort(), expectedChecks.sort());
+        const confirmProfile = page.getByRole("button", { name: "Confirmar perfil fiscal", exact: true });
+        assert.equal(await confirmProfile.isDisabled(), true);
+        await page.getByRole("checkbox", { name: expectedChecks.find(label => label.startsWith("Revisei")), exact: true }).check();
+        assert.equal(await confirmProfile.isEnabled(), true);
+        await page.getByRole("checkbox", { name: expectedChecks.find(label => label.startsWith("Revisei")), exact: true }).uncheck();
+        assert.equal(await confirmProfile.isDisabled(), true);
+        assert.equal(report.overflow, false);
+        assert.deepEqual(state.errors, []);
+        assert.equal(state.calls.filter(c => c.method === "PUT" || c.method === "POST").length, 0);
+        await page.screenshot({ path: artifacts + `field-help-${provider}-${width}.png`, fullPage: true });
       } finally { await context.close(); }
     });
   }

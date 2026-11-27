@@ -11,7 +11,7 @@ import type {
 } from "../../api/fiscal.js";
 import { PageHeader } from "../../components/PageHeader.js";
 import { SetupGuide } from "../../components/SetupGuide.js";
-import { FormField, FormSelect } from "../../components/FormField.js";
+import { FormField, FormSelect } from "./FiscalFormFields.js";
 import { Button } from "../../components/Button.js";
 import { Pagination } from "../../components/Pagination.js";
 import { EmptyState } from "../../components/EmptyState.js";
