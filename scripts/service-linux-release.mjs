@@ -75,7 +75,7 @@ await run('storefront-build',['pnpm','--dir','apps/storefront','build'],root,{AA
 assert.equal(existsSync(resolve(root,'apps/storefront/.next/standalone')),false,'release_nonstandalone_next_required');
 await run('release-source-contracts',['node','--import','./tests/test-network-guard.mjs','--test','--test-concurrency=1',
   './tests/native-prisma-release-platform.spec.mjs','./tests/service-served-artifact-observation.contract.spec.mjs',
-  './tests/linux-owned-tcp.contract.spec.mjs','./tests/linux-owned-tcp.live.spec.mjs','./tests/service-release-stage-context.spec.mjs'],api);
+  './tests/linux-owned-tcp.contract.spec.mjs','./tests/linux-owned-tcp.live.spec.mjs','./tests/service-release-stage-context.spec.mjs','./tests/journey-redis-ping-guard.contract.mjs'],api);
 await run('release-migration-byte-contract',['node','--test','scripts/service-release-migration-bytes.spec.mjs','scripts/service-release-support-migration-bytes.spec.mjs']);
 const protocol=await import('../apps/api/dist/shared/bookings/service-release-manifest.js');
 const artifact=await import('../apps/api/dist/shared/bookings/service-release-artifact.js');

@@ -4,6 +4,7 @@ import { Redis } from "ioredis";
 import { Queue, Worker } from "bullmq";
 import { ModulesContainer } from "@nestjs/core";
 import { awaitConstructionRedisReady, createConstructionRedisSocketProof } from "./nest-construction-only.guards.mjs";
+import { assertOwnedJourneyRedisPing } from "./journey-redis-ping-guard.mjs";
 
 export async function journeyBounded(work, milliseconds, code) {
   let timer;
@@ -152,7 +153,13 @@ export function createOwnedJourneyClientTracker(app, redisPort) {
       if (client.status === "wait" || client.status === "end") continue;
       assert.ok(socketFor(client) && streams.get(client) === socketFor(client), "journey_ready_redis_socket_proof_required"); readyClients++;
       if (blocking.has(client) || blockingSockets.has(socketFor(client))) { blockingReadyClients++; continue; }
-      if (ping) { assert.equal(await journeyBounded(client.ping(), 5000, "journey_owned_redis_ping_timeout"), "PONG"); nonblockingPings++; }
+      if (ping) {
+        const pingSocket=socketFor(client);
+        await assertOwnedJourneyRedisPing(client);
+        assert.equal(socketFor(client),pingSocket,"journey_owned_redis_socket_changed_during_ping");
+        capturedGeneration.assertCaptured(client,pingSocket);
+        nonblockingPings++;
+      }
     }
     return { queues: queues.size, workers: workers.size, redisClients: readyClients, blockingReadyClients, nonblockingPings };
   }
