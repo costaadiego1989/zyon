@@ -70,7 +70,7 @@ export class OrderQuotaService {
     const period = orderQuotaPeriod(now);
     const repository = executor ? this.repository.using(executor) : this.repository;
     const usedOrders = await repository.recordCompletedOrder({ merchantId, externalOrderId, period, countedAt: now });
-    return this.evaluate(merchantId, await this.metering.getEffectivePlan(merchantId, now), now, repository, { period, usedOrders });
+    return this.evaluate(merchantId, await this.metering.getEffectivePlan(merchantId, now, executor), now, repository, { period, usedOrders });
   }
 
   async reconcile(now = new Date()): Promise<number> {

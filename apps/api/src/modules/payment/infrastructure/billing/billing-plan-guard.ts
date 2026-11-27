@@ -7,7 +7,7 @@ import {
   SetMetadata,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { currentTenantPrincipal } from "../../../../shared/auth/tenant-principal.js";
 import { PRISMA_CLIENT, PRISMA_CROSS_MERCHANT_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import {
@@ -58,19 +58,20 @@ export class BillingPlanMeteringService {
 
   /** Platform subscription is owned by the Scale billing account; commercial
    * connections and operational usage remain scoped to the active store. */
-  async resolveBillingAccountMerchantId(merchantId: string): Promise<string> {
+  async resolveBillingAccountMerchantId(merchantId: string, executor?: Prisma.TransactionClient): Promise<string> {
     const scopedMerchantId = merchantId.trim();
-    const merchant = await this.prisma.merchant.findUnique({
+    const merchant = await (executor ?? this.prisma).merchant.findUnique({
       where: { id: scopedMerchantId },
       select: { billingAccountMerchantId: true },
     });
     return merchant?.billingAccountMerchantId ?? scopedMerchantId;
   }
 
-  async getSubscription(merchantId: string): Promise<BillingSubscriptionSnapshot | undefined> {
-    const billingMerchantId = await this.resolveBillingAccountMerchantId(merchantId);
-    // Only the resolved account's platform subscription crosses store scope.
-    const row = await this.billingPrisma.merchantBillingSubscription.findUnique({
+  async getSubscription(merchantId: string, executor?: Prisma.TransactionClient): Promise<BillingSubscriptionSnapshot | undefined> {
+    const billingMerchantId = await this.resolveBillingAccountMerchantId(merchantId, executor);
+    // Only a resolved foreign account's platform subscription crosses store scope.
+    const subscriptionPrisma = executor && billingMerchantId === merchantId.trim() ? executor : this.billingPrisma;
+    const row = await subscriptionPrisma.merchantBillingSubscription.findUnique({
       where: { merchantId: billingMerchantId },
     });
     if (!row) return undefined;
@@ -89,8 +90,8 @@ export class BillingPlanMeteringService {
     };
   }
 
-  async getEffectivePlan(merchantId: string, now = new Date()): Promise<BillingPlan> {
-    return effectiveBillingPlan(await this.getSubscription(merchantId), now);
+  async getEffectivePlan(merchantId: string, now = new Date(), executor?: Prisma.TransactionClient): Promise<BillingPlan> {
+    return effectiveBillingPlan(await this.getSubscription(merchantId, executor), now);
   }
 
   async getUsage(merchantId: string, now = new Date()): Promise<BillingUsageSnapshot> {

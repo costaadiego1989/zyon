@@ -209,3 +209,86 @@ test('REG02 uncategorized catalog products retain the optional category contract
   }finally{try{await prisma?.$disconnect();}finally{await runtime.close();}}
   assert.deepEqual(runtime.cleanupEvidence(),{appClosed:true,remainingContainers:0,remainingBridgeSockets:0});
 });
+
+// REG02: exercise compiled quota and metering classes; only database executor identity is doubled.
+test('REG02 order quota plan reads retain the own-account transaction and resolved foreign billing boundary',{timeout:SERVICE_LOCAL_TEST_MS},async()=>{
+  await import('reflect-metadata');
+  const {createRequire}=await import('node:module'),requireFinal=createRequire(import.meta.url);
+  const {OrderQuotaService}=requireFinal('../dist/modules/payment/application/services/order-quota.service.js');
+  const {BillingPlanMeteringService}=requireFinal('../dist/modules/payment/infrastructure/billing/billing-plan-guard.js');
+  const {PrismaOrderQuotaRepository}=requireFinal('../dist/modules/payment/infrastructure/billing/prisma-order-quota.repository.js');
+  const {OrderQuotaNoticePublisher}=requireFinal('../dist/modules/payment/application/services/order-quota-notice.publisher.js');
+  const now=new Date('2030-06-15T12:00:00.000Z'),periodStart=new Date('2030-06-01T00:00:00.000Z');
+  const subscription=(merchantId,planKey)=>({merchantId,planKey,status:'active',stripeCustomerId:null,stripeSubscriptionId:null,stripePriceId:null,
+    trialEndsAt:null,currentPeriodEnd:null,cancelAtPeriodEnd:false,createdAt:now,updatedAt:now});
+  const forbiddenClient=label=>new Proxy({},{get(_target,key){assert.fail(label+':'+String(key));}});
+
+  // Both plan reads and the real quota adapter must use the very same supplied transaction.
+  const own='synthetic-quota-own-account',ownCalls=[],rootForbidden=forbiddenClient('own-account root client forbidden');
+  const ownTx={
+    async $executeRaw(statement){
+      assert.equal(this,ownTx);assert.match(statement.text,/pg_advisory_xact_lock/);
+      assert.deepEqual(statement.values,['order-quota:'+own+':'+periodStart.toISOString()]);ownCalls.push('quota-lock');return 1;
+    },
+    merchantOrderQuotaPeriod:{
+      async findUnique(args){
+        assert.equal(this,ownTx.merchantOrderQuotaPeriod);
+        assert.deepEqual(args.where,{merchantId_periodStart:{merchantId:own,periodStart}});ownCalls.push('quota-period');return{usedOrders:0};
+      },
+      async update(args){
+        assert.equal(this,ownTx.merchantOrderQuotaPeriod);
+        assert.deepEqual(args.where,{merchantId_periodStart:{merchantId:own,periodStart}});
+        assert.deepEqual(args.data,{usedOrders:{increment:1}});ownCalls.push('quota-increment');return{usedOrders:1};
+      },
+    },
+    merchantOrderQuotaEntry:{async createMany(args){
+      assert.equal(this,ownTx.merchantOrderQuotaEntry);
+      assert.deepEqual(args,{data:[{merchantId:own,externalOrderId:'synthetic-quota-order',periodStart,countedAt:now}],skipDuplicates:true});
+      ownCalls.push('quota-entry');return{count:1};
+    }},
+    merchantOrderQuotaEpisode:{async findMany(args){
+      assert.equal(this,ownTx.merchantOrderQuotaEpisode);
+      assert.deepEqual(args.where,{merchantId:own,resolvedAt:null});ownCalls.push('quota-episodes');return[];
+    }},
+    merchant:{async findUnique(args){
+      assert.equal(this,ownTx.merchant);
+      assert.deepEqual(args,{where:{id:own},select:{billingAccountMerchantId:true}});ownCalls.push('merchant');return{billingAccountMerchantId:null};
+    }},
+    merchantBillingSubscription:{async findUnique(args){
+      assert.equal(this,ownTx.merchantBillingSubscription);
+      assert.deepEqual(args,{where:{merchantId:own}});ownCalls.push('subscription');return subscription(own,'growth');
+    }},
+  };
+  const quotaRepository=new PrismaOrderQuotaRepository(rootForbidden);
+  const ownMetering=new BillingPlanMeteringService(rootForbidden,forbiddenClient('own-account CROSS client forbidden'));
+  const quota=new OrderQuotaService(quotaRepository,ownMetering,new OrderQuotaNoticePublisher(quotaRepository));
+  const snapshot=await quota.recordCompletedOrder({merchantId:own,externalOrderId:'synthetic-quota-order',completedAt:now},ownTx);
+  assert.equal(snapshot.merchantId,own);assert.equal(snapshot.plan,'growth');assert.equal(snapshot.usedOrders,1);
+  assert.deepEqual(ownCalls,['quota-lock','quota-period','quota-entry','quota-increment','merchant','subscription','quota-episodes']);
+
+  // A linked store cannot read another account through the tenant-pinned transaction client.
+  const child='synthetic-quota-child-store',account='synthetic-quota-billing-account',foreignCalls=[];
+  const foreignTx={merchant:{async findUnique(args){
+    assert.equal(this,foreignTx.merchant);
+    assert.deepEqual(args,{where:{id:child},select:{billingAccountMerchantId:true}});foreignCalls.push('transaction-merchant');return{billingAccountMerchantId:account};
+  }},merchantBillingSubscription:forbiddenClient('foreign account must retain CROSS privilege')};
+  const cross={merchantBillingSubscription:{async findUnique(args){
+    assert.equal(this,cross.merchantBillingSubscription);
+    assert.deepEqual(args,{where:{merchantId:account}});foreignCalls.push('resolved-CROSS-subscription');return subscription(account,'scale');
+  }}};
+  assert.equal(await new BillingPlanMeteringService(forbiddenClient('foreign store root lookup forbidden'),cross).getEffectivePlan(' '+child+' ',now,foreignTx),'scale');
+  assert.deepEqual(foreignCalls,['transaction-merchant','resolved-CROSS-subscription']);
+
+  // Original callers keep root merchant resolution and the explicitly resolved CROSS lookup.
+  const legacy='synthetic-quota-legacy-store',legacyAccount='synthetic-quota-legacy-account',legacyCalls=[];
+  const legacyRoot={merchant:{async findUnique(args){
+    assert.equal(this,legacyRoot.merchant);
+    assert.deepEqual(args,{where:{id:legacy},select:{billingAccountMerchantId:true}});legacyCalls.push('root-merchant');return{billingAccountMerchantId:legacyAccount};
+  }},merchantBillingSubscription:forbiddenClient('legacy subscription remains CROSS scoped')};
+  const legacyCross={merchantBillingSubscription:{async findUnique(args){
+    assert.equal(this,legacyCross.merchantBillingSubscription);
+    assert.deepEqual(args,{where:{merchantId:legacyAccount}});legacyCalls.push('resolved-CROSS-subscription');return subscription(legacyAccount,'growth');
+  }}};
+  assert.equal(await new BillingPlanMeteringService(legacyRoot,legacyCross).getEffectivePlan(' '+legacy+' ',now),'growth');
+  assert.deepEqual(legacyCalls,['root-merchant','resolved-CROSS-subscription']);
+});
