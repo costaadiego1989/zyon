@@ -1,7 +1,10 @@
 import {test,expect,openWhatsApp,sendWhatsApp,chooseWhatsApp,catalogProducts,assertReadOnly,captureCatalog} from './product-catalog-read-helpers.js';
 
-test.describe('C60 S1 signed captured-native WhatsApp catalog10',()=>{
-  test.use({catalogChannel:'whatsapp',catalogScenario:'ten'});
+const scenario1Test = test.extend({catalogChannel:'whatsapp',catalogScenario:'ten'});
+const scenario2Test = test.extend({catalogChannel:'whatsapp',catalogScenario:'empty'});
+
+scenario1Test.describe('C60 S1 signed captured-native WhatsApp catalog10',()=>{
+  const test = scenario1Test;
   test('ten canonical product cards and their original navigation controls remain available',async({page,journey})=>{
     await openWhatsApp(page,journey);const before=await journey.snapshot();await sendWhatsApp(page,'/produtos');
     const view=await journey.currentMetaView(),canonical=await journey.canonicalCatalog(),products=catalogProducts(view.blocks);
@@ -25,8 +28,8 @@ test.describe('C60 S1 signed captured-native WhatsApp catalog10',()=>{
   });
 });
 
-test.describe('C60 S1 signed captured-native WhatsApp empty-own catalog',()=>{
-  test.use({catalogChannel:'whatsapp',catalogScenario:'empty'});
+scenario2Test.describe('C60 S1 signed captured-native WhatsApp empty-own catalog',()=>{
+  const test = scenario2Test;
   test('a confirmed empty read does not leak foreign products or fabricate a product menu',async({page,journey})=>{
     await openWhatsApp(page,journey);const before=await journey.snapshot();await sendWhatsApp(page,'/produtos');
     const view=await journey.currentMetaView();expect(await journey.canonicalCatalog()).toEqual([]);expect(catalogProducts(view.blocks)).toEqual([]);expect(view.blocks.some((block:any)=>block.type==='service_booking')).toBe(false);

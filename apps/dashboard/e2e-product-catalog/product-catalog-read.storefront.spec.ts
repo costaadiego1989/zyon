@@ -1,7 +1,10 @@
 import {test,expect,openStorefront,clickCatalog,catalogProducts,assertReadOnly,captureCatalog,advanceToLastCard} from './product-catalog-read-helpers.js';
 
-test.describe('C60 S1 actual Next configured-structured catalog10',()=>{
-  test.use({catalogChannel:'storefront',catalogScenario:'ten'});
+const scenario1Test = test.extend({catalogChannel:'storefront',catalogScenario:'ten'});
+const scenario2Test = test.extend({catalogChannel:'storefront',catalogScenario:'empty'});
+
+scenario1Test.describe('C60 S1 actual Next configured-structured catalog10',()=>{
+  const test = scenario1Test;
   test('ten canonical products render with the correct count and real keyboard navigation',async({page,journey})=>{
     const serviceCalls:string[]=[];page.on('request',request=>{if(/\/service-(booking|appointments)\//.test(new URL(request.url()).pathname))serviceCalls.push(request.url());});
     await openStorefront(page,journey);const before=await journey.snapshot();
@@ -28,8 +31,8 @@ test.describe('C60 S1 actual Next configured-structured catalog10',()=>{
   });
 });
 
-test.describe('C60 S1 actual Next empty-own catalog',()=>{
-  test.use({catalogChannel:'storefront',catalogScenario:'empty'});
+scenario2Test.describe('C60 S1 actual Next empty-own catalog',()=>{
+  const test = scenario2Test;
   test('a confirmed own empty catalog stays empty despite foreign decoys',async({page,journey})=>{
     await openStorefront(page,journey);const before=await journey.snapshot(),body=await clickCatalog(page,journey);
     expect(await journey.canonicalCatalog()).toEqual([]);expect(catalogProducts(body.blocks)).toEqual([]);

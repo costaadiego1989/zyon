@@ -1,9 +1,12 @@
 import {test,runCartMutations,runCrossSell} from './product-cart-journey-helpers.js';
-test.describe('C60 S3 whatsapp cart mutations',()=>{
-  test.use({cartChannel:'whatsapp',cartScenario:'mutations'});
+const scenario1Test = test.extend({cartChannel:'whatsapp',cartScenario:'mutations'});
+const scenario2Test = test.extend({cartChannel:'whatsapp',cartScenario:'crosssell'});
+
+scenario1Test.describe('C60 S3 whatsapp cart mutations',()=>{
+  const test = scenario1Test;
   test('actual add/edit/remove gestures preserve canonical totals, empty state and recovery',async({page,journey})=>{await runCartMutations(page,journey);});
 });
-test.describe('C60 S3 whatsapp post-add cross-sell',()=>{
-  test.use({cartChannel:'whatsapp',cartScenario:'crosssell'});
+scenario2Test.describe('C60 S3 whatsapp post-add cross-sell',()=>{
+  const test = scenario2Test;
   test('each accepted addition rechecks real rules/stock and explicit next offer acceptance or refusal',async({page,journey})=>{await runCrossSell(page,journey);});
 });

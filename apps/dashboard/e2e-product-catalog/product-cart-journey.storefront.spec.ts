@@ -1,9 +1,12 @@
 import {test,runCartMutations,runCrossSell} from './product-cart-journey-helpers.js';
-test.describe('C60 S3 storefront cart mutations',()=>{
-  test.use({cartChannel:'storefront',cartScenario:'mutations'});
+const scenario1Test = test.extend({cartChannel:'storefront',cartScenario:'mutations'});
+const scenario2Test = test.extend({cartChannel:'storefront',cartScenario:'crosssell'});
+
+scenario1Test.describe('C60 S3 storefront cart mutations',()=>{
+  const test = scenario1Test;
   test('actual add/edit/remove gestures preserve canonical totals, empty state and recovery',async({page,journey})=>{await runCartMutations(page,journey);});
 });
-test.describe('C60 S3 storefront post-add cross-sell',()=>{
-  test.use({cartChannel:'storefront',cartScenario:'crosssell'});
+scenario2Test.describe('C60 S3 storefront post-add cross-sell',()=>{
+  const test = scenario2Test;
   test('each accepted addition rechecks real rules/stock and explicit next offer acceptance or refusal',async({page,journey})=>{await runCrossSell(page,journey);});
 });
