@@ -353,8 +353,8 @@ export function ContactsPanel({
             <p>Acompanhe a etapa atual dos contatos da sua loja.</p>
           </div>
           <span className="marketing-total">
-            {funnel?.total.toLocaleString("pt-BR") ?? "—"} contatos
-            identificados
+            {funnel?.total.toLocaleString("pt-BR") ?? "—"}{" "}
+            {funnel?.total === 1 ? "contato identificado" : "contatos identificados"}
           </span>
         </header>
         <div className="marketing-stages">
