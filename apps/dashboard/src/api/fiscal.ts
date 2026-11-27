@@ -459,8 +459,14 @@ export function fiscalEndpoints(
         environment: FiscalEnvironment;
         providers: FiscalProviderSummary[];
       }>("/providers" + query(environment)),
-    getFiscalConnection: (environment: FiscalEnvironment) =>
-      json<FiscalConnection | null>("/connection" + query(environment)),
+    getFiscalConnection: async (environment: FiscalEnvironment) => {
+      const value = await json<FiscalConnection | null>("/connection" + query(environment));
+      // Nest may serialize a nullable result as an empty successful response.
+      if (value === null || (value && typeof value === "object" && !Object.keys(value).length)) return null;
+      if (!value || typeof value.id !== "string" || !["bling", "tiny", "omie", "focus"].includes(value.provider))
+        throw new FiscalApiError(502, "unavailable", "fiscal_response_invalid");
+      return value;
+    },
     connectFiscal: (input: FiscalConnectionInput) =>
       json<FiscalConnection>("/connection", "PUT", input),
     inspectFiscalConnection: (

@@ -12,7 +12,7 @@ import type {
   FiscalTemplates,
   FiscalOwner,
 } from "../../api/fiscal.js";
-import { fiscalPaymentSourceLabel } from "../../api/fiscal.js";
+import { FiscalApiError, fiscalPaymentSourceLabel } from "../../api/fiscal.js";
 import type { ErpConnectionDTO } from "../../api/endpoints/inventory.js";
 import { PageHeader } from "../../components/PageHeader.js";
 import { SetupGuide } from "../../components/SetupGuide.js";
@@ -72,6 +72,9 @@ export function FiscalSettingsPage({
     [notice, setNotice] = useState(""),
     [revision, setRevision] = useState(0),
     [disconnect, setDisconnect] = useState(false);
+  const [connectionLoadFailed, setConnectionLoadFailed] = useState(false),
+    [erpLoadFailed, setErpLoadFailed] = useState(false),
+    [preparationIssues, setPreparationIssues] = useState<string[]>([]);
   const generation = useRef(0),
     scope = `${merchantId}:${environment}:${provider}`;
   const providerChosen = useRef(false);
@@ -144,6 +147,15 @@ export function FiscalSettingsPage({
     setRegime("");
     setIssuerTaxId("");
     setSourceIndex("");
+    setErpId("");
+    setErps([]);
+    setTemplates(null);
+    setSources([]);
+    setOwners({ stockOwner: "zyon", emailOwner: "zyon", whatsappOwner: "zyon" });
+    setConnectionLoadFailed(false);
+    setErpLoadFailed(false);
+    setPreparationIssues([]);
+    setBusy(false);
   }, [scope]);
   useEffect(() => {
     const current = ++generation.current;
@@ -155,35 +167,60 @@ export function FiscalSettingsPage({
     }
     void (async () => {
       try {
-        const [catalog, c, p, t, s] = await Promise.all([
+        const results = await Promise.allSettled([
           api.getFiscalProviders(environment),
           api.getFiscalConnection(environment),
           api.getFiscalProfiles(environment, provider),
           api.getFiscalTemplates(),
           api.getFiscalPaymentSources(environment, intentId),
+          provider === "bling" ? api.getErpConnections(merchantId) : Promise.resolve([] as ErpConnectionDTO[]),
         ]);
-        const setupValue =
-          c?.provider === provider
-            ? await api.getFiscalSetup(c.id, environment)
-            : null;
+        if (current !== generation.current) return;
+        const authFailure = results.find(result => result.status === "rejected" && result.reason instanceof FiscalApiError &&
+          ["unauthenticated", "forbidden"].includes(result.reason.kind));
+        if (authFailure?.status === "rejected") throw authFailure.reason;
+        const [catalogResult, connectionResult, profileResult, templateResult, sourceResult, erpResult] = results;
+        const c = connectionResult.status === "fulfilled" ? connectionResult.value : null;
+        const p = profileResult.status === "fulfilled" ? profileResult.value : null;
+        const t = templateResult.status === "fulfilled" ? templateResult.value : null;
+        const erpValues = erpResult.status === "fulfilled" ? erpResult.value : [];
+        let setupValue: FiscalSetup | null = null;
+        let setupFailed = false;
+        if (c?.provider === provider) {
+          try { setupValue = await api.getFiscalSetup(c.id, environment); }
+          catch (e) {
+            if (e instanceof FiscalApiError && ["unauthenticated", "forbidden"].includes(e.kind)) throw e;
+            setupFailed = true;
+          }
+        }
         if (current !== generation.current) return;
         if (c && !providerChosen.current && c.provider !== provider) {
           setProvider(c.provider);
           return;
         }
-        const erpValues =
-          provider === "bling" ? await api.getErpConnections(merchantId) : [];
-        if (current !== generation.current) return;
-        setProviders(catalog.providers);
+        setConnectionLoadFailed(connectionResult.status === "rejected");
+        setErpLoadFailed(erpResult.status === "rejected");
+        setPreparationIssues([
+          ...(catalogResult.status === "rejected" ? ["emissores disponíveis"] : []),
+          ...(profileResult.status === "rejected" ? ["produtos e impostos"] : []),
+          ...(sourceResult.status === "rejected" ? ["pagamentos"] : []),
+          ...(templateResult.status === "rejected" ? ["mensagens"] : []),
+          ...(setupFailed ? ["dados da empresa"] : []),
+        ]);
+        setProviders(catalogResult.status === "fulfilled" ? catalogResult.value.providers : []);
         setConnection(c);
         setProfiles(p);
         setTemplates(t);
-        setSources(s);
+        setSources(sourceResult.status === "fulfilled" ? sourceResult.value : []);
         setSetup(setupValue);
         setErps(erpValues);
+        const availableBling = erpValues.filter(account => account.provider === "bling" && account.status === "connected" && !account.requiresReconnect);
+        const previousErpId = c?.provider === "bling" ? c.erpConnectionId : null;
+        setErpId(previousErpId
+          ? availableBling.some(account => account.id === previousErpId) ? previousErpId : ""
+          : availableBling.length === 1 ? availableBling[0].id : "");
         if (c?.provider === provider) {
           setIssuerTaxId(c.issuerTaxId);
-          setErpId(c.erpConnectionId ?? "");
           setOwners({
             stockOwner: c.stockOwner,
             emailOwner: c.emailOwner,
@@ -192,20 +229,20 @@ export function FiscalSettingsPage({
         }
         setCompanyId(setupValue?.companyId ?? "");
         setTimeZone(setupValue?.fiscalTimeZone ?? "");
-        const editor = profileEditor(p.profile);
+        const editor = profileEditor(p?.profile ?? null);
         setItems(editor.items);
         setOperation(editor.operation);
-        setRegime(p.profile?.issuerRegime ?? "");
+        setRegime(p?.profile?.issuerRegime ?? "");
         setPolicyName(
           String(
-            p.profile?.itemRules.policyVersion ??
+            p?.profile?.itemRules.policyVersion ??
               setupValue?.accountEvidence?.policyVersion ??
               ""
           )
         );
         setPaymentMappings(
           Object.entries(
-            (p.profile?.itemRules.paymentMappings ?? {}) as Record<
+            (p?.profile?.itemRules.paymentMappings ?? {}) as Record<
               string,
               {
                 id?: number;
@@ -219,9 +256,9 @@ export function FiscalSettingsPage({
             receiptId: String(v.formaRecebimentoId ?? ""),
           }))
         );
-        setEmailSubject(t.email.subject);
-        setEmailBody(t.email.body);
-        setWhatsappBody(t.whatsapp.body);
+        setEmailSubject(t?.email.subject ?? "");
+        setEmailBody(t?.email.body ?? "");
+        setWhatsappBody(t?.whatsapp.body ?? "");
       } catch (e) {
         if (current === generation.current) setError(fiscalErrorText(e));
       } finally {
@@ -252,12 +289,14 @@ export function FiscalSettingsPage({
     } catch (e) {
       if (current === generation.current) setError(fiscalErrorText(e));
     } finally {
-      setBusy(false);
+      if (current === generation.current) setBusy(false);
     }
     return false;
   }
   const selectedConnection =
     connection?.provider === provider ? connection : null;
+  const availableBling = erps.filter(account => account.provider === "bling" && account.status === "connected" && !account.requiresReconnect);
+  const needsBlingReconnect = !availableBling.length && erps.some(account => account.provider === "bling");
   const credential = () => ({
     kind:
       provider === "omie"
@@ -287,7 +326,15 @@ export function FiscalSettingsPage({
         !!appKey &&
         (provider !== "tiny" || !!clientSecret)));
   const validConnection =
-    !!issuerTaxId.trim() && (provider === "bling" ? !!erpId : validCredential);
+    !connectionLoadFailed && !!issuerTaxId.trim() && (provider === "bling"
+      ? !erpLoadFailed && availableBling.some(account => account.id === erpId) : validCredential);
+  const connectionHelp = connectionLoadFailed
+    ? "Atualize os dados da conexão fiscal antes de continuar."
+    : provider === "bling" && erpLoadFailed ? "Atualize suas contas Bling para continuar."
+    : provider === "bling" && !availableBling.length ? "Conecte ou reconecte sua conta Bling nas integrações ERP para continuar."
+    : provider === "bling" && !erpId ? "Selecione a conta Bling que deve emitir as notas."
+    : !issuerTaxId.trim() ? "Informe o CNPJ da empresa para continuar."
+    : provider !== "bling" && !validCredential ? "Preencha as credenciais da sua conta para continuar." : "";
   const ready =
     selectedConnection?.readiness.length &&
     selectedConnection.readiness.every((r) => r.status === "verified");
@@ -352,7 +399,7 @@ export function FiscalSettingsPage({
                     onClick={() => setRevision((x) => x + 1)}
                     disabled={busy}
                   >
-                    Tentar novamente
+                    Atualizar dados
                   </Button>
                 </div>
               )}
@@ -365,6 +412,10 @@ export function FiscalSettingsPage({
                       aria-label="Conexão fiscal"
                     >
                       <h2>Conta e emitente</h2>
+                      {connectionLoadFailed && <div role="alert">
+                        <p>Não conseguimos carregar a conexão fiscal. Atualize os dados para continuar.</p>
+                        <Button variant="outline" onClick={() => setRevision(value => value + 1)}>Atualizar conexão</Button>
+                      </div>}
                       <p>
                         {selectedConnection
                           ? `Conta ${providerLabels[provider]} conectada${
@@ -372,14 +423,13 @@ export function FiscalSettingsPage({
                                 ? " · Emissão automática ativa"
                                 : " · Emissão ainda não ativa"
                             }.`
-                          : "Nenhuma conexão deste emissor neste ambiente."}{" "}
+                          : `Conecte sua conta ${providerLabels[provider]} para emitir as notas das suas vendas.`}{" "}
                         O certificado e sua senha ficam no painel do provedor.
                       </p>
                       {connection && connection.provider !== provider && (
                         <p>
-                          Há uma conexão {providerLabels[connection.provider]}{" "}
-                          neste ambiente. A troca preserva as notas e
-                          referências originais.
+                          Sua conta {providerLabels[connection.provider]} está vinculada à emissão.
+                          Ao trocar o emissor, suas notas e referências anteriores serão preservadas.
                         </p>
                       )}
                       <div className="configuration-form__grid">
@@ -399,8 +449,7 @@ export function FiscalSettingsPage({
                             onChange={setErpId}
                             options={[
                               { value: "", label: "Selecione sua conta Bling" },
-                              ...erps
-                                .filter((c) => c.provider === "bling")
+                              ...availableBling
                                 .map((c, i) => ({
                                   value: c.id,
                                   label: `Bling ${i + 1} · ${
@@ -410,7 +459,8 @@ export function FiscalSettingsPage({
                                   }`,
                                 })),
                             ]}
-                            hint="Reutiliza a autorização ERP, sem solicitar outro token."
+                            disabled={busy || erpLoadFailed || !availableBling.length}
+                            hint={availableBling.length === 1 ? "Sua conta Bling conectada já está selecionada." : "Escolha a conta Bling que você já conectou à Zyon."}
                           />
                         ) : (
                           <>
@@ -465,6 +515,7 @@ export function FiscalSettingsPage({
                         ).map((key) => (
                           <FormSelect
                             key={key}
+                            disabled={busy}
                             label={
                               {
                                 stockOwner: "Responsável pelo estoque",
@@ -486,9 +537,19 @@ export function FiscalSettingsPage({
                           />
                         ))}
                       </div>
+                      {provider === "bling" && erpLoadFailed && <div role="alert">
+                        <p>Não conseguimos carregar suas contas Bling.</p>
+                        <Button variant="outline" onClick={() => setRevision(value => value + 1)}>Atualizar contas Bling</Button>
+                      </div>}
+                      {provider === "bling" && !erpLoadFailed && !availableBling.length && <p role="status">
+                        {needsBlingReconnect ? "Sua autorização Bling precisa ser renovada. " : "Você ainda não tem uma conta Bling conectada. "}
+                        <a href="#erp-integrations">{needsBlingReconnect ? "Reconectar conta Bling" : "Conectar conta Bling"}</a>
+                      </p>}
+                      {connectionHelp && <p id="fiscal-connect-help" role="status">{connectionHelp}</p>}
                       <div className="fiscal-actions">
                         {provider !== "tiny" && <Button
                           disabled={busy || !validConnection}
+                          aria-describedby={connectionHelp ? "fiscal-connect-help" : undefined}
                           loading={busy}
                           onClick={() =>
                             run(
@@ -514,7 +575,7 @@ export function FiscalSettingsPage({
                               variant="outline"
                               disabled={
                                 busy ||
-                                (provider !== "bling" && !validCredential)
+                                (provider === "bling" ? !validConnection : !validCredential)
                               }
                               onClick={() =>
                                 run(
@@ -542,6 +603,10 @@ export function FiscalSettingsPage({
                           </>
                         )}
                       </div>
+                      {preparationIssues.length > 0 && <div className="fiscal-actions" role="status">
+                        <p>Não conseguimos carregar: {preparationIssues.join(", ")}. Você pode conectar a conta e atualizar esses dados depois.</p>
+                        <Button variant="outline" disabled={busy} onClick={() => setRevision(value => value + 1)}>Atualizar preparação</Button>
+                      </div>}
                     </section>
                     {selectedConnection && (
                       <>
@@ -714,9 +779,10 @@ export function FiscalSettingsPage({
                         </p>
                       )}
                       {!profiles?.supportedContract ? (
-                        <p role="alert">
-                          Operação não suportada pelo contrato fiscal
-                          disponível.
+                        <p>
+                          {selectedConnection
+                            ? "Confira a preparação da conta para consultar os produtos e impostos disponíveis."
+                            : "Conecte o emissor para continuar a configuração dos produtos e impostos."}
                         </p>
                       ) : (
                         <>
