@@ -54,7 +54,13 @@ jobs:
           VITE_OAUTH_REDIRECT_URI: ${{ vars.VITE_OAUTH_REDIRECT_URI }}
           VITE_TURNSTILE_SITE_KEY: ${{ vars.VITE_TURNSTILE_SITE_KEY }}
           VITE_FACEBOOK_LOGIN_ENABLED: ${{ vars.VITE_FACEBOOK_LOGIN_ENABLED }}
+      - name: Production fiscal scope and nullable connection regressions
+        run: >-
+          pnpm --filter @zyon/dashboard exec vitest run --maxWorkers=1 --minWorkers=1
+          src/pages/fiscal/fiscal-production-ui.spec.tsx src/api/fiscal-connection-empty.spec.ts
       - name: Install the browser used by the existing acceptance script
         run: pnpm --filter @zyon/dashboard exec playwright install --with-deps msedge
       - name: Olist authorization and private notification journeys
         run: node apps/dashboard/tests/fiscal-olist-browser.mjs
+      - name: Fiscal connection and invoice UI journeys
+        run: node apps/dashboard/scripts/verify-fiscal-ui-review.mjs all

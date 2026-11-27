@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { FileText, CircleAlert } from "lucide-react";
 import { createDashboardApi } from "../../api-client.js";
+import { fiscalDashboardEnvironment } from "../../lib/fiscal-environment.js";
 import type {
   FiscalEnvironment,
   FiscalInvoiceRow,
@@ -14,6 +16,7 @@ import { Button } from "../../components/Button.js";
 import { Pagination } from "../../components/Pagination.js";
 import { EmptyState } from "../../components/EmptyState.js";
 import { fiscalErrorText, providerLabels } from "./fiscal-ui.js";
+import { FiscalApiError } from "../../api/fiscal.js";
 import "../../components/configuration-form.css";
 import "./fiscal.css";
 export const fiscalStateLabels: Record<FiscalState, string> = {
@@ -58,15 +61,27 @@ export function FiscalInvoiceCounts({
 export function FiscalInvoiceRows({
   rows,
   onOpen,
+  filtered = false,
+  onClearFilters,
+  onSettings,
 }: {
   rows: FiscalInvoiceRow[];
   onOpen: (id: string) => void;
+  filtered?: boolean;
+  onClearFilters?: () => void;
+  onSettings?: () => void;
 }) {
   if (!rows.length)
     return (
       <EmptyState
-        title="Nenhuma nota encontrada"
-        description="As notas de novas vendas elegíveis aparecerão aqui. Ajuste a busca ou o ambiente para consultar outros resultados."
+        icon={FileText}
+        title={filtered ? "Nenhuma nota encontrada" : "Nenhuma nota fiscal ainda"}
+        description={filtered
+          ? "Não encontramos notas com esses filtros. Limpe os filtros para ver todas as notas."
+          : "Após ativar a emissão, as notas de novas vendas elegíveis aparecerão aqui. Prepare sua conta fiscal para começar."}
+        action={filtered
+          ? onClearFilters && <Button variant="outline" onClick={onClearFilters}>Limpar filtros</Button>
+          : onSettings && <Button variant="outline" onClick={onSettings}>Preparar emissão</Button>}
       />
     );
   return (
@@ -132,7 +147,7 @@ export function FiscalInvoicesPage({
     () => createDashboardApi({ baseUrl: apiBaseUrl }),
     [apiBaseUrl]
   );
-  const [environment, setEnvironment] =
+  const [selectedEnvironment, setEnvironment] =
       useState<FiscalEnvironment>(initialEnvironment),
     [search, setSearch] = useState(""),
     [applied, setApplied] = useState(""),
@@ -142,6 +157,7 @@ export function FiscalInvoicesPage({
     [error, setError] = useState(""),
     [loading, setLoading] = useState(true),
     [revision, setRevision] = useState(0);
+  const environment = fiscalDashboardEnvironment(selectedEnvironment);
   useEffect(() => {
     let live = true;
     setLoading(true);
@@ -162,7 +178,10 @@ export function FiscalInvoicesPage({
         if (live) setData(result);
       })
       .catch((e) => {
-        if (live) setError(fiscalErrorText(e));
+        if (live) setError(e instanceof FiscalApiError &&
+          (e.kind === "forbidden" || e.kind === "unauthenticated")
+          ? fiscalErrorText(e)
+          : "Atualize as notas para consultar os dados mais recentes. Se o problema continuar, entre em contato com o suporte.");
       })
       .finally(() => {
         if (live) setLoading(false);
@@ -190,7 +209,7 @@ export function FiscalInvoicesPage({
           {
             title: "Encontre o pedido",
             description:
-              "Busque pelo pedido ou pelo comprador. Confira o ambiente: homologação reúne os testes; produção acompanha a emissão das notas das vendas.",
+              "Busque pelo pedido ou pelo comprador para acompanhar as notas das suas vendas.",
           },
           {
             title: "Confira a nota e o envio separadamente",
@@ -217,7 +236,7 @@ export function FiscalInvoicesPage({
             }}
           >
             <div className="configuration-form__grid">
-              <FormSelect
+              {!import.meta.env.PROD && <FormSelect
                 label="Ambiente fiscal"
                 value={environment}
                 onChange={(v) => {
@@ -231,7 +250,7 @@ export function FiscalInvoicesPage({
                   },
                   { value: "production", label: "Produção" },
                 ]}
-              />
+              />}
               <FormSelect
                 label="Estado fiscal"
                 value={state}
@@ -267,28 +286,30 @@ export function FiscalInvoicesPage({
             <p role="status">Carregando notas…</p>
           ) : error ? (
             <div role="alert" className="fiscal-state">
-              <p>{error}</p>
-              <Button
-                variant="outline"
-                onClick={() => setRevision((v) => v + 1)}
-              >
-                Tentar novamente
-              </Button>
+              <EmptyState icon={CircleAlert} title="Não foi possível carregar as notas" description={error} />
             </div>
           ) : (
             data && (
               <>
-                <FiscalInvoiceCounts total={data.total} counts={data.counts} />
+                {data.total > 0 && <FiscalInvoiceCounts total={data.total} counts={data.counts} />}
                 <FiscalInvoiceRows
                   rows={data.items}
                   onOpen={(id) => onOpen(id, environment)}
+                  filtered={Boolean(applied || state)}
+                  onClearFilters={() => {
+                    setSearch("");
+                    setApplied("");
+                    setState("");
+                    setPage(1);
+                  }}
+                  onSettings={onSettings}
                 />
-                <Pagination
+                {data.total > 0 && <Pagination
                   page={data.page}
                   pageSize={data.pageSize}
                   total={data.total}
                   onChange={setPage}
-                />
+                />}
               </>
             )
           )}

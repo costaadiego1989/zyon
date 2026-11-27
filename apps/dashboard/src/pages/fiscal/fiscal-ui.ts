@@ -26,6 +26,8 @@ export function fiscalReasonText(code: string): string {
   return (
     (
       {
+        fiscal_connection_invalid:
+          "Confira o CNPJ e os dados da conexão antes de continuar.",
         fiscal_erp_reconnect_required:
           "Reconecte a autorização fiscal da conta.",
         fiscal_provider_unavailable:
@@ -40,7 +42,7 @@ export function fiscalReasonText(code: string): string {
           "A nota deve ser emitida pela mesma loja do pedido. Confira o vínculo da venda.",
         fiscal_document_pending: "Arquivo fiscal em recuperação.",
       } as Record<string, string>
-    )[code] ?? "Revise a preparação fiscal com o responsável pela empresa."
+    )[code] ?? "Confira os dados informados antes de continuar."
   );
 }
 export function fiscalCredentialSecret(
