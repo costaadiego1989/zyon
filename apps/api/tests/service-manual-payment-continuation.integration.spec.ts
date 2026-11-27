@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { composeOwnedSourceServiceRelease } from "./service-release-source-process.fixture.js";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
 import { Redis } from "ioredis";
@@ -16,6 +17,7 @@ import { serviceCheckoutProvenance } from "../src/shared/bookings/service-checko
 test("T35 trusted manual financial continuation preserves the pending appointment", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
   const f = await createServiceOperationsHttpFixture({ serviceReleaseFixture: "matching" }); let redis: Redis | undefined;
   try {
+    const releaseFixtureScope = composeOwnedSourceServiceRelease("matching"); t.after(() => releaseFixtureScope.close());
     redis = new Redis(f.runtime.redis.url, { lazyConnect: true, maxRetriesPerRequest: 1, commandTimeout: 3000, connectTimeout: 3000, enableOfflineQueue: false });
     await redis.connect(); assert.equal(await redis.get("aacp:synthetic:run"), f.runtime.redis.runId);
     const store = new RedisServiceSlots(redis), actor = { merchantId: f.owner.merchant_id, userId: f.owner.user_id, role: "owner" };

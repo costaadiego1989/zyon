@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { composeOwnedSourceServiceRelease } from "./service-release-source-process.fixture.js";
 import { test } from "node:test";
 import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
@@ -16,6 +17,7 @@ test("T29 HTTP", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
   const runtime = await createServiceTestRuntime({ local: true, buyerBooking: true, serviceReleaseFixture: "matching" });
   let raw: PrismaClient | undefined;
   try {
+    const releaseFixtureScope = composeOwnedSourceServiceRelease("matching"); t.after(() => releaseFixtureScope.close());
     raw = new PrismaClient({ datasources: { db: { url: runtime.db.prismaUrl } } });
     const prisma = raw, now = new Date(); await seedServiceBookingFixture(prisma, now);
     const request = async (path: string, body: unknown, token?: string, method = "POST") => {

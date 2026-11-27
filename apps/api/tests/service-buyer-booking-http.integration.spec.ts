@@ -4,6 +4,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
 import { createServiceTestRuntime } from "./service-test-runtime.mjs";
+import { composeOwnedDistServiceRelease } from "./service-release-dist-process.fixture.mjs";
 import { SERVICE_LOCAL_TEST_MS } from "./service-test-startup.mjs";
 import { lockCheckoutSessionAnchor } from "../src/shared/persistence/checkout-session-lock.js";
 import { RedisServiceSlots } from "../src/shared/bookings/redis-service-slots.js";
@@ -15,6 +16,7 @@ test("T40 HTTP/SQL/Redis", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
   const runtime = await createServiceTestRuntime({ local: true, buyerBooking: true, serviceReleaseFixture: "matching" });
   let prisma: PrismaClient | undefined, redis: Redis | undefined;
   try {
+    const releaseFixtureScope = composeOwnedDistServiceRelease("matching"); t.after(() => releaseFixtureScope.close());
     prisma = new PrismaClient({ datasources: { db: { url: runtime.db.prismaUrl } } });
     const db = prisma;
     redis = new Redis(runtime.redis.url, { maxRetriesPerRequest: 0, retryStrategy: () => null, connectTimeout: 5000, commandTimeout: 5000 });
