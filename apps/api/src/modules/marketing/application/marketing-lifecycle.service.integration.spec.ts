@@ -440,7 +440,7 @@ test("MKT-09/1 historical import gestures process proved store sources and repea
     try {
       await browser.page.goto(`${browser.url}&view=marketing&role=owner`);
       await browser.page
-        .getByRole("tab", { name: "Configurações", exact: true })
+        .getByRole("button", { name: "Configurações", exact: true })
         .click();
       await browser.page
         .getByRole("button", {
