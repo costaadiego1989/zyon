@@ -217,7 +217,7 @@ test("T38 actual service outbox ownership and captured transport preserve bookin
         const c = await seed(), before = await snapshot(c.appointment.id), offset = requests.length; await dispatcher.dispatch();
         assert.equal(requests.length, offset + 1); const text = requests.at(-1).freeformText;
         assert.ok(text.includes(lead)); assert.ok(text.startsWith("\ud83e\udd16")); assert.match(text, /\*Agendamento confirmado\*/);
-        for (const value of ["Synthetic booking-short", "Synthetic professional", "10:00", "10:20", "UTC", "50,00", "no atendimento"]) assert.ok(text.includes(value), value);
+        for (const value of ["Synthetic booking-short", "Synthetic professional", "07:00", "07:20", "America/Sao_Paulo", "50,00", "no atendimento"]) assert.ok(text.includes(value), value);
         assert.doesNotMatch(text, /T39_CANARY|Total pago|pedido enviado|confirmado pelo provedor/i); assert.deepEqual(await snapshot(c.appointment.id), before);
         assert.equal((await delivery(c.appointment.id))[0].state, "sent");
       }
