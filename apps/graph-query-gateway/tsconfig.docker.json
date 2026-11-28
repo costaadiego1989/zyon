@@ -4,5 +4,5 @@
     "strict": true, "skipLibCheck": true, "esModuleInterop": true,
     "rootDir": "src", "outDir": "dist", "types": ["node"], "noEmitOnError": true
   },
-  "include": ["src/gateway/server.ts"]
+  "include": ["src/graph-rag/gateway/server.ts"]
 }

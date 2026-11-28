@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ES2022", "module": "NodeNext", "moduleResolution": "NodeNext",
     "strict": true, "skipLibCheck": true, "esModuleInterop": true,
-    "rootDir": "../api/src/modules/graph-rag", "outDir": "dist", "types": ["node"], "noEmitOnError": true
+    "rootDir": "../api/src/modules", "outDir": "dist", "types": ["node"], "noEmitOnError": true
   },
   "include": ["../api/src/modules/graph-rag/gateway/server.ts"]
 }
