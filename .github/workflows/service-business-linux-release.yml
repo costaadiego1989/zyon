@@ -4,6 +4,11 @@ on:
     branches: [release/service-business-*]
   workflow_dispatch:
     inputs:
+      api_only:
+        description: Only the original API checked build and typecheck transport; no release payload
+        required: false
+        type: boolean
+        default: false
       source_revision:
         description: Exact reviewed 40-character source commit
         required: false
@@ -20,7 +25,7 @@ permissions:
   id-token: write
   attestations: write
 concurrency:
-  group: service-business-linux-release-${{ github.ref }}
+  group: service-business-linux-release-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.api_only && 'api-only' || 'full' }}
   cancel-in-progress: false
 jobs:
   tested-payload:
@@ -102,11 +107,13 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - name: Resume frontends, seven original checks, seal and export
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.api_only }}
         run: |
           set -eu
           docker exec "$SERVICE_CI_CONTAINER" node scripts/service-linux-release.mjs .cache/service-release-public-auth.json --resume-api-ci
           docker exec "$SERVICE_CI_CONTAINER" node scripts/service-linux-export-prebuilt.mjs "$SERVICE_RELEASE_NODE_BASE_IMAGE" "$SERVICE_RELEASE_NGINX_BASE_IMAGE" "${{ matrix.target }}"
       - name: Verify all four opaque prebuilt contexts without recompilation
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.api_only }}
         env:
           SOURCE_REVISION: ${{ inputs.source_revision || github.sha }}
           RELEASE_TARGET: ${{ matrix.target }}
@@ -129,10 +136,11 @@ jobs:
             esac
           done
       - uses: actions/attest-build-provenance@v2
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.api_only }}
         with:
           subject-path: .cache/railway-prebuilt-${{ inputs.source_revision || github.sha }}/*.tar.gz
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: ${{ always() && (github.event_name != 'workflow_dispatch' || !inputs.api_only) }}
         with:
           name: service-release-${{ matrix.target }}-${{ inputs.source_revision || github.sha }}
           path: |
