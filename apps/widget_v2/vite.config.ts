@@ -4,6 +4,7 @@ import { resolve } from "path";
 
 export default defineConfig(({ mode }) => ({
   plugins: [react()],
+  define: mode === "library" ? { "process.env.NODE_ENV": JSON.stringify("production") } : undefined,
   resolve: {
     alias: { "@": resolve(__dirname, "src") },
   },
