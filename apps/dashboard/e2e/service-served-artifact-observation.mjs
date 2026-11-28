@@ -99,6 +99,9 @@ async function createServedStaticFrontend(id){
   server.on('connection',socket=>{sockets.add(socket);socket.once('close',()=>sockets.delete(socket));});
   await new Promise((yes,no)=>{server.once('error',no);server.listen(0,'127.0.0.1',yes);});const address=server.address();assert.ok(address&&typeof address==='object'&&address.port>1024);
   let closed=false;return {origin:'http://127.0.0.1:'+address.port,indexBytes:readFileSync(resolve(directory,'index.html')),
-    async close(){if(closed)return;closed=true;const stopped=new Promise((yes,no)=>server.close(error=>error?no(error):yes()));
-      for(const socket of sockets)socket.destroy();await stopped;assert.equal(sockets.size,0,'release_dashboard_sockets_remaining');}};
+    async close(){if(closed)return;closed=true;
+      const socketClosures=[...sockets].map(socket=>new Promise(yes=>socket.once('close',yes)));
+      const stopped=new Promise((yes,no)=>server.close(error=>error?no(error):yes()));
+      for(const socket of sockets)socket.destroy();await stopped;await Promise.all(socketClosures);
+      assert.equal(sockets.size,0,'release_dashboard_sockets_remaining');}};
 }
