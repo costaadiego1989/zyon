@@ -2,7 +2,7 @@ import {test as base,expect,type Page,type Locator} from '@playwright/test';
 import {mkdir} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {createProductPaymentJourney} from '../../api/tests/product-payment-journey.fixture.mjs';
-import {declineOptionalStorefrontConsent} from '../e2e/service-buyer-storefront-helpers.js';
+import {declineOptionalStorefrontConsent,declineStorefrontMarketingOpening} from '../e2e/service-buyer-storefront-helpers.js';
 import {declineWhatsAppMarketingOpening} from './product-catalog-read-helpers.js';
 type Journey=Awaited<ReturnType<typeof createProductPaymentJourney>>;
 const blockedDestinations=new WeakMap<Page,string[]>();
@@ -37,9 +37,11 @@ async function add(page:Page,journey:Journey){
   if(journey.channel==='storefront'){
     await page.goto(journey.origin+'/store/'+journey.slug+'?show=content&product='+journey.productId);
     await declineOptionalStorefrontConsent(page);
+    await declineStorefrontMarketingOpening(page);
     const detail=page.getByRole('dialog',{name:'Detalhes do produto',exact:true});await expect(detail).toContainText(journey.names.product);
     const response=page.waitForResponse(value=>new URL(value.url()).pathname.endsWith('/messages')&&value.request().method()==='POST');
-    await detail.getByRole('button',{name:'Adicionar ao carrinho',exact:true}).first().click();const reply=await response;expect(reply.status()).toBe(201);
+    await detail.getByRole('button',{name:'Adicionar ao carrinho',exact:true}).first().click();
+    const reply=await response;expect(reply.status()).toBe(201);
     expect((await reply.json()).blocks.some((block:any)=>block.type==='cart_add_result'&&block.data.status==='succeeded'&&block.data.variantId===journey.variantId)).toBe(true);
     await detail.getByRole('button',{name:'Fechar produto e voltar ao chat',exact:true}).click();
   }else{

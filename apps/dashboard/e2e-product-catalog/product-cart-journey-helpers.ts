@@ -2,10 +2,11 @@ import {test as base,expect,type Page,type Locator} from '@playwright/test';
 import {mkdir} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {createProductCartJourney} from '../../api/tests/product-cart-journey.fixture.mjs';
-import {declineOptionalStorefrontConsent} from '../e2e/service-buyer-storefront-helpers.js';
+import {declineOptionalStorefrontConsent,declineStorefrontMarketingOpening} from '../e2e/service-buyer-storefront-helpers.js';
 import {declineWhatsAppMarketingOpening} from './product-catalog-read-helpers.js';
 type Journey=Awaited<ReturnType<typeof createProductCartJourney>>;
 const storefrontConsentHandled=new WeakSet<Page>();
+const storefrontMarketingHandled=new WeakSet<Page>();
 export const test=base.extend<{}, {cartChannel:'storefront'|'whatsapp';cartScenario:'mutations'|'crosssell';journey:Journey}>({
   cartChannel:['storefront',{option:true,scope:'worker'}],cartScenario:['mutations',{option:true,scope:'worker'}],
   journey:[async({cartChannel,cartScenario},use)=>{const own=await createProductCartJourney(cartChannel,cartScenario);try{await use(own);}finally{await own.close();}},{scope:'worker'}],
@@ -29,6 +30,7 @@ async function add(page:Page,journey:Journey,key:string){
   if(journey.channel==='storefront'){
     await page.goto(journey.origin+'/store/'+journey.slug+'?show=content&product='+journey.ids[key]);
     if(!storefrontConsentHandled.has(page)){await declineOptionalStorefrontConsent(page);storefrontConsentHandled.add(page);}
+    if(!storefrontMarketingHandled.has(page)){await declineStorefrontMarketingOpening(page);storefrontMarketingHandled.add(page);}
     const dialog=page.getByRole('dialog',{name:'Detalhes do produto',exact:true});await expect(dialog).toBeVisible();await expect(dialog).toContainText(journey.names[key]);
     const response=page.waitForResponse(value=>new URL(value.url()).pathname.endsWith('/messages')&&value.request().method()==='POST');
     const cta=dialog.getByRole('button',{name:'Adicionar ao carrinho',exact:true}).first();await expect(cta).toBeEnabled();await cta.focus();await page.keyboard.press('Enter');

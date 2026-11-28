@@ -1400,7 +1400,7 @@ export default function ConversationShell({
         }
         dismissProductCrossSell();
         handleQuickReply(`Adicionar ${product.name} ao carrinho [variantId:${product.id}]`);
-      }} suspended={buyerHubOpen || navigation.view.cart || showBuyerAuth || checkoutOpen || !financialPurchase && Boolean(preparedCrossSell?.products.length)} onProductResolved={({ productId, defaultVariantId }) => {
+      }} suspended={buyerHubOpen || navigation.view.cart || showBuyerAuth || checkoutOpen || (marketingChoiceRequired && effectiveMode === "chat") || !financialPurchase && Boolean(preparedCrossSell?.products.length)} onProductResolved={({ productId, defaultVariantId }) => {
         if (financialPurchase) return;
         if (richProduct.productId === productId && typeof defaultVariantId === "string" && /^[A-Za-z0-9_-]{1,191}$/.test(defaultVariantId)) {
           presentedProductVariantRef.current = defaultVariantId;

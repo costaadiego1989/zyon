@@ -2852,6 +2852,9 @@ Tasks: T113.
 
 ## Handoff
 
+**Settled mid-build (2026-11-28):** Source HEAD357e6b7 was qualified before commit in three focused cuts: atomic existing-catalog stock preparation, strict owned marketing-opening capture with canonical Meta device identity, and visible consent before direct product actions. The nine unchanged whole browser commands09-17 returned natural0 with 36 selected cases and no failed/skipped/retried cases on the exact24 tracked-source plus one new-contract working tree. Earlier38API cases,12 storefront reader cases,4 WhatsApp catalog cases and7 WhatsApp search/discovery cases retain their separate WIP10/14/22 receipts; no intermediate commit tree is labelled tested. The relative whole DI contract13/13 and affected storefront types/build0 remain scope-qualified. Exact original commands, artifacts, receipts and source hashes: C:/tmp/zyon-service-business-20261114/.cache/final-commit-composition-357e6b-20261128/qualification-path-summary.json (SHA256 95c6ebc5c79fab1b9d4d32098b639f29854fd506fde91e0f00c2adc0dd7f2dfb). Existing113 task marks,84criteria,125proof commands and approved Build9 remain unchanged. Fresh final-HEAD CI/import, the same ScreensRound2 pending states, full125+9+3, strict/canonical validation and deployment are still required.
+
+
 **Dispatched:** 2026-11-27 - Screens Round 2 fresh independent /root/final_screens_round2_20c679 at HEAD20c679d2eceb8bb9146987562addee93b09b6f03. Exclusive local SUT; six native captures and only75 prior differing rows; prior same rows preserved. Inputs: blind packet19c12b9005c2e3a169fadeade96d08c7ac3b2bd31c7b825c483d8ac4e5bacced plus literal-differing-rows SHA f61fcd7f9a0e90c21737207a5d6f96c015478b9dcf48ffb9b21d428fca2ff75f. No Checks, diff or author judgement; genuine CI70/API and UI70 access preparation only; no final Build9/125 credit.
 
 

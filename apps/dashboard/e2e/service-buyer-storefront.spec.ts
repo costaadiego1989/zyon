@@ -1,4 +1,4 @@
-import {createBuyerTest,expect,openGuest,identify,selectSlot,prepare,captureBuyer,declineOptionalStorefrontConsent,bookingTraffic} from './service-buyer-storefront-helpers.js';
+import {createBuyerTest,expect,openGuest,identify,selectSlot,prepare,captureBuyer,declineOptionalStorefrontConsent,declineStorefrontMarketingOpening,bookingTraffic} from './service-buyer-storefront-helpers.js';
 const localTest=createBuyerTest('local'),onlineTest=createBuyerTest('online'),emptyTest=createBuyerTest('empty'),
   conflictTest=createBuyerTest('conflict'),expiredTest=createBuyerTest('expired'),productsTest=createBuyerTest('products');
 
@@ -93,6 +93,7 @@ productsTest.describe('T93 actual storefront product preservation smoke',()=>{
     const serviceCalls:string[]=[];page.on('request',request=>{if(new URL(request.url()).pathname.includes('/service-booking/'))serviceCalls.push(request.url());});
     const before=await journey.snapshot();await page.goto(journey.origin+'/store/'+journey.slug+'?show=content&product='+journey.offer.productId);
     await declineOptionalStorefrontConsent(page);
+    await declineStorefrontMarketingOpening(page);
     const detail=page.getByRole('dialog',{name:'Detalhes do produto',exact:true});await expect(detail).toBeVisible();
     await expect(detail.getByText('Produto físico local',{exact:true}).first()).toBeVisible();
     const add=detail.getByRole('button',{name:'Adicionar ao carrinho',exact:true}).first();await expect(add).toBeEnabled();await add.focus();await page.keyboard.press('Enter');
