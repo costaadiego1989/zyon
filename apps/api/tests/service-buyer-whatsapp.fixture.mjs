@@ -3,6 +3,7 @@ import {randomUUID} from 'node:crypto';
 import {createServer} from 'node:http';
 import {PrismaClient} from '@prisma/client';
 import {createServiceTestRuntime} from './service-test-runtime.mjs';
+import {MARKETING_DECLINE} from '../dist/shared/contracts/marketing.js';
 
 const viewer=`<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Jornada WhatsApp local</title><style>body{margin:0;background:#eef2ef;color:#183c2c;font:16px/1.5 system-ui}main{max-width:840px;margin:24px auto;padding:18px}aside{position:sticky;top:0;z-index:2000;background:#173c2c;color:white;padding:12px}h1{font-size:24px}article{white-space:pre-wrap;background:white;padding:16px;margin:12px 0;border:1px solid #ccdbd2;overflow-wrap:anywhere}button{font:inherit;padding:10px 14px;margin:5px 5px 5px 0;border:1px solid #527965;background:#fff;color:#183c2c;border-radius:8px;max-width:100%}button:focus-visible,input:focus-visible{outline:3px solid #b7571c;outline-offset:2px}input{font:inherit;padding:10px;min-width:0;flex:1}form{display:flex;gap:8px;flex-wrap:wrap}small{display:block;color:#4d6658}#result{overflow-wrap:anywhere}</style><main><aside>WhatsApp local: entrada assinada, API e banco reais. Transporte Meta capturado; sem envio ou entrega externa.</aside><h1>Atendimento por WhatsApp â€” teste local</h1><p>Os textos e botÃµes abaixo vieram do adaptador canÃ´nico. Esta tela Ã© um visualizador de teste; nÃ£o Ã© o aplicativo WhatsApp.</p><section id="messages" role="log" aria-label="Mensagens capturadas"></section><form id="compose"><label for="text">Mensagem</label><input id="text" maxlength="4000" autocomplete="off"><button>Enviar</button></form><button id="duplicate" type="button">Reentregar última entrada</button><p id="result" role="status"></p></main><script type="module">
 const output=document.querySelector('#messages'),status=document.querySelector('#result');let busy=false;
@@ -16,7 +17,7 @@ document.querySelector('#compose').onsubmit=event=>{event.preventDefault();const
  * model overrides. The viewer forwards actual text/current control IDs only. */
 export async function createBuyerWhatsAppJourney(mode='services'){
   assert.ok(['services','products'].includes(mode),'buyer_whatsapp_mode_invalid');
-  const runtime=await createServiceTestRuntime({local:true,whatsapp:true,metaCapabilitiesFixture:'owned-empty-v1',recoveryTemplateMonitorFixture:'manual-only-v1',bookingAwaitTrace:'native18-v1',localModelFailureFixture:'owned-503-v1',native18HttpFailures:'closed-failures-v1',serviceReleaseFixture:'matching'});
+  const runtime=await createServiceTestRuntime({local:true,whatsapp:{marketingOpening:true},metaCapabilitiesFixture:'owned-empty-v1',recoveryTemplateMonitorFixture:'manual-only-v1',bookingAwaitTrace:'native18-v1',localModelFailureFixture:'owned-503-v1',native18HttpFailures:'closed-failures-v1',serviceReleaseFixture:'matching'});
   let db,server;const sockets=new Set();let lastWire,closed=false;
   const close=async()=>{if(closed)return;closed=true;const errors=[];
     try{if(server){const socketClosures=[...sockets].map(socket=>new Promise(resolve=>socket.once('close',resolve)));
@@ -28,7 +29,7 @@ export async function createBuyerWhatsAppJourney(mode='services'){
   try{
     db=new PrismaClient({datasources:{db:{url:runtime.db.prismaUrl}}});
     assert.deepEqual(await db.$queryRaw`SELECT run_id FROM synthetic_native_marker`,[{run_id:runtime.db.runId}]);
-    const merchantId='t93-wa-'+mode,configId=merchantId+'-config',phone='5511998000093',phoneNumberId='900093000001',deviceId='META_CLOUD:'+configId;
+    const merchantId='t93-wa-'+mode,configId=merchantId+'-config',phone='5511998000093',phoneNumberId='900046000093',deviceId='META_CLOUD:'+configId;
     await db.merchant.create({data:{id:merchantId,name:'Empresa WhatsApp local',businessMode:mode,businessModeSelectedAt:new Date(),plan:'STORE_ONLY',
       storeSettings:{company:{description:'Empresa sintÃ©tica com atendimento local.'}}}});
     await db.merchantBillingSubscription.create({data:{merchantId,status:'active',planKey:'growth'}});
@@ -73,10 +74,11 @@ export async function createBuyerWhatsAppJourney(mode='services'){
         &&(body.interactiveId===undefined||typeof body.interactiveId==='string'&&body.interactiveId.length<=256),'buyer_whatsapp_input_invalid');
       const eventId='t93-browser-inbound-'+randomUUID(),payload={entry:[{changes:[{field:'messages',value:{metadata:{phone_number_id:phoneNumberId},messages:[{
         id:eventId,from:phone,timestamp:String(Math.floor(Date.now()/1000)),type:body.interactiveId?'interactive':'text',
-        ...(body.interactiveId?{interactive:{list_reply:{id:body.interactiveId,title:body.text}}}:{text:{body:body.text}}),
+        ...(body.interactiveId?{interactive:body.interactiveId===MARKETING_DECLINE
+          ?{button_reply:{id:body.interactiveId,title:body.text}}:{list_reply:{id:body.interactiveId,title:body.text}}}:{text:{body:body.text}}),
       }]}}]}]};lastWire={eventId,payload};return deliver(lastWire,observation);
     };
-    const view=()=>({messages:runtime.whatsapp.events().filter(event=>event.kind==='sendText'&&(event.input.toNumber===phone||event.input.toNumber==='+'+phone)&&event.input.deviceId===deviceId)
+    const view=()=>({messages:runtime.whatsapp.events().filter(event=>event.kind==='sendText'&&(event.input.toNumber===phone||event.input.toNumber==='+'+phone)&&(event.input.deviceId===deviceId||(event.input.marketingOpening===true&&event.input.provider==='META_CLOUD')))
       .slice(-12).map(event=>({text:event.input.uiMessage?.text?.body??event.input.uiMessage?.interactive?.body?.text??event.input.text,uiMessage:event.input.uiMessage}))});
     server=createServer((request,response)=>{const observation={stage:'request',path:request.url==='/send'?'/send':request.url==='/duplicate'?'/duplicate':'other'};void(async()=>{
       if(!request.headers.host?.startsWith('127.0.0.1:')){response.statusCode=403;response.end();return;}

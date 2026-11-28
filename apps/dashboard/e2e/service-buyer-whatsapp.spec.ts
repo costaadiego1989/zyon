@@ -14,10 +14,13 @@ async function open(page:Page,journey:Journey){
   await page.goto(journey.origin);await expect(page.getByText(/Transporte Meta capturado; sem envio/)).toBeVisible();
 }
 async function send(page:Page,text:string){
+  const firstTurn=await page.getByRole('log',{name:'Mensagens capturadas'}).locator('article').count()===0;
   const processed=page.waitForResponse(value=>new URL(value.url()).pathname==='/send'&&value.request().method()==='POST');
   await page.getByRole('textbox',{name:'Mensagem',exact:true}).fill(text);await page.getByRole('textbox',{name:'Mensagem',exact:true}).press('Enter');
   const response=await processed;expect(response.status()).toBe(200);expect((await response.json()).status).toBe('processed');
   await expect(page.getByRole('status')).toHaveText('Entrada processada pela API local.');
+  // Preserve the live opening: the synthetic buyer declines its actual current button in the browser.
+  if(firstTurn)await choose(page,/^Agora n\u00e3o$/);
 }
 async function choose(page:Page,name:RegExp){
   const button=page.getByRole('log',{name:'Mensagens capturadas'}).getByRole('button',{name}).last();await expect(button).toBeEnabled();
