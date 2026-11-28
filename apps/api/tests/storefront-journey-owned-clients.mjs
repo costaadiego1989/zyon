@@ -30,17 +30,21 @@ export function journeyRedisDiagnostic(owner, client, socket = socketFor(client)
 export async function disconnectCapturedJourneyRedis(client, socket, proof, timeoutMs = 5000) {
   assert.ok(Number.isInteger(timeoutMs) && timeoutMs > 0 && timeoutMs <= 10_000, "journey_bounded_owned_disconnect_required");
   proof.assertCaptured(client, socket);
+  // Socket closure can be visible before ioredis processes its terminal event.
+  // Keep the captured owner and the existing deadline; a closed socket needs
+  // no additional disconnect, but the SDK must still reach its real end state.
+  const manualDisconnect = socket.closed !== true;
   return new Promise((resolve, reject) => {
     let timer, finished = false;
     const finish = error => {
       if (finished) return; finished = true;
       clearTimeout(timer); client.off("end", check); socket.off("close", check);
-      if (error) reject(error); else resolve({ manualDisconnect: true });
+      if (error) reject(error); else resolve({ manualDisconnect });
     };
     const check = () => { if (client.status === "end" && socket.closed === true) finish(); };
     client.on("end", check); socket.on("close", check);
     timer = setTimeout(() => finish(Error("journey_owned_redis_disconnect_close_timeout")), timeoutMs);
-    try { client.disconnect(); check(); } catch { finish(Error("journey_owned_redis_disconnect_failed")); }
+    try { if (manualDisconnect) client.disconnect(); check(); } catch { finish(Error("journey_owned_redis_disconnect_failed")); }
   });
 }
 
@@ -170,7 +174,7 @@ export function createOwnedJourneyClientTracker(app, redisPort) {
       if (client.status === "wait") continue;
       try {
         const socket = socketFor(client) ?? streams.get(client);
-        if (!socket || socket.closed) {
+        if (!socket || (socket.closed && client.status === "end")) {
           assert.equal(client.status, "end", "journey_owned_redis_ended_without_open_socket_required"); continue;
         }
         capturedGeneration.assertCaptured(client, socket);

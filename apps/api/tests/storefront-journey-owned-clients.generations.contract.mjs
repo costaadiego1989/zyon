@@ -83,6 +83,27 @@ test("same DI Redis client gets a fresh proof only after the old physical socket
   } finally { await f.close(); }
 });
 
+test("a captured closed socket waits for delayed SDK end without another disconnect", async () => {
+  const f = await fixture();
+  let terminal;
+  try {
+    await f.tracker.capture({ ping: false });
+    const socket = await physicallyClose(f.client);
+    // Replay the real CI observation at the SDK boundary. Socket identity and
+    // physical closure remain real; only reporting the terminal SDK state lags.
+    f.client.status = "ready";
+    terminal = new Promise(resolve => setTimeout(() => {
+      f.client.status = "end"; f.client.emit("end"); resolve();
+    }, 10));
+    const result = await f.tracker.close();
+    assert.equal(result.manualDisconnects, 0);
+    assert.equal(result.harnessRedisQuits, 0);
+    assert.equal(socket.closed, true);
+    assert.equal(f.client.status, "end");
+    assert.equal(f.own.commands.includes("quit"), false);
+  } finally { if (terminal) await terminal; await f.close(); }
+});
+
 test("open-old replacement, foreign owner/endpoint and uncaptured replacement never authorize cleanup", async () => {
   const f = await fixture();
   try {
