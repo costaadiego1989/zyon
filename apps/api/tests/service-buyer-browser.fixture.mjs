@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {PrismaClient} from '@prisma/client';
 import {createServiceTestRuntime} from './service-test-runtime.mjs';
+import {lockCatalogMerchant} from '../dist/shared/persistence/catalog-stock-ledger.js';
 import {BUYER_STOREFRONT_ORIGIN} from './service-buyer-storefront-contract.mjs';
 import {PasswordHasher} from '../dist/modules/auth/domain/services/password-hasher.service.js';
 
@@ -47,10 +48,16 @@ export async function createBuyerBrowserJourney(scenario){
       allowShippingDiscount:false,allowBonusItem:false,allowStackDiscountAndFreeShipping:false,couponBoxEnabled:false,
       autonomousEngineEnabled:false,freeShippingMinCartValue:0,maxShippingSubsidy:0,maxPartialShippingDiscount:0,
       offerExpirationMinutes:10,blockedRegions:[],brandVoice:'Cordial',originZip:'01310000'}});
-    await db.product.create({data:{id:offer.productId,merchantId,name:mode==='products'?'Produto físico local':'Consulta de orientação',type:mode==='products'?'physical':'service',isActive:true,
+    const createProduct=client=>client.product.create({data:{id:offer.productId,merchantId,name:mode==='products'?'Produto físico local':'Consulta de orientação',type:mode==='products'?'physical':'service',isActive:true,
       ...(mode==='services'?{metadata:{serviceSchedule:{timeZone:'America/Sao_Paulo',durationMinutes:30,slots:[]}}}:{}),
       variants:{create:{id:offer.variantId,sku:'T93-BROWSER',isActive:true,price:{create:{basePriceInCents:5000,currency:'BRL'}},
         ...(mode==='products'?{stock:{create:{quantity:10,reserved:0}}}:{})}}}});
+    if(mode==='products')await db.$transaction(async tx=>{
+      await lockCatalogMerchant(tx,merchantId);await createProduct(tx);
+      const location=await tx.inventoryLocation.findFirst({where:{merchantId:merchantId,isDefault:true,isActive:true},orderBy:{id:'asc'}})
+        ??await tx.inventoryLocation.create({data:{merchantId:merchantId,name:'Estoque principal',kind:'warehouse',isDefault:true,isActive:true}});
+      await tx.inventoryItem.create({data:{merchantId:merchantId,locationId:location.id,sku:'T93-BROWSER',productName:mode==='products'?'Produto físico local':'Consulta de orientação',quantity:10,reserved:0,salePriceCents:5000}});
+    });else await createProduct(db);
     const professionalId='t93-browser-professional';
     if(mode==='services'){
       await db.serviceProfessional.create({data:{id:professionalId,merchantId,publicName:'Profissional Ana',timeZone:'America/Sao_Paulo',isActive:true,isPublished:true}});

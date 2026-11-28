@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {PrismaClient} from '@prisma/client';
 import {createServiceTestRuntime} from './service-test-runtime.mjs';
+import {lockCatalogMerchant} from '../dist/shared/persistence/catalog-stock-ledger.js';
 import {BUYER_STOREFRONT_ORIGIN} from './service-buyer-storefront-contract.mjs';
 import {createProductCatalogViewer} from './product-catalog-read.viewer.mjs';
 
@@ -59,10 +60,16 @@ export async function createProductSearchReadJourney(channel,scenario){
     const foreignNames=[];
     for(const row of rows){
       const owner=row.foreign?foreignMerchantId:merchantId,id=prefix+'-'+row.key,name='Fone '+row.key+' sintético';if(row.foreign)foreignNames.push(name);
-      await db.product.create({data:{id,merchantId:owner,name,type:'physical',isActive:row.active!==false,
+      await db.$transaction(async tx=>{
+      await lockCatalogMerchant(tx,owner);
+      await tx.product.create({data:{id,merchantId:owner,name,type:'physical',isActive:row.active!==false,
         description:'Fone sintético local; preço, estoque e avaliações vêm do cadastro canônico.',
         variants:{create:{id:id+'-v',sku:id,isActive:true,price:{create:{basePriceInCents:row.price,costInCents:500,currency:'BRL'}},
           stock:{create:{quantity:row.stock??10,reserved:0}}}}}});
+      const location=await tx.inventoryLocation.findFirst({where:{merchantId:owner,isDefault:true,isActive:true},orderBy:{id:'asc'}})
+        ??await tx.inventoryLocation.create({data:{merchantId:owner,name:'Estoque principal',kind:'warehouse',isDefault:true,isActive:true}});
+      await tx.inventoryItem.create({data:{merchantId:owner,locationId:location.id,sku:id,productName:name,quantity:row.stock??10,reserved:0,avgCostCents:500,salePriceCents:row.price}});
+    });
       for(const[index,rating]of row.ratings.entries())await db.productReview.create({data:{id:id+'-r'+index,merchantId:owner,productId:id,
         buyerId:prefix+'-reviewer'+index,rating,text:'Avaliação sintética '+rating,approved:row.approved!==false,
         moderationStatus:row.approved===false?'pending':'approved',verified:false}});

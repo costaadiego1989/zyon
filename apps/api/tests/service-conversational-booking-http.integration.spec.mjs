@@ -5,6 +5,7 @@ import {setTimeout as pause} from 'node:timers/promises';
 import {PrismaClient} from '@prisma/client';
 import {Redis} from 'ioredis';
 import {createServiceTestRuntime} from './service-test-runtime.mjs';
+import {lockCatalogMerchant} from '../dist/shared/persistence/catalog-stock-ledger.js';
 import {SERVICE_LOCAL_TEST_MS} from './service-test-startup.mjs';
 import {businessDateKey} from '../src/shared/analytics/business-period.js';
 
@@ -130,7 +131,13 @@ test('T47 product conversation and invalid scheduling arguments preserve commerc
  const reply='Posso ajudar você a conhecer os produtos da loja.';
  const modelScript=[{phase:'storefront.intent',response:{schemaVersion:2,domain:'STORE_COMMERCE',intent:'COMPLEX_QUESTION',confidence:1,requiresTool:false,needsProductDiscovery:false,shoppingPhase:null,serviceRequest:null,serviceAction:null}},{phase:'storefront.sales',response:{schemaVersion:1,message:reply}},{phase:'storefront.reply-review',response:{schemaVersion:1,verdict:'ALLOW',confidence:1}},...turn('get_service_professionals',{...offer,merchantId:'forged-merchant',cartRef:'forged-cart',paid:true})];
  const f=await fixture(modelScript);try{
-  const own=await f.company('products','products'),buyer=await f.buyer();await f.db.product.create({data:{id:'dispatch-physical',merchantId:own.merchantId,name:'Produto preservado',type:'physical',variants:{create:{id:'dispatch-physical-variant',sku:'PHYSICAL-DISPATCH',price:{create:{basePriceInCents:1000,currency:'BRL'}},stock:{create:{quantity:12,reserved:2}}}}}});
+  const own=await f.company('products','products'),buyer=await f.buyer();await f.db.$transaction(async tx=>{
+      await lockCatalogMerchant(tx,own.merchantId);
+      await tx.product.create({data:{id:'dispatch-physical',merchantId:own.merchantId,name:'Produto preservado',type:'physical',variants:{create:{id:'dispatch-physical-variant',sku:'PHYSICAL-DISPATCH',price:{create:{basePriceInCents:1000,currency:'BRL'}},stock:{create:{quantity:12,reserved:2}}}}}});
+      const location=await tx.inventoryLocation.findFirst({where:{merchantId:own.merchantId,isDefault:true,isActive:true},orderBy:{id:'asc'}})
+        ??await tx.inventoryLocation.create({data:{merchantId:own.merchantId,name:'Estoque principal',kind:'warehouse',isDefault:true,isActive:true}});
+      await tx.inventoryItem.create({data:{merchantId:own.merchantId,locationId:location.id,sku:'PHYSICAL-DISPATCH',productName:'Produto preservado',quantity:12,reserved:2,salePriceCents:1000}});
+    });
   await f.db.storefrontCart.update({where:{merchantId_sessionId:{merchantId:own.merchantId,sessionId:own.cartRef}},data:{items:[{productId:'dispatch-physical',variantId:'dispatch-physical-variant',sku:'PHYSICAL-DISPATCH',name:'Produto preservado',quantity:1,unitPriceCents:1000}],total:1000}});
   // Establish the real authenticated recovery projection before testing commerce preservation.
   const beforeBinding=await f.snapshot(),beforeBindingStock=await f.db.productStock.findMany();

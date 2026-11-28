@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {createServiceTestRuntime} from './service-test-runtime.mjs';
+import {lockCatalogMerchant} from '../dist/shared/persistence/catalog-stock-ledger.js';
 import {SERVICE_LOCAL_TEST_MS} from './service-test-startup.mjs';
 import {insert} from './service-migration-fixture.mjs';
 
@@ -149,9 +150,16 @@ test('REG02 uncategorized catalog products retain the optional category contract
       couponBoxEnabled:false,autonomousEngineEnabled:false,freeShippingMinCartValue:0,maxShippingSubsidy:0,maxPartialShippingDiscount:0,offerExpirationMinutes:10,blockedRegions:[],brandVoice:'consultative',originZip:'01310000'};
     await prisma.merchantRule.upsert({where:{merchantId},create:{merchantId,...rules},update:rules});
     const categoryId=prefix+'-category';await prisma.productCategory.create({data:{id:categoryId,merchantId,name:'Synthetic actual category',slug:prefix+'-category'}});
-    const create=async(key,price,category)=>prisma.product.create({data:{id:prefix+'-'+key,merchantId,name:'Synthetic '+key,type:'physical',isActive:true,
+    const create=async(key,price,category)=>prisma.$transaction(async tx=>{
+      await lockCatalogMerchant(tx,merchantId);
+      const product=await tx.product.create({data:{id:prefix+'-'+key,merchantId,name:'Synthetic '+key,type:'physical',isActive:true,
       ...(category===undefined?{}:{categoryId:category}),variants:{create:{id:prefix+'-'+key+'-v',sku:prefix+'-'+key+'-sku',isActive:true,
         price:{create:{basePriceInCents:price,costInCents:200,currency:'BRL'}},stock:{create:{quantity:20,reserved:0}}}}}});
+      const location=await tx.inventoryLocation.findFirst({where:{merchantId:merchantId,isDefault:true,isActive:true},orderBy:{id:'asc'}})
+        ??await tx.inventoryLocation.create({data:{merchantId:merchantId,name:'Estoque principal',kind:'warehouse',isDefault:true,isActive:true}});
+      await tx.inventoryItem.create({data:{merchantId:merchantId,locationId:location.id,sku:prefix+'-'+key+'-sku',productName:'Synthetic '+key,quantity:20,reserved:0,avgCostCents:200,salePriceCents:price}});
+      return product;
+    });
     const rawHost=await create('host',4000),rawTarget=await create('target',2000),rawCategorized=await create('categorized',1000,categoryId);
     assert.equal(rawHost.categoryId,null);assert.equal(rawTarget.categoryId,null);
     const products=new PrismaProductRepository(prisma),host=await products.findById(merchantId,rawHost.id),target=await products.findById(merchantId,rawTarget.id);
@@ -192,10 +200,20 @@ test('REG02 uncategorized catalog products retain the optional category contract
     await prisma.storefrontCart.update({where:{merchantId_sessionId:{merchantId,sessionId:cartId}},data:{items:legacyItems}});
     const ready=await prisma.storefrontCart.findUniqueOrThrow({where:{merchantId_sessionId:{merchantId,sessionId:cartId}}});
     await assert.rejects(adapter.quote({merchantId:foreignMerchantId,cartId},request),review);
-    await prisma.productStock.updateMany({where:{variantId:recommended.id},data:{quantity:0}});
+    await prisma.$transaction(async tx=>{
+      await lockCatalogMerchant(tx,merchantId);
+      const stock=await tx.productStock.updateMany({where:{variantId:recommended.id},data:{quantity:0}});
+      const item=await tx.inventoryItem.updateMany({where:{merchantId,sku:recommended.sku},data:{quantity:0}});
+      if(stock.count!==1||item.count!==1)throw new Error('synthetic_stock_mirror_precondition_missing');
+    });
     await assert.rejects(adapter.quote(scope,request),review);
     assert.deepEqual(await prisma.storefrontCart.findUniqueOrThrow({where:{merchantId_sessionId:{merchantId,sessionId:cartId}}}),ready);
-    await prisma.productStock.updateMany({where:{variantId:recommended.id},data:{quantity:20}});
+    await prisma.$transaction(async tx=>{
+      await lockCatalogMerchant(tx,merchantId);
+      const stock=await tx.productStock.updateMany({where:{variantId:recommended.id},data:{quantity:20}});
+      const item=await tx.inventoryItem.updateMany({where:{merchantId,sku:recommended.sku},data:{quantity:20}});
+      if(stock.count!==1||item.count!==1)throw new Error('synthetic_stock_mirror_precondition_missing');
+    });
     // JSON transport omits no hidden undefined key; a real accept revalidates and commits this same quote once.
     assert.deepEqual(await adapter.accept(scope,{expectedQuote:JSON.parse(JSON.stringify(legacyQuote))}),{version:1,status:'accepted',...scope});
     const accepted=await prisma.storefrontCart.findUniqueOrThrow({where:{merchantId_sessionId:{merchantId,sessionId:cartId}}});

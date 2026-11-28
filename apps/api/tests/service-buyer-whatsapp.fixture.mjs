@@ -3,6 +3,7 @@ import {randomUUID} from 'node:crypto';
 import {createServer} from 'node:http';
 import {PrismaClient} from '@prisma/client';
 import {createServiceTestRuntime} from './service-test-runtime.mjs';
+import {lockCatalogMerchant} from '../dist/shared/persistence/catalog-stock-ledger.js';
 import {MARKETING_DECLINE} from '../dist/shared/contracts/marketing.js';
 
 const viewer=`<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Jornada WhatsApp local</title><style>body{margin:0;background:#eef2ef;color:#183c2c;font:16px/1.5 system-ui}main{max-width:840px;margin:24px auto;padding:18px}aside{position:sticky;top:0;z-index:2000;background:#173c2c;color:white;padding:12px}h1{font-size:24px}article{white-space:pre-wrap;background:white;padding:16px;margin:12px 0;border:1px solid #ccdbd2;overflow-wrap:anywhere}button{font:inherit;padding:10px 14px;margin:5px 5px 5px 0;border:1px solid #527965;background:#fff;color:#183c2c;border-radius:8px;max-width:100%}button:focus-visible,input:focus-visible{outline:3px solid #b7571c;outline-offset:2px}input{font:inherit;padding:10px;min-width:0;flex:1}form{display:flex;gap:8px;flex-wrap:wrap}small{display:block;color:#4d6658}#result{overflow-wrap:anywhere}</style><main><aside>WhatsApp local: entrada assinada, API e banco reais. Transporte Meta capturado; sem envio ou entrega externa.</aside><h1>Atendimento por WhatsApp â€” teste local</h1><p>Os textos e botÃµes abaixo vieram do adaptador canÃ´nico. Esta tela Ã© um visualizador de teste; nÃ£o Ã© o aplicativo WhatsApp.</p><section id="messages" role="log" aria-label="Mensagens capturadas"></section><form id="compose"><label for="text">Mensagem</label><input id="text" maxlength="4000" autocomplete="off"><button>Enviar</button></form><button id="duplicate" type="button">Reentregar última entrada</button><p id="result" role="status"></p></main><script type="module">
@@ -39,9 +40,15 @@ export async function createBuyerWhatsAppJourney(mode='services'){
     await db.whatsAppChannelConfig.create({data:{id:configId,merchantId,provider:'META_CLOUD',enabled:true,status:'ACTIVE',deviceId,
       credentials:{phoneNumberId,wabaId:'900046999',accessToken:'synthetic-not-a-provider-secret'}}});
     const productId=merchantId+'-offer',variantId=productId+'-variant',professionalId=merchantId+'-professional';
-    await db.product.create({data:{id:productId,merchantId,name:mode==='services'?'Consulta local':'Produto físico local',type:mode==='services'?'service':'physical',isActive:true,
+    const createProduct=client=>client.product.create({data:{id:productId,merchantId,name:mode==='services'?'Consulta local':'Produto físico local',type:mode==='services'?'service':'physical',isActive:true,
       ...(mode==='services'?{metadata:{serviceSchedule:{durationMinutes:30,timeZone:'America/Sao_Paulo',slots:[]}}}:{}),
       variants:{create:{id:variantId,sku:'T93-WA',isActive:true,price:{create:{basePriceInCents:5000,currency:'BRL'}},stock:{create:{quantity:10}}}}}});
+    if(mode==='products')await db.$transaction(async tx=>{
+      await lockCatalogMerchant(tx,merchantId);await createProduct(tx);
+      const location=await tx.inventoryLocation.findFirst({where:{merchantId:merchantId,isDefault:true,isActive:true},orderBy:{id:'asc'}})
+        ??await tx.inventoryLocation.create({data:{merchantId:merchantId,name:'Estoque principal',kind:'warehouse',isDefault:true,isActive:true}});
+      await tx.inventoryItem.create({data:{merchantId:merchantId,locationId:location.id,sku:'T93-WA',productName:mode==='services'?'Consulta local':'Produto físico local',quantity:10,reserved:0,salePriceCents:5000}});
+    });else await createProduct(db);
     if(mode==='services'){
       await db.serviceBusinessPolicy.create({data:{merchantId,admissionsEnabled:true,paymentMode:'at_attendance',holdEnabled:false,holdMinutes:null,version:1,configuredAt:new Date()}});
       await db.serviceProfessional.create({data:{id:professionalId,merchantId,publicName:'Profissional Ana',timeZone:'America/Sao_Paulo',isPublished:true,isActive:true}});

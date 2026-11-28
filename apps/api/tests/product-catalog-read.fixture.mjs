@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {PrismaClient} from '@prisma/client';
 import {createServiceTestRuntime} from './service-test-runtime.mjs';
+import {lockCatalogMerchant} from '../dist/shared/persistence/catalog-stock-ledger.js';
 import {BUYER_STOREFRONT_ORIGIN} from './service-buyer-storefront-contract.mjs';
 import {createProductCatalogViewer} from './product-catalog-read.viewer.mjs';
 
@@ -53,10 +54,16 @@ export async function createProductCatalogReadJourney(channel,scenario){
       for(let index=1;index<=count;index++){
         const number=String(index).padStart(2,'0'),productId=prefix+'-'+key+'-p'+number,name=label+' '+number;
         if(key==='foreign')foreignNames.push(name);
-        await db.product.create({data:{id:productId,merchantId:id,name,type:'physical',isActive:true,
+        await db.$transaction(async tx=>{
+      await lockCatalogMerchant(tx,id);
+      await tx.product.create({data:{id:productId,merchantId:id,name,type:'physical',isActive:true,
           description:'Produto sintético de catálogo. Dados atuais verificados pelo leitor original.',
           variants:{create:{id:productId+'-v',sku:prefix+'-'+key+'-'+number,isActive:true,
             price:{create:{basePriceInCents:1500+index*100,currency:'BRL'}},stock:{create:{quantity:10,reserved:0}}}}}});
+      const location=await tx.inventoryLocation.findFirst({where:{merchantId:id,isDefault:true,isActive:true},orderBy:{id:'asc'}})
+        ??await tx.inventoryLocation.create({data:{merchantId:id,name:'Estoque principal',kind:'warehouse',isDefault:true,isActive:true}});
+      await tx.inventoryItem.create({data:{merchantId:id,locationId:location.id,sku:prefix+'-'+key+'-'+number,productName:name,quantity:10,reserved:0,salePriceCents:1500+index*100}});
+    });
       }
     }
     const catalogRows=()=>db.product.findMany({where:{merchantId:{in:[merchantId,foreignMerchantId]}},

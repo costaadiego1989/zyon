@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {PrismaClient} from '@prisma/client';
+import {lockCatalogMerchant} from '../dist/shared/persistence/catalog-stock-ledger.js';
 import {createServiceTestRuntime} from './service-test-runtime.mjs';
 import {BUYER_STOREFRONT_ORIGIN} from './service-buyer-storefront-contract.mjs';
 import {createProductCatalogViewer} from './product-catalog-read.viewer.mjs';
@@ -32,9 +33,12 @@ export async function createProductContactDeliveryJourney(channel,scenario){
     }
     await db.ownDeliveryConfig.create({data:{merchantId,enabled:true,mode:'neighborhood',flatPriceCents:null,freeAboveCents:null,neighborhoods:[{name:'Centro',priceCents:750},{name:'Jardins',priceCents:1250}],estimatedValue:1,estimatedUnit:'days'}});
     const productId=prefix+'-product',variantId=prefix+'-variant';
-    await db.product.create({data:{id:productId,merchantId,name:names.product,type:'physical',isActive:true,description:'Produto sintético para validar contato e entrega.',variants:{create:{id:variantId,sku:variantId,isActive:true,price:{create:{basePriceInCents:4000,costInCents:1000,currency:'BRL'}},stock:{create:{quantity:20,reserved:0}}}}}});
-    const inventoryLocation=await db.inventoryLocation.create({data:{merchantId,name:'Estoque principal',kind:'warehouse',isDefault:true}});
-    await db.inventoryItem.create({data:{merchantId,sku:variantId,productName:names.product,locationId:inventoryLocation.id,quantity:20,reserved:0,avgCostCents:1000,salePriceCents:4000}});
+    await db.$transaction(async tx=>{
+      await lockCatalogMerchant(tx,merchantId);
+      await tx.product.create({data:{id:productId,merchantId,name:names.product,type:'physical',isActive:true,description:'Produto sintético para validar contato e entrega.',variants:{create:{id:variantId,sku:variantId,isActive:true,price:{create:{basePriceInCents:4000,costInCents:1000,currency:'BRL'}},stock:{create:{quantity:20,reserved:0}}}}}});
+      const inventoryLocation=await tx.inventoryLocation.create({data:{merchantId,name:'Estoque principal',kind:'warehouse',isDefault:true}});
+      await tx.inventoryItem.create({data:{merchantId,sku:variantId,productName:names.product,locationId:inventoryLocation.id,quantity:20,reserved:0,avgCostCents:1000,salePriceCents:4000}});
+    });
     // Only static account/profile/address facts. The password is verified by the
     // real login use case, then the real guarded profile writer encrypts PII.
     let buyerId;

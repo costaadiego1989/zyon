@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {PrismaClient} from '@prisma/client';
+import {lockCatalogMerchant} from '../dist/shared/persistence/catalog-stock-ledger.js';
 import {createServiceTestRuntime} from './service-test-runtime.mjs';
 import {BUYER_STOREFRONT_ORIGIN} from './service-buyer-storefront-contract.mjs';
 import {createProductCatalogViewer} from './product-catalog-read.viewer.mjs';
@@ -31,15 +32,18 @@ export async function createProductCartJourney(channel,scenario){
       await db.merchantRule.upsert({where:{merchantId:id},create:{merchantId:id,...rules},update:rules});
     }
     const prices={a:4000,b:2000,c:1000,d:3000,e:1500,out:500,foreign:500};
-    for(const key of Object.keys(ids))await db.product.create({data:{id:ids[key],merchantId:key==='foreign'?foreignMerchantId:merchantId,name:names[key],type:'physical',isActive:true,
-      description:'Produto sintético publicado: '+names[key]+'.',variants:{create:{id:variants[key],sku:variants[key],isActive:true,
-        price:{create:{basePriceInCents:prices[key],costInCents:200,currency:'BRL'}},stock:{create:{quantity:key==='out'?0:20,reserved:0}}}}}});
-    for(const id of[merchantId,foreignMerchantId]){
-      const location=await db.inventoryLocation.create({data:{merchantId:id,name:'Estoque principal',kind:'warehouse',isDefault:true}});
-      for(const key of Object.keys(ids).filter(key=>(key==='foreign'?foreignMerchantId:merchantId)===id))
-        await db.inventoryItem.create({data:{merchantId:id,sku:variants[key],productName:names[key],locationId:location.id,
-          quantity:key==='out'?0:20,reserved:0,avgCostCents:200,salePriceCents:prices[key]}});
-    }
+    await db.$transaction(async tx=>{
+      for(const id of[merchantId,foreignMerchantId].sort())await lockCatalogMerchant(tx,id);
+      for(const key of Object.keys(ids))await tx.product.create({data:{id:ids[key],merchantId:key==='foreign'?foreignMerchantId:merchantId,name:names[key],type:'physical',isActive:true,
+        description:'Produto sintético publicado: '+names[key]+'.',variants:{create:{id:variants[key],sku:variants[key],isActive:true,
+          price:{create:{basePriceInCents:prices[key],costInCents:200,currency:'BRL'}},stock:{create:{quantity:key==='out'?0:20,reserved:0}}}}}});
+      for(const id of[merchantId,foreignMerchantId]){
+        const location=await tx.inventoryLocation.create({data:{merchantId:id,name:'Estoque principal',kind:'warehouse',isDefault:true}});
+        for(const key of Object.keys(ids).filter(key=>(key==='foreign'?foreignMerchantId:merchantId)===id))
+          await tx.inventoryItem.create({data:{merchantId:id,sku:variants[key],productName:names[key],locationId:location.id,
+            quantity:key==='out'?0:20,reserved:0,avgCostCents:200,salePriceCents:prices[key]}});
+      }
+    });
     const promotionIds={ab:prefix+'-ab',bc:prefix+'-bc',de:prefix+'-de'};
     if(scenario==='crosssell')for(const[key,source,recommended,discount]of[['ab','a',[variants.out,variants.foreign,variants.b],10],['bc','b',[variants.c],10],['de','d',[variants.e],0]]){
       await db.crossSellPromotion.create({data:{id:promotionIds[key],merchantId,name:'Regra sintética '+key,trigger:{sku_in_cart:[variants[source]]},recommendedSkus:recommended,

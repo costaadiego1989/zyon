@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {PrismaClient} from '@prisma/client';
 import {createServiceTestRuntime} from './service-test-runtime.mjs';
+import {lockCatalogMerchant} from '../dist/shared/persistence/catalog-stock-ledger.js';
 import {BUYER_STOREFRONT_ORIGIN} from './service-buyer-storefront-contract.mjs';
 import {createProductCatalogViewer} from './product-catalog-read.viewer.mjs';
 const classify=intent=>({phase:'storefront.intent',response:{schemaVersion:2,domain:'STORE_COMMERCE',intent,confidence:1,requiresTool:true,
@@ -45,9 +46,15 @@ export async function createProductDiscoveryReadJourney(channel,surface){
       await db.productCategory.create({data:{id,merchantId:owner,name,slug:id,isActive:true}});
     for(const[key,price,category,attributes]of[['a',4500,'audio',{cor:'Preto',conectividade:'Bluetooth'}],['b',8500,'audio',{cor:'Branco',conectividade:'USB'}],['c',1900,'cables',{cor:'Azul'}],['foreign',1000,'foreign',{cor:'Externa'}]]){
       const owner=key==='foreign'?foreignMerchantId:merchantId;
-      await db.product.create({data:{id:ids[key],merchantId:owner,categoryId:categoryIds[category],name:names[key],type:'physical',isActive:true,
+      await db.$transaction(async tx=>{
+      await lockCatalogMerchant(tx,owner);
+      await tx.product.create({data:{id:ids[key],merchantId:owner,categoryId:categoryIds[category],name:names[key],type:'physical',isActive:true,
         description:'Descrição sintética publicada de '+names[key]+'.',variants:{create:{id:ids[key]+'-v',sku:ids[key],attributes,isActive:true,
           price:{create:{basePriceInCents:price,costInCents:500,currency:'BRL'}},stock:{create:{quantity:10,reserved:0}}}}}});
+      const location=await tx.inventoryLocation.findFirst({where:{merchantId:owner,isDefault:true,isActive:true},orderBy:{id:'asc'}})
+        ??await tx.inventoryLocation.create({data:{merchantId:owner,name:'Estoque principal',kind:'warehouse',isDefault:true,isActive:true}});
+      await tx.inventoryItem.create({data:{merchantId:owner,locationId:location.id,sku:ids[key],productName:names[key],quantity:10,reserved:0,avgCostCents:500,salePriceCents:price}});
+    });
     }
     const base=Date.parse('2026-01-10T12:00:00Z');
     for(let index=0;index<12;index++)await db.productReview.create({data:{id:prefix+'-r'+String(index).padStart(2,'0'),merchantId,productId:ids.a,

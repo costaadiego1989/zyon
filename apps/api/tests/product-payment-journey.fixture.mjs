@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {PrismaClient} from '@prisma/client';
+import {lockCatalogMerchant} from '../dist/shared/persistence/catalog-stock-ledger.js';
 import {createServiceTestRuntime} from './service-test-runtime.mjs';
 import {BUYER_STOREFRONT_ORIGIN} from './service-buyer-storefront-contract.mjs';
 import {createProductCatalogViewer} from './product-catalog-read.viewer.mjs';
@@ -32,7 +33,18 @@ export async function createProductPaymentJourney(channel,scenario){
     }
     await db.ownDeliveryConfig.create({data:{merchantId,enabled:true,mode:'neighborhood',flatPriceCents:null,freeAboveCents:null,neighborhoods:[{name:'Centro',priceCents:750},{name:'Jardins',priceCents:1250}],estimatedValue:1,estimatedUnit:'days'}});
     const productId=prefix+'-product',variantId=prefix+'-variant';
-    await db.product.create({data:{id:productId,merchantId,name:names.product,type:'physical',isActive:true,description:'Produto sintético para validar contato e entrega.',variants:{create:{id:variantId,sku:variantId,isActive:true,price:{create:{basePriceInCents:4000,costInCents:1000,currency:'BRL'}},stock:{create:{quantity:20,reserved:0}}}}}});
+    // Static source inventory, never a sale result. Real inventory consumer owns
+    // subsequent decrement/projection/movement/receipt after the real event.
+    await db.$transaction(async tx=>{
+      for(const id of[merchantId,foreignMerchantId].sort())await lockCatalogMerchant(tx,id);
+      await tx.product.create({data:{id:productId,merchantId,name:names.product,type:'physical',isActive:true,description:'Produto sintético para validar contato e entrega.',variants:{create:{id:variantId,sku:variantId,isActive:true,price:{create:{basePriceInCents:4000,costInCents:1000,currency:'BRL'}},stock:{create:{quantity:20,reserved:0}}}}}});
+      const location=await tx.inventoryLocation.create({data:{merchantId,name:'Depósito sintético S5',isDefault:true,isActive:true}});
+      await tx.inventoryItem.create({data:{merchantId,locationId:location.id,sku:variantId,productName:names.product,quantity:20,reserved:0}});
+      await tx.product.create({data:{id:prefix+'-foreign-product',merchantId:foreignMerchantId,name:'Produto de outra empresa',type:'physical',isActive:true,
+        variants:{create:{id:prefix+'-foreign-variant',sku:prefix+'-foreign-variant',isActive:true,price:{create:{basePriceInCents:9900,currency:'BRL'}},stock:{create:{quantity:10,reserved:0}}}}}});
+      const foreignLocation=await tx.inventoryLocation.create({data:{merchantId:foreignMerchantId,name:'Estoque principal',kind:'warehouse',isDefault:true,isActive:true}});
+      await tx.inventoryItem.create({data:{merchantId:foreignMerchantId,locationId:foreignLocation.id,sku:prefix+'-foreign-variant',productName:'Produto de outra empresa',quantity:10,reserved:0,salePriceCents:9900}});
+    });
     // Only static account/profile/address facts. The password is verified by the
     // real login use case, then the real guarded profile writer encrypts PII.
     let buyerId;
@@ -45,12 +57,6 @@ export async function createProductPaymentJourney(channel,scenario){
     }
     const foreign=await db.buyerAccount.create({data:{email:randomUUID()+'@buyer-journey.example.test',displayName:'Pessoa de outra conta',passwordHash:null}});
     await db.buyerAddress.create({data:{id:prefix+'-foreign-address',globalUserId:foreign.globalUserId,label:'Endereço de outra conta',...addresses.work,isDefault:true}});
-    // Static source inventory, never a sale result. Real inventory consumer owns
-    // subsequent decrement/projection/movement/receipt after the real event.
-    const location=await db.inventoryLocation.create({data:{merchantId,name:'Depósito sintético S5',isDefault:true,isActive:true}});
-    await db.inventoryItem.create({data:{merchantId,locationId:location.id,sku:variantId,productName:names.product,quantity:20,reserved:0}});
-    await db.product.create({data:{id:prefix+'-foreign-product',merchantId:foreignMerchantId,name:'Produto de outra empresa',type:'physical',isActive:true,
-      variants:{create:{id:prefix+'-foreign-variant',sku:prefix+'-foreign-variant',isActive:true,price:{create:{basePriceInCents:9900,currency:'BRL'}},stock:{create:{quantity:10,reserved:0}}}}}});
     await runtime.productPayments.bind(own.body.access_token);
 
     const cart=async()=>{const rows=await db.storefrontCart.findMany({where:{merchantId}});assert.ok(rows.length<=1,'delivery_ambiguous_cart');const row=rows[0];return row?{cartId:row.sessionId,items:structuredClone(row.items),total:row.total,discount:row.discount}:null;};
