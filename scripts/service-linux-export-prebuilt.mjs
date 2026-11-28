@@ -85,8 +85,9 @@ function staticTar(id,source,configuration,archive){
     'RUN rm -rf /usr/share/nginx/html && mkdir -p /usr/share/nginx/html && rm -f /etc/nginx/conf.d/default.conf',
     'RUN cp -a /payload/'+source+'/. /usr/share/nginx/html/ && cp /payload/'+configuration+' /etc/nginx/conf.d/default.conf',
     'RUN cd /usr/share/nginx/html && sha256sum -c /payload/static-files.sha256',
+    'RUN chown -R nginx:nginx /usr/share/nginx/html','LABEL org.opencontainers.image.revision="'+revision+'"','USER nginx',
     'RUN echo "'+configurationHash+'  /etc/nginx/conf.d/default.conf" | sha256sum -c - && nginx -t',
-    'RUN chown -R nginx:nginx /usr/share/nginx/html','LABEL org.opencontainers.image.revision="'+revision+'"','USER nginx','EXPOSE 8080',
+    'EXPOSE 8080',
     'HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:8080/healthz || exit 1',
     'CMD ["nginx", "-g", "daemon off;"]'];
   template(id,archive,id==='dashboard'?'apps/dashboard/Dockerfile':'apps/widget_v2/Dockerfile',body);
