@@ -165,11 +165,11 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     // Native shopping has a canonical cart before it has a checkout binding.
     // Reuse its recovery projection without starting checkout or granting any
     // account/contact authority. Empty carts also refresh a stale projection.
-    // Service discovery/review has no recovery checkout yet. Its current native
-    // controls are a read surface; cart_viewed would upsert a checkout merely
-    // because a legitimate parent cart exists. Prepared checkouts retain origin.
+    // Service browsing, clarification and refused queries have no recovery
+    // checkout yet, including replies without native controls. Projecting a
+    // parent cart would create one as a side effect. Prepared checkouts retain origin.
     const nativeServiceRead = !response.state.checkoutSessionId
-      && response.blocks.some(block => block.type === "service_booking_controls");
+      && (config.businessMode === "services" || response.blocks.some(block => block.type === "service_booking_controls"));
     if (!nativeServiceRead && this.telemetry && stored && stored.expiresAt.getTime() > Date.now()
       && sender?.deviceId.startsWith("META_CLOUD:") && sender.inboxId && sender.leaseToken
       && phone.length >= 10 && phone.length <= 15 && sender.fromNumber.replace(/\D/g, "") === phone) {

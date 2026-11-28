@@ -4,7 +4,7 @@ import { CheckoutWhatsAppConversationAdapter } from "./checkout-whatsapp-convers
 import { WHATSAPP_RECOVERY_ORIGIN_EVENT } from "../../../storefront/domain/ports/storefront-telemetry.port.js";
 import type { WhatsAppStructuredResponse } from "../../domain/ui/meta-ui.types.js";
 
-function fixture(serviceControls: boolean, options: { items?: unknown[]; checkoutSessionId?: string; retainedServiceState?: boolean } = {}) {
+function fixture(serviceControls: boolean, options: { items?: unknown[]; checkoutSessionId?: string; retainedServiceState?: boolean; businessMode?: "products" | "services" } = {}) {
   const calls: unknown[] = [], response = {
     agentMessage: "Current response", quickReplies: [],
     blocks: serviceControls ? [{ type: "service_booking_controls", data: {} }] : [],
@@ -15,7 +15,7 @@ function fixture(serviceControls: boolean, options: { items?: unknown[]; checkou
   const adapter = Object.create(CheckoutWhatsAppConversationAdapter.prototype) as CheckoutWhatsAppConversationAdapter;
   Object.defineProperties(adapter, {
     store: { value: {} },
-    storeConfig: { value: { executeForMerchant: async () => ({ name: "Owned store", cashbackEnabled: false }) } },
+    storeConfig: { value: { executeForMerchant: async () => ({ name: "Owned store", cashbackEnabled: false, businessMode: options.businessMode ?? "products" }) } },
     prisma: { value: { storefrontCart: { findUnique: async () => ({ items: options.items ?? [], expiresAt: new Date(Date.now() + 60_000) }) } } },
     telemetry: { value: { recordEvent: async (...args: unknown[]) => { calls.push(args); } } },
     serviceBooking: { value: serviceControls ? { entry: async () => response, decorateCheckout: async () => undefined,
@@ -49,4 +49,20 @@ test("ordinary product responses retain the original recovery projection even wi
   const f = fixture(false, { retainedServiceState: true }); await f.run();
   assert.deepEqual(f.calls, [[{ merchantId: "owned-store", conversationId: "conversation", cartId: "conversation",
     globalUserId: "buyer", event: "cart_viewed", metadata: { source: "whatsapp" } }, { configId: "config" }]]);
+});
+
+test("a refused service query without native controls cannot create a recovery checkout", async () => {
+  const f = fixture(false, { businessMode: "services" });
+  const result = await f.run();
+  assert.equal(f.calls.length, 0);
+  assert.equal(result.state.checkoutSessionId, undefined);
+  assert.equal(result.state.cartHasItems, false);
+});
+
+test("a service clarification preserves a prior cart without projecting it into checkout", async () => {
+  const f = fixture(false, { businessMode: "services", items: [{ variantId: "prior-service", quantity: 1 }] });
+  const result = await f.run();
+  assert.equal(f.calls.length, 0);
+  assert.equal(result.state.checkoutSessionId, undefined);
+  assert.equal(result.state.cartHasItems, true);
 });
