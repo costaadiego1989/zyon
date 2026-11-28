@@ -1,4 +1,5 @@
 import {createServer} from 'vite';
+import {createStorefrontScopedLibraryPlugin} from './service-storefront-library-resolution.mjs';
 import assert from 'node:assert/strict';
 import {installCompanyFixture} from './service-company-fixture.mjs';
 import {installCompanyServicesFixture} from './service-company-services-fixture.mjs';
@@ -127,7 +128,7 @@ export default async function setup(options={}){
       });
     }};
     server=await createServer({root:dashboard,configFile:resolve(dashboard,'vite.config.ts'),envFile:false,
-      clearScreen:false,logLevel:'error',plugins:[plugin],
+      clearScreen:false,logLevel:'error',plugins:[createStorefrontScopedLibraryPlugin(resolve(dashboard,'../storefront/src')),plugin],
       define:{'import.meta.env.VITE_API_BASE_URL':JSON.stringify(origin)},
       ...(conversationFixtures?{optimizeDeps:{entries:options.whatsappConversationsApp===true||options.supportNotifications===true?['index.html']:['e2e/fixtures/whatsapp-conversation.tsx']}}:{}),
       server:{host:'127.0.0.1',port:5187,strictPort:true,

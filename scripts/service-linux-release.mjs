@@ -58,6 +58,8 @@ await run('cashback-seed-build',['node','apps/api/prisma/seeds/cashback-validati
 await run('api-record',['node','tests/service-test-artifacts.mjs','--record-build-exit0'],api);
 await run('api-types',['pnpm','--filter','@zyon/api','typecheck']);
 }
+await run('native-service-selection-regression',['node','--import','./tests/test-network-guard.mjs','--loader','./tests/ready-prod-loader.mjs',
+  '--test','--test-concurrency=1','./tests/service-selection-channel.integration.spec.ts'],api);
 // These are the original Dockerfile's real local-model inferences. Populate
 // public model weights before the original proof network guard is loaded.
 await run('local-embedding-inference',['node','--input-type=module','-e',
@@ -75,10 +77,12 @@ await run('storefront-build',['pnpm','--dir','apps/storefront','build'],root,{AA
 assert.equal(existsSync(resolve(root,'apps/storefront/.next/standalone')),false,'release_nonstandalone_next_required');
 await run('release-source-contracts',['node','--import','./tests/test-network-guard.mjs','--test','--test-concurrency=1',
   './tests/native-prisma-release-platform.spec.mjs','./tests/service-served-artifact-observation.contract.spec.mjs',
-  './tests/linux-owned-tcp.contract.spec.mjs','./tests/linux-owned-tcp.live.spec.mjs','./tests/service-release-stage-context.spec.mjs','./tests/journey-redis-ping-guard.contract.mjs','./tests/service-marketing-opening-fetch-fixture.contract.mjs'],api);
+  './tests/linux-owned-tcp.contract.spec.mjs','./tests/linux-owned-tcp.live.spec.mjs','./tests/service-release-stage-context.spec.mjs','./tests/journey-redis-ping-guard.contract.mjs','./tests/service-marketing-opening-fetch-fixture.contract.mjs','./tests/journey-cleanup-diagnostic.contract.mjs','./tests/whatsapp-operator-delivery-diagnostics.contract.spec.mjs'],api);
 await run('native-service-read-telemetry-regression',['node','--import','./tests/test-network-guard.mjs','--loader','./tests/ready-prod-loader.mjs',
   '--test','--test-concurrency=1','./src/modules/whatsapp-channel/infrastructure/adapters/checkout-whatsapp-service-read-telemetry.spec.ts'],api);
 await run('release-migration-byte-contract',['node','--test','scripts/service-release-migration-bytes.spec.mjs','scripts/service-release-support-migration-bytes.spec.mjs']);
+await run('validation-boundary-contracts',['node','--test','apps/dashboard/e2e/service-storefront-library-resolution.contract.mjs','scripts/service-validation-system-git-trust.contract.mjs']);
+await run('storefront-library-resolution-qualification',['node','scripts/qualify-service-storefront-library-resolution.mjs',root,resolve(directory,'storefront-library-resolution.receipt.json')]);
 const protocol=await import('../apps/api/dist/shared/bookings/service-release-manifest.js');
 const artifact=await import('../apps/api/dist/shared/bookings/service-release-artifact.js');
 const current=artifact.measureServiceReleaseRuntime(api,revision);

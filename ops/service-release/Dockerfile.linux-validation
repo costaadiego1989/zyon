@@ -1,6 +1,7 @@
 ARG NODE_BASE_IMAGE
 FROM ${NODE_BASE_IMAGE}
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates openssl libgomp1 && rm -rf /var/lib/apt/lists/*
+RUN git config --system --add safe.directory /repo
 COPY .cache/service-release-docker-client /usr/local/bin/docker
 RUN docker --version
 ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH

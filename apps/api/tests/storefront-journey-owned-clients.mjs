@@ -5,6 +5,7 @@ import { Queue, Worker } from "bullmq";
 import { ModulesContainer } from "@nestjs/core";
 import { awaitConstructionRedisReady, createConstructionRedisSocketProof } from "./nest-construction-only.guards.mjs";
 import { assertOwnedJourneyRedisPing } from "./journey-redis-ping-guard.mjs";
+import { journeyCleanupDiagnostic } from "./journey-cleanup-diagnostic.mjs";
 
 export async function journeyBounded(work, milliseconds, code) {
   let timer;
@@ -179,6 +180,7 @@ export function createOwnedJourneyClientTracker(app, redisPort) {
         if (closed.manualDisconnect) manualDisconnects++;
       } catch (error) {
         errors.push(Error("journey_owned_redis_cleanup_failed:" + JSON.stringify({ ...journeyRedisDiagnostic(clients.get(client), client, socketFor(client) ?? streams.get(client)),
+          ...journeyCleanupDiagnostic(error),
           cause: ["construction_owned_redis_close_timeout", "journey_owned_redis_disconnect_close_timeout"].includes(error?.message) ? "close_timeout" : "ownership_or_close_failed" })));
       }
     }

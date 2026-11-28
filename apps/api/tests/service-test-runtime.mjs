@@ -26,6 +26,7 @@ import {createCapturedProductPaymentChannel} from './product-captured-payment-ch
 import {validateOwnedPostalFixtureOptions} from './product-contact-delivery-postal.fixture.mjs';
 import {createBuyerBrowserMailbox} from './service-buyer-browser-transport.mjs';
 import {createOwnedBuyerStorefront} from './service-buyer-storefront.mjs';
+import {observeProviderTrapFailure} from './whatsapp-operator-delivery-diagnostics.mjs';
 
 const bookingControlInvalid=condition=>assert.ok(condition,'buyer_booking_fixture_control_invalid');
 const bookingRecord=value=>!!value&&typeof value==='object'&&!Array.isArray(value);
@@ -249,8 +250,9 @@ export async function createServiceTestRuntime(options){
     try{await terminateOwnedNativeWorker(worker);}catch(e){errors.push(e);}
     for(const owned of [graph,redis,db])if(owned){try{await owned.dispose();if(owned.bridgeStatus)assert.deepEqual(owned.bridgeStatus(),{listening:false,sockets:0,children:0});}catch(e){errors.push(e);}}
     if(errors.length){
+      for(const error of errors)observeProviderTrapFailure(error);
       console.error('service_runtime_cleanup_failure',JSON.stringify({stage:lastStage,causes:errors.map(error=>({name:error.name,
-        codes:[...String(error.message).matchAll(/\b(?:service|owned|native|construction)_[a-z0-9_]+\b/g)].map(match=>match[0]).slice(0,8)}))}));
+        codes:[...String(error.message).matchAll(/\b(?:service|owned|native|construction|journey)_[a-z0-9_]+\b/g)].map(match=>match[0]).slice(0,8)}))}));
       throw new AggregateError(errors,`service_runtime_cleanup_failed:${lastStage}:${errors.map(error=>String(error.message).slice(0,1800)).join('|')}:${JSON.stringify(cleanupDiagnostics)}`);
     }
     cleanup={appClosed:true,remainingContainers:0,remainingBridgeSockets:0};
