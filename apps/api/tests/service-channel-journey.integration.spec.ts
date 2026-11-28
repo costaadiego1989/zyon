@@ -34,7 +34,11 @@ test("T46", { timeout: SERVICE_LOCAL_TEST_MS }, async t => {
   const body = (state: Awaited<ReturnType<typeof f.state>>) => state.view?.body ?? "";
   const noFinancialWrites = async (c: NativeJourneyCase) => {
     const value = await f.snapshot(c); assert.equal(value.appointments.length, 0); assert.equal(value.payments.length, 0);
-    assert.equal(value.audits.length, 0); assert.equal(value.orders, 0); assert.equal(value.inventory, 0);
+    assert.equal(value.audits.length, 0); assert.equal(value.orders, 0);
+    assert.equal(value.inventory, c.inventorySeed.movements.length);
+    // Preserve every seeded ID/value and both stock representations; no gesture
+    // may add, remove or mutate inventory, including a background cron sweep.
+    assert.deepEqual(value.inventoryLedger, c.inventorySeed);
   };
   const prepare = async (c: NativeJourneyCase) => { await f.review(c); return f.choose(c, "continue"); };
   try {

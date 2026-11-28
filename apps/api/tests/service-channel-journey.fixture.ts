@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, type Prisma, type InventoryMovement, type InventoryItem, type ProductStock } from "@prisma/client";
 import { Redis } from "ioredis";
 import { createServiceTestRuntime } from "./service-test-runtime.mjs";
 import { RedisServiceSlots } from "../src/shared/bookings/redis-service-slots.js";
@@ -8,11 +8,16 @@ import { PasswordHasher } from "../src/modules/auth/domain/services/password-has
 import type { WhatsAppConversationState, StoreUiAction } from "../src/modules/whatsapp-channel/domain/ui/meta-ui.types.js";
 import { toCheckoutSession } from "../src/modules/checkout/domain/services/checkout-session-projection.js";
 import { MARKETING_CONSENT_TEXT, MARKETING_DECLINE } from "../src/shared/contracts/marketing.js";
+import { lockCatalogMerchant, syncCatalogStockLedger } from "../src/shared/persistence/catalog-stock-ledger.js";
 
+interface NativeInventorySeed {
+  movements: InventoryMovement[]; items: InventoryItem[]; stocks: ProductStock[];
+}
 export interface NativeJourneyCase {
   merchantId: string; configId: string; deviceId: string; phoneNumberId: string; phone: string;
   productId: string; variantId: string; professionalId: string; buyerId?: string;
   mode: "products" | "services";
+  inventorySeed: NativeInventorySeed;
 }
 /** Private owned-test options already admitted by createServiceTestRuntime.
  * Original callers retain their identical captured-numeric-voice defaults. */
@@ -45,6 +50,11 @@ export async function createNativeServiceJourneyFixture(options: {
         headers: { "content-type": "application/json", ...headers }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
       return { status: response.status, body: await response.json() };
     };
+    const inventoryLedger = async (merchantId: string): Promise<NativeInventorySeed> => ({
+      movements: await db.inventoryMovement.findMany({ where: { merchantId }, orderBy: { id: "asc" } }),
+      items: await db.inventoryItem.findMany({ where: { merchantId }, orderBy: { id: "asc" } }),
+      stocks: await db.productStock.findMany({ where: { variant: { product: { merchantId } } }, orderBy: { id: "asc" } }),
+    });
     async function make(suffix: string, options: { mode?: "products" | "services"; guest?: boolean; hold?: boolean; online?: boolean } = {}): Promise<NativeJourneyCase> {
       const index = ++serial, merchantId = "t46-" + suffix, configId = merchantId + "-config", phone = "5511998" + String(index).padStart(6, "0"),
         phoneNumberId = "900046" + String(index).padStart(6, "0"), mode = options.mode ?? "services";
@@ -62,9 +72,34 @@ export async function createNativeServiceJourneyFixture(options: {
       if (mode === "services") await db.serviceBusinessPolicy.create({ data: { merchantId, admissionsEnabled: true, holdEnabled: !!options.hold,
         holdMinutes: options.hold ? 4 : null, paymentMode: options.online ? "online" : "at_attendance", version: 1, configuredAt: new Date() } });
       const productId = merchantId + "-offer", variantId = productId + "-variant", professionalId = merchantId + "-professional";
-      await db.product.create({ data: { id: productId, merchantId, name: "Consulta " + suffix, type: mode === "services" ? "service" : "physical",
+      const createProduct = (client: Prisma.TransactionClient) => client.product.create({ data: { id: productId, merchantId, name: "Consulta " + suffix, type: mode === "services" ? "service" : "physical",
         isActive: true, ...(mode === "services" ? { metadata: { serviceSchedule: { durationMinutes: 30, timeZone: "America/Sao_Paulo", slots: [] } } } : {}),
         variants: { create: { id: variantId, sku: "NATIVE-" + suffix, isActive: true, stock: { create: { quantity: 10 } }, price: { create: { basePriceInCents: 5000, currency: "BRL" } } } } } });
+      if (mode === "products") {
+        // The real catalogue writer commits physical stock and its ledger together.
+        // Keep the production reconciliation cron active: it must find this seed complete.
+        await db.$transaction(async tx => {
+          await lockCatalogMerchant(tx, merchantId);
+          await createProduct(tx);
+          await syncCatalogStockLedger(tx, { merchantId, variantId, source: "catalog_create" });
+        });
+      } else await createProduct(db);
+      const inventorySeed = await inventoryLedger(merchantId);
+      assert.equal(inventorySeed.movements.length, mode === "products" ? 1 : 0);
+      assert.equal(inventorySeed.items.length, mode === "products" ? 1 : 0);
+      assert.equal(inventorySeed.stocks.length, 1);
+      assert.equal(inventorySeed.stocks[0]!.variantId, variantId);
+      assert.equal(inventorySeed.stocks[0]!.quantity, 10);
+      assert.equal(inventorySeed.stocks[0]!.reserved, 0);
+      if (mode === "products") {
+        const movement = inventorySeed.movements[0]!, item = inventorySeed.items[0]!;
+        assert.equal(movement.merchantId, merchantId); assert.equal(movement.itemId, item.id);
+        assert.equal(movement.kind, "ENTRY"); assert.equal(movement.quantity, 10);
+        assert.equal(movement.reason, "Cadastro de produto"); assert.equal(movement.source, "catalog_create");
+        assert.equal(movement.externalRef, null); assert.equal(movement.actorUserId, null);
+        assert.equal(item.merchantId, merchantId); assert.equal(item.sku, "NATIVE-" + suffix);
+        assert.equal(item.productName, "Consulta " + suffix); assert.equal(item.quantity, 10); assert.equal(item.reserved, 0);
+      }
       if (mode === "services") {
         await db.serviceProfessional.create({ data: { id: professionalId, merchantId, publicName: "Profissional " + suffix,
           timeZone: "America/Sao_Paulo", isActive: true, isPublished: true } });
@@ -84,7 +119,7 @@ export async function createNativeServiceJourneyFixture(options: {
         const stored = await db.buyerAccount.findUniqueOrThrow({ where: { globalUserId: buyerId } });
         assert.ok(stored.phone?.startsWith("pii_v1:")); assert.ok(stored.phoneLookupHash);
       }
-      return { merchantId, configId, deviceId: "META_CLOUD:" + configId, phoneNumberId, phone, productId, variantId, professionalId, buyerId, mode };
+      return { merchantId, configId, deviceId: "META_CLOUD:" + configId, phoneNumberId, phone, productId, variantId, professionalId, buyerId, mode, inventorySeed };
     }
     const secondBuyer = async (c: NativeJourneyCase): Promise<NativeJourneyCase> => {
       const suffix = "second-" + (++serial), phone = "5511998" + String(serial).padStart(6, "0");
@@ -222,6 +257,7 @@ export async function createNativeServiceJourneyFixture(options: {
         select: { eventId: true, eventType: true, merchantId: true, correlationId: true, causationId: true, payload: true }, orderBy: { eventId: "asc" } }),
       orders: await db.completedOrder.count({ where: { merchantId: c.merchantId } }),
       inventory: await db.inventoryMovement.count({ where: { merchantId: c.merchantId } }),
+      inventoryLedger: await inventoryLedger(c.merchantId),
     });
     const close = async () => { const errors: unknown[] = [];
       try { await cache.quit(); } catch (error) { cache.disconnect(); errors.push(error); }
