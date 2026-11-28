@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {assertOwnedMarketingModelUnavailableEvidence} from './service-marketing-model-unavailable-fixture.mjs';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {createDisposablePostgres} from './local-disposable-postgres.mjs';
@@ -203,6 +204,9 @@ export async function createServiceTestRuntime(options){
     try{if(worker&&appEvidence){
       if(worker.exitCode===null&&worker.connected)worker.send({type:'close'});
       const final=await deadline(appClosed,35_000,'service_close_ack_timeout');assert.equal(final.appClosed,true);assert.equal(final.providerCalls,0);
+      const marketingModelProof=assertOwnedMarketingModelUnavailableEvidence(final.localMarketingModel);
+      appEvidence=Object.freeze({...appEvidence,localMarketingModel:marketingModelProof});
+      console.info('service_marketing_model_unavailable_fixture',JSON.stringify(marketingModelProof));
       if(storefrontRoutingProfile)assert.deepEqual(final.localStorefrontRoutingProfile,appEvidence.localStorefrontRoutingProfile,'storefront_routing_profile_lifetime_required');
       if(capturedProductPayments){const value=final.localCapturedProductPayments;
         assert.equal(value.externalProviderCalls,0);assert.deepEqual({localCapturedPSPCalls:value.localCapturedPSPCalls,

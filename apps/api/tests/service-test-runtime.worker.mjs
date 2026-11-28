@@ -11,6 +11,7 @@ import {fileURLToPath} from 'node:url';
 import {createHook} from 'node:async_hooks';
 import {createLocalWhatsAppProviderFixture,validateLocalWhatsAppOptions} from './service-whatsapp-provider-fixture.mjs';
 import {installOwnedMarketingOpeningFetchProvider} from './service-marketing-opening-fetch-fixture.mjs';
+import {createOwnedMarketingModelUnavailableFixture} from './service-marketing-model-unavailable-fixture.mjs';
 import {createPublicSupportModelFixture} from './service-public-support-model-fixture.mjs';
 import {validateServedModelScript} from './service-served-model-script.mjs';
 import {createPublicStorefrontModelFixture} from './service-public-storefront-model-fixture.mjs';
@@ -93,7 +94,7 @@ try{assert.deepEqual(await verify.$queryRaw`SELECT run_id FROM synthetic_native_
 const {Redis}=await import('ioredis');const redis=new Redis(redisUrl,{lazyConnect:true,maxRetriesPerRequest:0,retryStrategy:()=>null});
 try{await redis.connect();assertSyntheticRedisIdentity(redisUrl,redisRunId,await redis.get('aacp:synthetic:run'));}finally{redis.disconnect();}
 stage('owned_markers_checked');
-let app,tracker,trap,closed=false,fixture,fixtureOverrideNames=[],modelFixture,modelTokens,modelOverrideNames=[],businessReaderObserver,storefrontRoutingSelection,storefrontRoutingEvidence,metaCapabilitiesTransport,recoveryMonitorIsolation,bookingAwaitObserver,syntheticModelFailureTransport,native18FailureTransport,buyerEmailCapture,capturedProductPayment,capturedPaymentEnvironment;
+let app,tracker,trap,closed=false,fixture,fixtureOverrideNames=[],modelFixture,modelTokens,modelOverrideNames=[],businessReaderObserver,storefrontRoutingSelection,storefrontRoutingEvidence,metaCapabilitiesTransport,recoveryMonitorIsolation,bookingAwaitObserver,syntheticModelFailureTransport,native18FailureTransport,marketingModelFixture,buyerEmailCapture,capturedProductPayment,capturedPaymentEnvironment;
 async function close(){
   if(closed)return;closed=true;const errors=[];
   modelFixture?.closeModelScript?.();
@@ -119,6 +120,8 @@ async function close(){
   const syntheticModelFailureEvidence=syntheticModelFailureTransport?.evidence();
   try{metaCapabilitiesTransport?.restore();}catch(e){errors.push(e);}
   const metaCapabilitiesEvidence=metaCapabilitiesTransport?.evidence();
+  try{marketingModelFixture?.close();}catch(e){errors.push(e);}
+  const marketingModelEvidence=marketingModelFixture?.evidence();
   const provider=trap?.evidence();
   try{if(trap)await trap.dispose();}catch(e){errors.push(e);}
   if(provider?.providerCalls&&native18FailureEvidence)process.stderr.write('service_native18_http_failure_observation:'+JSON.stringify(native18FailureEvidence)+'\n');
@@ -128,7 +131,7 @@ async function close(){
   try{if(storefrontRoutingEvidence)storefrontRoutingEvidence=storefrontRoutingSelection.evidence();}catch(e){errors.push(e);}
   try{storefrontRoutingSelection?.restore();}catch(e){errors.push(e);}
   if(errors.length)throw new AggregateError(errors,'service_app_cleanup_failed:'+errors.map(error=>String(error.message).slice(0,1400)).join('|'));
-  return{appClosed:true,...(capturedPaymentEvidence?{localCapturedProductPayments:capturedPaymentEvidence}:{}),...(buyerEmailCapture?{localBuyerEmail:buyerEmailCapture.evidence()}:{}),...(native18FailureEvidence?{localNative18HttpFailures:native18FailureEvidence}:{}),...(syntheticModelFailureEvidence?{localSyntheticModelFailureHttp:syntheticModelFailureEvidence}:{}),...(bookingAwaitEvidence?{localBookingAwaitObservation:bookingAwaitEvidence}:{}),...(recoveryMonitorEvidence?{backgroundSchedulerExclusions:[recoveryMonitorEvidence]}:{}),...(metaCapabilitiesEvidence?{localMetaCapabilitiesHttp:metaCapabilitiesEvidence}:{}),...(storefrontRoutingEvidence?{localStorefrontRoutingProfile:storefrontRoutingEvidence}:{}),...(businessObservation?{businessRagObservation:businessObservation}:{}),providerCalls:provider?.providerCalls??0,localProviderAttempts:fixture?.attempts()??0,...(modelFixture?(localSupportQueryModel?{localSupportModel:modelFixture.evidence()}:{localStorefrontModel:modelFixture.evidence()}):{} )};
+  return{appClosed:true,...(marketingModelEvidence?{localMarketingModel:marketingModelEvidence}:{}),...(capturedPaymentEvidence?{localCapturedProductPayments:capturedPaymentEvidence}:{}),...(buyerEmailCapture?{localBuyerEmail:buyerEmailCapture.evidence()}:{}),...(native18FailureEvidence?{localNative18HttpFailures:native18FailureEvidence}:{}),...(syntheticModelFailureEvidence?{localSyntheticModelFailureHttp:syntheticModelFailureEvidence}:{}),...(bookingAwaitEvidence?{localBookingAwaitObservation:bookingAwaitEvidence}:{}),...(recoveryMonitorEvidence?{backgroundSchedulerExclusions:[recoveryMonitorEvidence]}:{}),...(metaCapabilitiesEvidence?{localMetaCapabilitiesHttp:metaCapabilitiesEvidence}:{}),...(storefrontRoutingEvidence?{localStorefrontRoutingProfile:storefrontRoutingEvidence}:{}),...(businessObservation?{businessRagObservation:businessObservation}:{}),providerCalls:provider?.providerCalls??0,localProviderAttempts:fixture?.attempts()??0,...(modelFixture?(localSupportQueryModel?{localSupportModel:modelFixture.evidence()}:{localStorefrontModel:modelFixture.evidence()}):{} )};
 }
 try{
   trap=await installConstructionProviderTrap(Number(database.port),Number(new URL(redisUrl).port));
@@ -154,7 +157,21 @@ try{
   assert.equal(transformersEnvironment.allowRemoteModels,false);
   stage('offline_embeddings_configured',{allowRemoteModels:transformersEnvironment.allowRemoteModels});
   const {AppModule}=await import('../dist/app.module.js');
-  let fixtureInstallation,marketingFetchInstallation,channelToken,mediaType;
+  let fixtureInstallation,marketingFetchInstallation,marketingModelInstallation,channelToken,mediaType;
+  const [{MarketingModule},{MarketingInterestClassifier,MARKETING_MODEL_CLIENT},{MARKETING_CLASSIFIER},
+    {MARKETING_REPOSITORY},{PrismaMarketingRepository},{RecordAiUsageUseCase},{MarketingEventsHandler},
+    {redactSensitiveReference},{MODULE_METADATA:marketingMetadata}]=await Promise.all([
+      import('../dist/modules/marketing/marketing.module.js'),
+      import('../dist/modules/marketing/infrastructure/marketing-interest-classifier.js'),
+      import('../dist/modules/marketing/domain/marketing-classifier.port.js'),
+      import('../dist/modules/marketing/domain/marketing.repository.js'),
+      import('../dist/modules/marketing/infrastructure/prisma-marketing.repository.js'),
+      import('../dist/modules/ai-usage/public-api.js'),
+      import('../dist/modules/marketing/infrastructure/marketing-events.handler.js'),
+      import('../dist/shared/privacy/marketing-input-safety.js'),import('@nestjs/common/constants.js')]);
+  marketingModelFixture=createOwnedMarketingModelUnavailableFixture({localDisposableRuntime:true,databaseRunId,redisRunId},{redactSensitiveReference,baseUrl:trap.baseUrl});
+  marketingModelInstallation=marketingModelFixture.install({MarketingModule,MarketingInterestClassifier,MARKETING_MODEL_CLIENT,
+    MARKETING_CLASSIFIER,MARKETING_REPOSITORY,PrismaMarketingRepository,RecordAiUsageUseCase,MarketingEventsHandler},Reflect,marketingMetadata.PROVIDERS);
   if(localWhatsApp){
     const{WhatsAppChannelModule}=await import('../dist/modules/whatsapp-channel/whatsapp-channel.module.js');
     const{WHATSAPP_SENDER_PORT}=await import('../dist/modules/whatsapp-channel/domain/ports/whatsapp-sender.port.js');
@@ -242,7 +259,7 @@ try{
 
   stage('constructing_app');app=await bounded(NestFactory.create(AppModule,{abortOnError:false,logger:false,rawBody:true}),45_000,'service_app_construct_timeout');
   }
-  finally{try{capturedPaymentInstallation?.restore();}finally{try{emailInstallation?.restore();}finally{try{releaseInstallation?.restore();}finally{modelInstallation?.restore();marketingFetchInstallation?.restore();fixtureInstallation?.restore();}}}}
+  finally{try{capturedPaymentInstallation?.restore();}finally{try{emailInstallation?.restore();}finally{try{releaseInstallation?.restore();}finally{try{marketingModelInstallation?.restore();}finally{modelInstallation?.restore();marketingFetchInstallation?.restore();fixtureInstallation?.restore();}}}}}
   if(ownedPostal){
     const {HttpModule}=await import('../dist/shared/http/http.module.js');
     const {HttpClientService}=await import('../dist/shared/http/http-client.service.js');
@@ -252,6 +269,7 @@ try{
   }
 
   if(fixture){assert.equal(app.get(channelToken),fixture.sender);if(localWhatsApp.voiceTranscripts&&Object.keys(localWhatsApp.voiceTranscripts).length)assert.equal(app.get(mediaType),fixture.media);}
+  marketingModelFixture.assertBindings(app);
   if(modelFixture)modelFixture.assertBindings(app,modelTokens);
   if(releaseFixture)releaseFixture.assertBindings(app,releaseTypes);
   if(storefrontRoutingSelection){
@@ -313,6 +331,7 @@ try{
   if(localBuyerBooking)process.send({type:'local_buyer_booking_credential',runId:databaseRunId,credential:process.env.INTERNAL_SERVICE_TOKEN});
   process.send({type:'ready',apiOrigin:`http://127.0.0.1:${address.port}`,evidence:{canonicalAppModule:true,
     repositoryOverrides:false,authOverrides:false,providerCalls:0,
+    localMarketingModel:marketingModelFixture.evidence(),
     ...(localPostalFixture?{localContactDelivery:{transport:'HttpClientService.fetch.third-argument',postalZips:['01310100','01310200'],platformFeeBrl:app.get(Symbol.for('CheckoutExperienceConfig')).platformFeeBrl}}:{}),
     ...(capturedProductPayment?{localCapturedProductPayments:capturedProductPayment.evidence(),localPaymentTransportOverrides:capturedPaymentInstallation.overrides}:{}),
     ...(localBuyerBrowser?{localBuyerBrowser:true,localBuyerTransportOverrides:['buyer-account.EMAIL_OTP_PROVIDER']}:{}),
