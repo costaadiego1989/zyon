@@ -25,7 +25,7 @@ export async function createProductDiscoveryReadJourney(channel,surface){
       channel==='storefront'?[...readTurn('get_reviews',{productId:ids.a},names.a),
         ...readTurn('get_reviews',{productId:ids.a,filter:'positive'},names.a),...readTurn('get_reviews',{productId:ids.a,filter:'negative'},names.a)]:[])];
   const runtime=await createServiceTestRuntime({local:true,storefrontQueryModel:true,storefrontRoutingProfile:'structured',
-    ...(modelScript.length?{modelScript}:{}),...(channel==='storefront'?{buyerBooking:true,buyerBrowser:true}:{whatsapp:true,c60MetaCapabilitiesFixture:'owned-c60-discovery-empty-v1',c60RecoveryTemplateMonitorFixture:'manual-only-v1'})});
+    ...(modelScript.length?{modelScript}:{}),...(channel==='storefront'?{buyerBooking:true,buyerBrowser:true}:{whatsapp:{marketingOpening:true,marketingOpeningPurpose:'c60-discovery'},c60MetaCapabilitiesFixture:'owned-c60-discovery-empty-v1',c60RecoveryTemplateMonitorFixture:'manual-only-v1'})});
   let db,next,viewer,closed=false;
   const close=async()=>{if(closed)return;closed=true;const errors=[];for(const item of[viewer,next])try{await item?.close();}catch(error){errors.push(error);}
     try{await db?.$disconnect();}catch(error){errors.push(error);}try{await runtime.close();}catch(error){errors.push(error);}
@@ -85,8 +85,8 @@ export async function createProductDiscoveryReadJourney(channel,surface){
     let origin,deviceId,buyerPhone;
     if(channel==='storefront'){await db.merchantInstallation.create({data:{merchantId,name:'Owned discovery Next',environment:'live',status:'active',widgetVersion:'v2',allowedOrigins:[BUYER_STOREFRONT_ORIGIN]}});
       next=await runtime.buyerBooking.openStorefront();assert.equal(next.origin,BUYER_STOREFRONT_ORIGIN);origin=next.origin;
-    }else{const phoneNumberId='900063000001';deviceId='META_CLOUD:'+phoneNumberId;buyerPhone='5511998000063';
-      await db.whatsAppChannelConfig.create({data:{id:prefix+'-config',merchantId,provider:'META_CLOUD',enabled:true,status:'ACTIVE',deviceId,
+    }else{const phoneNumberId='900063000001',configId=prefix+'-config';deviceId='META_CLOUD:'+configId;buyerPhone='5511998000063';
+      await db.whatsAppChannelConfig.create({data:{id:configId,merchantId,provider:'META_CLOUD',enabled:true,status:'ACTIVE',deviceId,
         credentials:{phoneNumberId,wabaId:'900063999',accessToken:'synthetic-no-external-meta-secret'}}});
       viewer=await createProductCatalogViewer({runtime,db,merchantId,deviceId,phoneNumberId,buyerPhone});origin=viewer.origin;}
     return Object.freeze({channel,surface,origin,slug,merchantId,ids,names,categoryIds,products,categories,reviewPage,snapshot,close,

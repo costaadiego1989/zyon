@@ -20,7 +20,8 @@ export async function createProductCatalogViewer({runtime,db,merchantId,deviceId
   let closed=false,origin;const sockets=new Set();
   const view=()=>{const messages=runtime.whatsapp.events().filter(event=>event.kind==='sendText'
       &&typeof event.input.toNumber==='string'&&/^\+?\d{8,15}$/.test(event.input.toNumber)
-      &&event.input.toNumber.replace(/^\+/,'')===ownedBuyerPhone&&event.input.deviceId===deviceId)
+      &&event.input.toNumber.replace(/^\+/,'')===ownedBuyerPhone
+      &&(event.input.deviceId===deviceId||(event.input.marketingOpening===true&&event.input.provider==='META_CLOUD'&&event.input.phoneNumberId===phoneNumberId)))
     .map(event=>({sequence:event.sequence,text:event.input.text,uiMessage:event.input.uiMessage,
       ...(paymentLinks?{paymentLink:capturedPaymentLink(event.input.uiMessage)}:{})}));
     assert.ok(messages.length<=80,'catalog_viewer_owned_message_bound');return{messages};};

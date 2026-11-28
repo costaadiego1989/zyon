@@ -13,6 +13,7 @@ import {createServiceTestNeo4j} from './service-test-neo4j.mjs';
 import {awaitServiceStartup} from './service-test-startup.mjs';
 import {createHmac,randomBytes} from 'node:crypto';
 import {validateLocalWhatsAppOptions} from './service-whatsapp-provider-fixture.mjs';
+import {ownedC60MarketingOpeningProfile} from './service-marketing-opening-fetch-fixture.mjs';
 import {validateServedModelScript} from './service-served-model-script.mjs';
 import {isAllowedBuyerBookingFixture,isOwnedBuyerBrowserRenewalWindow} from './service-buyer-booking-fixture-options.mjs';
 import {validateStorefrontRoutingProfile} from './storefront-routing-profile-fixture.mjs';
@@ -174,6 +175,7 @@ export async function createServiceTestRuntime(options){
   const metaCapabilitiesFixture=validateOwnedEmptyMetaCapabilitiesFixture(options);
   const recoveryTemplateMonitorFixture=validateOwnedRecoveryTemplateMonitorFixture(options);
   const c60MetaCapabilitiesFixture=validateOwnedC60MetaCapabilitiesFixture(options);
+  ownedC60MarketingOpeningProfile(whatsapp?.marketingOpeningPurpose,c60MetaCapabilitiesFixture);
   const c60RecoveryTemplateMonitorFixture=validateOwnedC60RecoveryTemplateMonitorFixture(options);
   const bookingAwaitTrace=validateOwnedBookingAwaitTrace(options);
   const localModelFailureFixture=validateOwnedLocalModelFailureFixture(options);

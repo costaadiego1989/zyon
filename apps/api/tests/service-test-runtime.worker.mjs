@@ -10,7 +10,7 @@ import {createOwnedJourneyClientTracker,journeyBounded as bounded} from './store
 import {fileURLToPath} from 'node:url';
 import {createHook} from 'node:async_hooks';
 import {createLocalWhatsAppProviderFixture,validateLocalWhatsAppOptions} from './service-whatsapp-provider-fixture.mjs';
-import {installOwnedMarketingOpeningFetchProvider} from './service-marketing-opening-fetch-fixture.mjs';
+import {installOwnedMarketingOpeningFetchProvider,ownedC60MarketingOpeningProfile} from './service-marketing-opening-fetch-fixture.mjs';
 import {createOwnedMarketingModelUnavailableFixture} from './service-marketing-model-unavailable-fixture.mjs';
 import {createPublicSupportModelFixture} from './service-public-support-model-fixture.mjs';
 import {validateServedModelScript} from './service-served-model-script.mjs';
@@ -81,6 +81,7 @@ if(extra.length){
   localMetaCapabilitiesFixture=validateOwnedEmptyMetaCapabilitiesFixture({local:true,whatsapp:localWhatsApp,buyerBooking:localBuyerBooking,metaCapabilitiesFixture});
   localRecoveryTemplateMonitorFixture=validateOwnedRecoveryTemplateMonitorFixture({local:true,whatsapp:localWhatsApp,buyerBooking:localBuyerBooking,metaCapabilitiesFixture:localMetaCapabilitiesFixture,recoveryTemplateMonitorFixture});
   localC60MetaCapabilitiesFixture=validateOwnedC60MetaCapabilitiesFixture({local:true,whatsapp:localWhatsApp,buyerBooking:localBuyerBooking,c60MetaCapabilitiesFixture,c60RecoveryTemplateMonitorFixture,metaCapabilitiesFixture,recoveryTemplateMonitorFixture,bookingAwaitTrace,localModelFailureFixture:requestedModelFailureFixture,native18HttpFailures});
+  ownedC60MarketingOpeningProfile(localWhatsApp?.marketingOpeningPurpose,localC60MetaCapabilitiesFixture);
   localC60RecoveryTemplateMonitorFixture=validateOwnedC60RecoveryTemplateMonitorFixture({local:true,whatsapp:localWhatsApp,buyerBooking:localBuyerBooking,c60MetaCapabilitiesFixture,c60RecoveryTemplateMonitorFixture,metaCapabilitiesFixture,recoveryTemplateMonitorFixture,bookingAwaitTrace,localModelFailureFixture:requestedModelFailureFixture,native18HttpFailures});
   localBookingAwaitTrace=validateOwnedBookingAwaitTrace({local:true,whatsapp:localWhatsApp,buyerBooking:localBuyerBooking,metaCapabilitiesFixture:localMetaCapabilitiesFixture,recoveryTemplateMonitorFixture:localRecoveryTemplateMonitorFixture,bookingAwaitTrace,modelScript,supportQueryModel,storefrontQueryModel});
   localModelFailureFixture=validateOwnedLocalModelFailureFixture({local:true,whatsapp:localWhatsApp,buyerBooking:localBuyerBooking,metaCapabilitiesFixture:localMetaCapabilitiesFixture,recoveryTemplateMonitorFixture:localRecoveryTemplateMonitorFixture,bookingAwaitTrace,localModelFailureFixture:requestedModelFailureFixture,modelScript,supportQueryModel,storefrontQueryModel});

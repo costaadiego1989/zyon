@@ -2,7 +2,8 @@ import {test as base,expect,type Page,type Locator} from '@playwright/test';
 import {mkdir} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {createProductDiscoveryReadJourney} from '../../api/tests/product-discovery-read.fixture.mjs';
-import {declineOptionalStorefrontConsent} from '../e2e/service-buyer-storefront-helpers.js';
+import {declineWhatsAppMarketingOpening} from './product-catalog-read-helpers';
+import {declineOptionalStorefrontConsent,declineStorefrontMarketingOpening} from '../e2e/service-buyer-storefront-helpers.js';
 type Journey=Awaited<ReturnType<typeof createProductDiscoveryReadJourney>>;
 export const test=base.extend<{}, {discoveryChannel:'storefront'|'whatsapp';discoverySurface:'categories'|'comparison'|'reviews';journey:Journey}>({
   discoveryChannel:['storefront',{option:true,scope:'worker'}],discoverySurface:['categories',{option:true,scope:'worker'}],
@@ -15,16 +16,17 @@ async function open(page:Page,journey:Journey){
   await page.addInitScript(()=>addEventListener('DOMContentLoaded',()=>{const aside=document.createElement('aside');aside.textContent='Fonte/API/banco locais · Seleção de leitura e revisão controladas · Nenhum envio externo';
     Object.assign(aside.style,{position:'fixed',bottom:'0',left:'0',right:'0',zIndex:'20000',padding:'5px',background:'#143d2b',color:'white',font:'11px system-ui',pointerEvents:'none'});document.body.append(aside);}));
   await page.goto(journey.channel==='storefront'?journey.origin+'/store/'+journey.slug:journey.origin);
-  if(journey.channel==='storefront'){await declineOptionalStorefrontConsent(page);await page.getByRole('button',{name:'Por chat Converse digitando',exact:true}).click();}
+  if(journey.channel==='storefront'){await declineOptionalStorefrontConsent(page);await page.getByRole('button',{name:'Por chat Converse digitando',exact:true}).click();await declineStorefrontMarketingOpening(page);}
   await expect(page.getByRole('textbox',{name:'Mensagem',exact:true})).toBeVisible();
 }
 async function act(page:Page,journey:Journey,text:string,button?:Locator){
+  const firstTurn=journey.channel==='whatsapp'&&await page.getByRole('log',{name:'Mensagens capturadas',exact:true}).locator('article').count()===0;
   const path=journey.channel==='storefront'?'/messages':'/send';const pending=page.waitForResponse(response=>new URL(response.url()).origin===journey.origin&&new URL(response.url()).pathname.endsWith(path)&&response.request().method()==='POST');
   if(button){await expect(button).toBeEnabled();if(journey.channel==='whatsapp')expect(await button.getAttribute('data-control-id')).toMatch(/^zyon:[a-f0-9]{32}$/);await button.focus();await page.keyboard.press('Enter');}
   else{const input=page.getByRole('textbox',{name:'Mensagem',exact:true});await input.fill(text);await input.press('Enter');}
   const response=await pending;expect(response.status()).toBe(journey.channel==='storefront'?201:200);const body=await response.json(),request=response.request().postDataJSON();
   if(journey.channel==='storefront')return{...body,request};
-  expect(body.status).toBe('processed');await expect(page.getByRole('status')).toHaveText('Entrada processada pela API local.');return{...await journey.view(),request};
+  expect(body.status).toBe('processed');await expect(page.getByRole('status')).toHaveText('Entrada processada pela API local.');if(firstTurn)await declineWhatsAppMarketingOpening(page);return{...await journey.view(),request};
 }
 const native=(page:Page,label:string)=>page.getByRole('log',{name:'Mensagens capturadas',exact:true}).getByRole('button',{name:label,exact:true}).last();
 async function knownProduct(page:Page,journey:Journey){

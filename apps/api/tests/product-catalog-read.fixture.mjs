@@ -20,7 +20,7 @@ export async function createProductCatalogReadJourney(channel,scenario){
   assert.ok(['storefront','whatsapp'].includes(channel)&&['ten','empty'].includes(scenario),'catalog_read_scenario_invalid');
   const runtime=await createServiceTestRuntime({local:true,storefrontQueryModel:true,storefrontRoutingProfile:'structured',
     modelScript:[{phase:'storefront.intent',response:classification}],
-    ...(channel==='storefront'?{buyerBooking:true,buyerBrowser:true}:{whatsapp:true,c60MetaCapabilitiesFixture:'owned-c60-catalog-empty-v1',c60RecoveryTemplateMonitorFixture:'manual-only-v1'})});
+    ...(channel==='storefront'?{buyerBooking:true,buyerBrowser:true}:{whatsapp:{marketingOpening:true,marketingOpeningPurpose:'c60-catalog'},c60MetaCapabilitiesFixture:'owned-c60-catalog-empty-v1',c60RecoveryTemplateMonitorFixture:'manual-only-v1'})});
   let db,next,viewer,closed=false;
   const close=async()=>{if(closed)return;closed=true;const errors=[];
     for(const surface of[viewer,next])try{await surface?.close();}catch(error){errors.push(error);}

@@ -3,6 +3,7 @@ import {mkdir} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {createProductContactDeliveryJourney} from '../../api/tests/product-contact-delivery.fixture.mjs';
 import {declineOptionalStorefrontConsent} from '../e2e/service-buyer-storefront-helpers.js';
+import {declineWhatsAppMarketingOpening} from './product-catalog-read-helpers.js';
 type Journey=Awaited<ReturnType<typeof createProductContactDeliveryJourney>>;
 export const test=base.extend<{}, {deliveryChannel:'storefront'|'whatsapp';deliveryScenario:'identity'|'freight';journey:Journey}>({
   deliveryChannel:['storefront',{option:true,scope:'worker'}],deliveryScenario:['identity',{option:true,scope:'worker'}],
@@ -16,10 +17,12 @@ async function setup(page:Page,journey:Journey){
   if(journey.channel==='whatsapp')await page.goto(journey.origin);
 }
 async function sendNative(page:Page,message:string,button?:Locator){
+  const firstTurn=await page.getByRole('log',{name:'Mensagens capturadas',exact:true}).locator('article').count()===0;
   const pending=page.waitForResponse(response=>new URL(response.url()).pathname==='/send'&&response.request().method()==='POST');
   if(button){expect(await button.getAttribute('data-control-id')).toMatch(/^zyon:[a-f0-9]{32}$/);await button.focus();await page.keyboard.press('Enter');}
   else{const input=page.getByRole('textbox',{name:'Mensagem',exact:true});await input.fill(message);await input.press('Enter');}
   const response=await pending;expect(response.status()).toBe(200);expect((await response.json()).status).toBe('processed');await expect(page.getByRole('status')).toHaveText('Entrada processada pela API local.');
+  if(firstTurn)await declineWhatsAppMarketingOpening(page);
 }
 async function send(page:Page,journey:Journey,message:string,button?:Locator){
   if(journey.channel==='whatsapp'){await sendNative(page,message,button);return;}

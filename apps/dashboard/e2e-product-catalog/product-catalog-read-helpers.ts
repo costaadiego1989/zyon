@@ -2,7 +2,8 @@ import {test as base,expect,type Page,type Locator,type Response} from '@playwri
 import {mkdir} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {createProductCatalogReadJourney} from '../../api/tests/product-catalog-read.fixture.mjs';
-import {declineOptionalStorefrontConsent} from '../e2e/service-buyer-storefront-helpers.js';
+import {MARKETING_DECLINE} from '../../api/dist/shared/contracts/marketing.js';
+import {declineOptionalStorefrontConsent,declineStorefrontMarketingOpening} from '../e2e/service-buyer-storefront-helpers.js';
 
 type Channel='storefront'|'whatsapp';
 type Scenario='ten'|'empty';
@@ -26,6 +27,7 @@ export async function openStorefront(page:Page,journey:Journey){
   await page.goto(journey.origin+'/store/'+journey.slug);
   await declineOptionalStorefrontConsent(page);
   await page.getByRole('button',{name:'Por chat Converse digitando',exact:true}).click();
+  await declineStorefrontMarketingOpening(page);
   await expect(page.getByRole('textbox',{name:'Mensagem',exact:true})).toBeVisible();
   await expect(page.getByRole('button',{name:/^Ver Produtos$/i}).last()).toBeVisible();
 }
@@ -40,11 +42,21 @@ export async function openWhatsApp(page:Page,journey:Journey){
   await expect(page.getByText(/Transporte Meta capturado; sem envio/)).toBeVisible();
   await expect(page.getByRole('textbox',{name:'Mensagem',exact:true})).toBeVisible();
 }
+export async function declineWhatsAppMarketingOpening(page:Page){
+  const button=page.getByRole('log',{name:'Mensagens capturadas',exact:true}).getByRole('button',{name:'Agora n\u00e3o',exact:true}).last();
+  await expect(button).toBeEnabled();expect(await button.getAttribute('data-control-id')).toBe(MARKETING_DECLINE);
+  const origin=new URL(page.url()).origin,pending=page.waitForResponse(response=>new URL(response.url()).origin===origin&&new URL(response.url()).pathname==='/send'&&response.request().method()==='POST');
+  await button.focus();await page.keyboard.press('Enter');const response=await pending;expect(response.status()).toBe(200);
+  expect(response.request().postDataJSON().interactiveId).toBe(MARKETING_DECLINE);expect((await response.json()).status).toBe('processed');
+  await expect(page.getByRole('status')).toHaveText('Entrada processada pela API local.');
+}
 export async function sendWhatsApp(page:Page,text:string){
+  const firstTurn=await page.getByRole('log',{name:'Mensagens capturadas',exact:true}).locator('article').count()===0;
   const pending=page.waitForResponse(response=>new URL(response.url()).pathname==='/send'&&response.request().method()==='POST');
   const input=page.getByRole('textbox',{name:'Mensagem',exact:true});await input.fill(text);await input.press('Enter');
   const response=await pending;expect(response.status()).toBe(200);expect((await response.json()).status).toBe('processed');
   await expect(page.getByRole('status')).toHaveText('Entrada processada pela API local.');
+  if(firstTurn)await declineWhatsAppMarketingOpening(page);
 }
 export async function chooseWhatsApp(page:Page,button:Locator){
   await expect(button).toBeEnabled();const control=await button.getAttribute('data-control-id');expect(control).toMatch(/^zyon:[a-f0-9]{32}$/);

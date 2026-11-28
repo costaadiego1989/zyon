@@ -21,6 +21,12 @@ export async function declineOptionalStorefrontConsent(page:Page){
   await consent.getByRole('button',{name:'N\u00e3o aceito',exact:true}).click();
   await expect(consent).toBeHidden();
 }
+export async function declineStorefrontMarketingOpening(page:Page){
+  const marketingOpening=page.getByRole('region',{name:'Antes de come\u00e7ar',exact:true});
+  await expect(marketingOpening).toBeVisible();
+  await marketingOpening.getByRole('button',{name:'Agora n\u00e3o',exact:true}).click();
+  await expect(marketingOpening).toBeHidden();
+}
 export async function openGuest(page:Page,journey:Journey){
   const traffic:Array<{path:string;method:string;hasBuyerHeader:boolean}>=[];bookingRequests.set(page,traffic);
   page.on('request',request=>{const path=new URL(request.url()).pathname;if(path.includes('/service-booking/')||path.endsWith('/service-appointments/confirm'))traffic.push({path,method:request.method(),hasBuyerHeader:Boolean(request.headers()['x-buyer-access-token'])});});

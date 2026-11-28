@@ -10,7 +10,7 @@ const intent={schemaVersion:2,domain:'STORE_COMMERCE',intent:'ADD_CART',confiden
 export async function createProductContactDeliveryJourney(channel,scenario){
   assert.ok(['storefront','whatsapp'].includes(channel)&&['identity','freight'].includes(scenario));
   const runtime=await createServiceTestRuntime({local:true,storefrontQueryModel:true,storefrontRoutingProfile:'structured',postalFixture:'owned-two-zips-v1',
-    ...(channel==='storefront'?{buyerBooking:true,buyerBrowser:true,modelScript:[{phase:'storefront.intent',response:intent}]}:{whatsapp:true,c60MetaCapabilitiesFixture:'owned-c60-commerce-empty-v1',c60RecoveryTemplateMonitorFixture:'manual-only-v1'})});
+    ...(channel==='storefront'?{buyerBooking:true,buyerBrowser:true,modelScript:[{phase:'storefront.intent',response:intent}]}:{whatsapp:{marketingOpening:true,marketingOpeningPurpose:'c60-contact-delivery'},c60MetaCapabilitiesFixture:'owned-c60-commerce-empty-v1',c60RecoveryTemplateMonitorFixture:'manual-only-v1'})});
   let db,next,viewer,closed=false;
   const close=async()=>{if(closed)return;closed=true;const errors=[];for(const resource of[viewer,next])try{await resource?.close();}catch(error){errors.push(error);}
     try{await db?.$disconnect();}catch(error){errors.push(error);}try{await runtime.close();}catch(error){errors.push(error);}if(errors.length)throw new AggregateError(errors,'contact_delivery_cleanup_failed');

@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict';
 import {MODULE_METADATA} from '@nestjs/common/constants.js';
-import {createOwnedMarketingOpeningFetch} from './service-marketing-opening-fetch-fixture.mjs';
+import {createOwnedMarketingOpeningFetch,ownedC60MarketingOpeningProfile} from './service-marketing-opening-fetch-fixture.mjs';
 
 export function validateLocalWhatsAppOptions(value){
   assert.ok(value===true||value&&typeof value==='object'&&!Array.isArray(value),'local_whatsapp_fixture_required');
   const options=value===true?{}:value;
-  assert.ok(Object.keys(options).every(key=>['voiceTranscripts','operatorOutcomes','operatorOutcomesByRecipient','operatorStatusCallbacks','marketingOpening'].includes(key)),'local_whatsapp_fixture_options_invalid');
+  assert.ok(Object.keys(options).every(key=>['voiceTranscripts','operatorOutcomes','operatorOutcomesByRecipient','operatorStatusCallbacks','marketingOpening','marketingOpeningPurpose'].includes(key)),'local_whatsapp_fixture_options_invalid');
   assert.ok(options.operatorStatusCallbacks===undefined||options.operatorStatusCallbacks===true,'local_operator_status_fixture_invalid');
   assert.ok(options.marketingOpening===undefined||options.marketingOpening===true,'local_marketing_opening_fixture_invalid');
+  assert.ok(options.marketingOpeningPurpose===undefined||options.marketingOpening===true,'local_c60_marketing_opening_required');
+  ownedC60MarketingOpeningProfile(options.marketingOpeningPurpose);
   const transcripts=options.voiceTranscripts??{};
   assert.ok(transcripts&&typeof transcripts==='object'&&!Array.isArray(transcripts)&&Object.keys(transcripts).length<=20,'local_voice_fixture_invalid');
   for(const [mediaId,text]of Object.entries(transcripts))assert.ok(/^\d{1,80}$/.test(mediaId)&&typeof text==='string'&&text.trim()&&text.length<=4000,'local_voice_fixture_invalid');
@@ -34,7 +36,7 @@ export function validateLocalWhatsAppOptions(value){
   }
   return {voiceTranscripts:{...transcripts},...(outcomes===undefined?{}:{operatorOutcomes:outcomes.map(outcome=>({...outcome}))}),
     ...(byRecipient===undefined?{}:{operatorOutcomesByRecipient:Object.fromEntries(Object.entries(byRecipient).map(([recipient,outcome])=>[recipient,{...outcome}]))}),
-    ...(options.operatorStatusCallbacks?{operatorStatusCallbacks:true}:{}),...(options.marketingOpening?{marketingOpening:true}:{})};
+    ...(options.operatorStatusCallbacks?{operatorStatusCallbacks:true}:{}),...(options.marketingOpening?{marketingOpening:true}:{}),...(options.marketingOpeningPurpose?{marketingOpeningPurpose:options.marketingOpeningPurpose}:{})};
 }
 
 /** Test child DI only. No global network function or production module source
@@ -67,10 +69,11 @@ export function createLocalWhatsAppProviderFixture(options,onEvent,submissionBou
   }};
   const marketingFetch=normalized.marketingOpening?createOwnedMarketingOpeningFetch((payload)=>{
     const result=emit('sendText',{provider:'META_CLOUD',toNumber:payload.to,text:'',
-      uiMessage:{type:'interactive',interactive:payload.interactive},marketingOpening:true},
+      uiMessage:{type:'interactive',interactive:payload.interactive},marketingOpening:true,
+      ...(normalized.marketingOpeningPurpose?{marketingOpeningPurpose:normalized.marketingOpeningPurpose,phoneNumberId:ownedC60MarketingOpeningProfile(normalized.marketingOpeningPurpose).phoneNumberId}:{})},
       {messageId:'synthetic-whatsapp-'+(sequence+1),status:'queued'});
     return result.messageId;
-  }):undefined;
+  },normalized.marketingOpeningPurpose):undefined;
   function install(channelModule,senderToken,mediaType){
     const original=Reflect.getMetadata(MODULE_METADATA.PROVIDERS,channelModule);
     assert.ok(Array.isArray(original),'local_channel_provider_metadata_required');

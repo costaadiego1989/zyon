@@ -10,7 +10,7 @@ const classification={schemaVersion:2,domain:'STORE_COMMERCE',intent:'ADD_CART',
 export async function createProductCartJourney(channel,scenario){
   assert.ok(['storefront','whatsapp'].includes(channel)&&['mutations','crosssell'].includes(scenario));
   const runtime=await createServiceTestRuntime({local:true,storefrontQueryModel:true,storefrontRoutingProfile:'structured',
-    ...(channel==='storefront'?{buyerBooking:true,buyerBrowser:true,modelScript:Array.from({length:scenario==='mutations'?3:2},()=>({phase:'storefront.intent',response:classification}))}:{whatsapp:true,c60MetaCapabilitiesFixture:'owned-c60-commerce-empty-v1',c60RecoveryTemplateMonitorFixture:'manual-only-v1'})});
+    ...(channel==='storefront'?{buyerBooking:true,buyerBrowser:true,modelScript:Array.from({length:scenario==='mutations'?3:2},()=>({phase:'storefront.intent',response:classification}))}:{whatsapp:{marketingOpening:true,marketingOpeningPurpose:'c60-cart'},c60MetaCapabilitiesFixture:'owned-c60-commerce-empty-v1',c60RecoveryTemplateMonitorFixture:'manual-only-v1'})});
   let db,next,viewer,closed=false;
   const close=async()=>{if(closed)return;closed=true;const errors=[];for(const surface of[viewer,next])try{await surface?.close();}catch(error){errors.push(error);}
     try{await db?.$disconnect();}catch(error){errors.push(error);}try{await runtime.close();}catch(error){errors.push(error);}if(errors.length)throw new AggregateError(errors,'cart_journey_cleanup_failed');

@@ -2,7 +2,8 @@ import {test as base,expect,type Page,type Response} from '@playwright/test';
 import {mkdir} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {createProductSearchReadJourney} from '../../api/tests/product-search-read.fixture.mjs';
-import {declineOptionalStorefrontConsent} from '../e2e/service-buyer-storefront-helpers.js';
+import {declineWhatsAppMarketingOpening} from './product-catalog-read-helpers';
+import {declineOptionalStorefrontConsent,declineStorefrontMarketingOpening} from '../e2e/service-buyer-storefront-helpers.js';
 type Journey=Awaited<ReturnType<typeof createProductSearchReadJourney>>;
 type Channel='storefront'|'whatsapp';type Scenario='positive'|'noeligible';
 export const test=base.extend<{}, {searchChannel:Channel;searchScenario:Scenario;journey:Journey}>({
@@ -17,20 +18,21 @@ export async function openSearch(page:Page,journey:Journey){
     label.textContent='API/banco locais · Perfil estruturado · Classificador e planejador controlados · Sem envio externo';
     Object.assign(label.style,{position:'fixed',bottom:'0',left:'0',right:'0',zIndex:'20000',padding:'5px',background:'#143d2b',color:'white',font:'11px system-ui',textAlign:'center',pointerEvents:'none'});document.body.append(label);}));
   await page.goto(journey.channel==='storefront'?journey.origin+'/store/'+journey.slug:journey.origin);
-  if(journey.channel==='storefront'){await declineOptionalStorefrontConsent(page);await page.getByRole('button',{name:'Por chat Converse digitando',exact:true}).click();}
+  if(journey.channel==='storefront'){await declineOptionalStorefrontConsent(page);await page.getByRole('button',{name:'Por chat Converse digitando',exact:true}).click();await declineStorefrontMarketingOpening(page);}
   else await expect(page.getByText(/Transporte Meta capturado; sem envio/)).toBeVisible();
   await expect(page.getByRole('textbox',{name:'Mensagem',exact:true})).toBeVisible();
 }
 const ownPost=(response:Response,journey:Journey,path:string)=>new URL(response.url()).origin===journey.origin
   &&new URL(response.url()).pathname.endsWith(path)&&response.request().method()==='POST';
 export async function sendQuery(page:Page,journey:Journey,text:string){
+  const firstTurn=journey.channel==='whatsapp'&&await page.getByRole('log',{name:'Mensagens capturadas',exact:true}).locator('article').count()===0;
   const previousWire=journey.channel==='whatsapp'?await page.locator('article[data-wire-sequence]').evaluateAll(nodes=>Math.max(0,...nodes.map(node=>Number(node.getAttribute('data-wire-sequence'))))):0;
   const pending=page.waitForResponse(response=>ownPost(response,journey,journey.channel==='storefront'?'/messages':'/send'));
   const input=page.getByRole('textbox',{name:'Mensagem',exact:true});await input.fill(text);await input.press('Enter');
   const response=await pending;expect(response.status()).toBe(journey.channel==='storefront'?201:200);const raw=await response.json();
   if(journey.channel==='storefront'){expect(response.request().postDataJSON().user_message).toBe(text);return{message:raw.message,blocks:raw.blocks,previousWire};}
   expect(response.request().postDataJSON()).toEqual({text});expect(raw.status).toBe('processed');
-  await expect(page.getByRole('status')).toHaveText('Entrada processada pela API local.');const view=await journey.currentMetaView();
+  await expect(page.getByRole('status')).toHaveText('Entrada processada pela API local.');if(firstTurn)await declineWhatsAppMarketingOpening(page);const view=await journey.currentMetaView();
   return{message:view.body,blocks:view.blocks,previousWire};
 }
 export async function assertSearchTurn(page:Page,journey:Journey,result:any,ceiling:number){

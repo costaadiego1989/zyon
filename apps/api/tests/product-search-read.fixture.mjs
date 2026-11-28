@@ -22,7 +22,7 @@ export async function createProductSearchReadJourney(channel,scenario){
   const ceilings=scenario==='positive'?[10000,5000]:[10000];
   const modelScript=ceilings.flatMap(ceiling=>[{phase:'storefront.intent',response:classifier},{phase:'storefront.shopping-plan',response:plan(ceiling)}]);
   const runtime=await createServiceTestRuntime({local:true,storefrontQueryModel:true,storefrontRoutingProfile:'structured',modelScript,
-    ...(channel==='storefront'?{buyerBooking:true,buyerBrowser:true}:{whatsapp:true,c60MetaCapabilitiesFixture:'owned-c60-search-empty-v1',c60RecoveryTemplateMonitorFixture:'manual-only-v1'})});
+    ...(channel==='storefront'?{buyerBooking:true,buyerBrowser:true}:{whatsapp:{marketingOpening:true,marketingOpeningPurpose:'c60-search'},c60MetaCapabilitiesFixture:'owned-c60-search-empty-v1',c60RecoveryTemplateMonitorFixture:'manual-only-v1'})});
   let db,next,viewer,closed=false;
   const close=async()=>{if(closed)return;closed=true;const errors=[];
     for(const surface of[viewer,next])try{await surface?.close();}catch(error){errors.push(error);}
@@ -109,8 +109,8 @@ export async function createProductSearchReadJourney(channel,scenario){
       await db.merchantInstallation.create({data:{merchantId,name:'Owned search Next',environment:'live',status:'active',widgetVersion:'v2',allowedOrigins:[BUYER_STOREFRONT_ORIGIN]}});
       next=await runtime.buyerBooking.openStorefront();assert.equal(next.origin,BUYER_STOREFRONT_ORIGIN);origin=next.origin;
     }else{
-      const phoneNumberId='900062000001';deviceId='META_CLOUD:'+phoneNumberId;buyerPhone='5511998000062';
-      await db.whatsAppChannelConfig.create({data:{id:prefix+'-config',merchantId,provider:'META_CLOUD',enabled:true,status:'ACTIVE',deviceId,
+      const phoneNumberId='900062000001',configId=prefix+'-config';deviceId='META_CLOUD:'+configId;buyerPhone='5511998000062';
+      await db.whatsAppChannelConfig.create({data:{id:configId,merchantId,provider:'META_CLOUD',enabled:true,status:'ACTIVE',deviceId,
         credentials:{phoneNumberId,wabaId:'900062999',accessToken:'synthetic-no-external-meta-secret'}}});
       viewer=await createProductCatalogViewer({runtime,db,merchantId,deviceId,phoneNumberId,buyerPhone});origin=viewer.origin;
     }
